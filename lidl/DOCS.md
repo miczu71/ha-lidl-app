@@ -16,11 +16,23 @@ Lidl loguje przez stronę z captcha i kodem MFA, więc robisz to w przeglądarce
 Token sesji odnawia się automatycznie (Lidl wydaje nowy przy każdym odświeżeniu, add-on zapisuje go od razu).
 Jeśli sesja wygaśnie, panel poprosi o ponowne logowanie.
 
+## Historia zakupów (zakładka Produkty)
+
+Po zalogowaniu konta kliknij **Pobierz historię** (zakładka Produkty). Pierwsze pobranie obejmuje wszystkie
+paragony konta, idzie powoli (jeden paragon na kilka sekund, kilkanaście minut) i działa w tle — panel możesz
+zamknąć. Jeśli Lidl ograniczy liczbę żądań albo zerwie się połączenie, import zatrzymuje się, a **Wznów teraz**
+dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie.
+
+- **Oszczędności** to suma rabatów z paragonów — punkt odniesienia sprzed aktywacji kuponów przez add-on.
+- **Wykres** pokazuje wydatki na pozycje (po rabatach, bez kaucji) w wybranym zakresie dat i kroku; można
+  zawęzić do jednego produktu albo pokazać sztuki zamiast złotych.
+- Produkt to kod artykułu z paragonu, więc zmiana kodu przez Lidl tworzy nowy produkt.
+
 ## Opcje
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
 
 ## Prywatność
 
-Hasła nie trafiają do add-onu. Tokeny są w `/data/accounts/` (0600) i wchodzą do kopii zapasowych add-onu —
-traktuj kopie jak dane poufne.
+Hasła nie trafiają do add-onu. Tokeny są w `/data/accounts/` (0600), a historia zakupów w `/data/history.db`;
+oba wchodzą do kopii zapasowych add-onu — traktuj kopie jak dane poufne.

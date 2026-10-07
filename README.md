@@ -14,7 +14,8 @@ nie przewiduje — używasz na własne ryzyko (zmiany API, blokada konta).
 | E0 | Rozpoznanie API (logowanie, paragony, kupony, gazetki) | ✅ |
 | E1 | Add-on, logowanie wielu kont, magazyn tokenów | ✅ 0.1.0 |
 | D1 | Nowy styl wizualny wzorowany na aplikacji Lidl Plus ([docs/DESIGN.md](docs/DESIGN.md)) | ✅ 0.2.0 |
-| E2–E6 | Historia paragonów, kupony, gazetki, lista zakupów, integracja z Budżetem | [docs/ROADMAP.md](docs/ROADMAP.md) |
+| E2 | Historia paragonów, ekran Produkty, wykres wydatków ([docs/PLAN_E2_historia.md](docs/PLAN_E2_historia.md)) | 0.3.0 (pierwszy import na żywo do potwierdzenia) |
+| E3–E7 | Kupony, gazetki, lista zakupów, integracja z Budżetem, śledzenie cen | [docs/ROADMAP.md](docs/ROADMAP.md) |
 
 ## Instalacja
 

@@ -36,6 +36,7 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 ## Stan i otwarte sprawy (2026-10-07)
 
 - [x] E0 rozpoznanie, E1 add-on 0.1.0 (release `v0.1.0`), CI (testy, ruff, mypy, budowa arm64/amd64), D1 nowy styl (0.2.0).
+- [x] E2.1–E2.2 kod: parser, baza, import, ekran Produkty z wykresem (0.3.0). [ ] E2.3: wydanie i pierwszy import na żywo (wnioski o `yearOffset` po imporcie).
 - [x] Konto pierwszej osoby połączone w panelu (add-on 0.2.0 na żywo).
 - [ ] Zalogować w panelu konto drugiej osoby.
 - [ ] Włączyć „Show in sidebar” dla add-onu (domyślnie wyłączone).
