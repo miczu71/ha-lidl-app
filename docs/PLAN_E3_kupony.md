@@ -54,6 +54,23 @@ Założenia (zaakceptowane):
 Cofnięcie: opcja `auto_activate` = `false` zatrzymuje aktywacje bez wydania; kod — revert; tabela `coupons`
 jest addytywna.
 
+## Wyniki E3.1 (test aktywacji, 2026-10-07, konto osoby 1)
+- **Aktywacja działa w dwóch krokach.** Kupon z listy ma `id` wspólne (często równe `promotionId`). Pierwszy
+  `POST /v2/promotions/{id}/activation` zwraca błąd (412 lub 499), ale tworzy **egzemplarz kuponu konta** —
+  na liście ten sam `promotionId` ma odtąd nowe `id` (format `01a1…`). `POST` z nowym `id` kończy się sukcesem
+  (pusta odpowiedź) i `isActivated` zmienia się od razu (`isProcessing` = false). Kupony z `id` w formacie `01a1…`
+  (egzemplarz już istnieje) prawdopodobnie aktywują się za pierwszym razem.
+- **Kupony nadchodzące:** lista zawiera kupony, które jeszcze nie obowiązują (11 z ~40 w AllStores+SSC);
+  aktywacja zwraca 412 z `errors: ["UserPromotionStartValidityDateIsGreaterThanToday"]`. Aktywujemy tylko kupony
+  z `validity.start` ≤ teraz; nadchodzące łapie dzienny przebieg w dniu startu (start zwykle o 00:00 czasu PL,
+  więc przebieg o 07:00 je obejmie).
+- Treść błędu jest w ciele odpowiedzi (`{"isSuccess":false,"errorType":"PreconditionFailed","errors":[…]}`) —
+  klient add-onu ma ją logować (bez tokenów), żeby rozpoznawać przyczyny.
+- Algorytm dla E3.2: `POST` po `id`; przy błędzie pobrać listę ponownie, znaleźć kupon po `promotionId` i, gdy ma
+  nowe `id`, ponowić `POST` raz. Pomijać kupony nadchodzące i `isActivated`.
+- SSC ma 3 kupony ogólne „na zakupy za min. 100 zł” (10/20/30 zł rabatu) — nie testowane; do sprawdzenia, czy
+  aktywacja jednego blokuje pozostałe.
+
 ## Ryzyka
 - Regulamin Lidla / blokada konta przy zbyt wielu żądaniach — przerwy, raz dziennie, tryb próbny na start.
 - Nieznane zachowanie API aktywacji (limity, błędy, kupony „isProcessing”) — rozpoznanie w E3.1.
