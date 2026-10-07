@@ -46,22 +46,26 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 
 - **E1 Szkielet add-onu i logowanie kont** — ✅ 0.1.0 (wydane, zainstalowane, UI sprawdzone w HA; CI zielony).
-- **D1 Nowy styl wizualny (`design/`) — tor niezależny od E2–E6, kolejność do ustalenia** (UI rośnie od E3,
+- **D1 Nowy styl wizualny w Claude Design — tor niezależny od E2–E6, kolejność do ustalenia** (UI rośnie od E3,
   więc najlepiej przed kuponami). Dziś panel ma styl Budżetu; nowy styl ma **naśladować wygląd strony i aplikacji
-  Lidl**. Kroki (każdy z checkpointem):
+  Lidl**. Powstaje w Claude Design (Artifact typu *Design*: kanwa z makietami; systemu designu na koncie jeszcze
+  nie ma, więc zakładamy własny), a do repo trafia tylko wynik. Kroki (każdy z checkpointem):
   1. *Referencje:* zrzuty publicznej strony lidl.pl (Playwright, desktop i mobile) oraz ekranów aplikacji
-     (dostarcza użytkownik z telefonu). Referencje zostają lokalnie, **poza repo** (prawa autorskie).
-  2. *Analiza:* kolory, typografia, kształty (przyciski, kafelki, kupony, chipy), odstępy, ikony, ruch;
-     kontrast ≥ 4,5:1 (żółć na bieli zwykle nie przechodzi — dobrać warianty tekstowe).
-  3. *`design/`:* `DESIGN.md` (tokeny i zasady), `tokens.css`, opis komponentów; własny, wolny od licencji
-     zestaw fontów i ikon (SVG) o podobnym charakterze.
-  4. *Wdrożenie:* podmiana `app.css` i szablonów (ekran kont, logowanie, później kupony/listy), weryfikacja
-     w przeglądarce na desktopie i telefonie, wersja z cache-bustingiem; wydanie skillem `release`.
-  5. *Akceptacja:* zestawienie obok siebie (referencja ↔ nasz ekran), decyzja użytkownika.
-  Ograniczenia: naśladujemy **styl** (paleta, kształt, charakter), bez logo, znaków towarowych i
-  zastrzeżonych fontów Lidl; zastrzeżenie „nieoficjalny, niepowiązany z Lidl” zostaje widoczne w UI i README.
+     (dostarcza użytkownik z telefonu). Zostają lokalnie, **poza repo** (prawa autorskie). Wgranie ich do
+     artefaktu Claude Design to wysłanie do zewnętrznej usługi (artefakt jest domyślnie prywatny, bez
+     udostępniania) — zgoda użytkownika przed wgraniem.
+  2. *System designu* (Artifact typu *Design System*, „Lidl Plus — styl”): paleta, typografia, kształty,
+     komponenty (przyciski, chipy, kafelki kuponów, listy), ruch; kontrast ≥ 4,5:1 (żółć na bieli zwykle nie
+     przechodzi — osobne warianty tekstowe); wolne od licencji fonty i ikony SVG o podobnym charakterze.
+  3. *Makiety* (Artifact typu *Design*): ekrany konta, logowania, a później kupony, ranking produktów, gazetki,
+     lista zakupów — desktop i telefon; iteracje z użytkownikiem w przeglądarce.
+  4. *Akceptacja:* zestawienie obok siebie (referencja ↔ makieta), decyzja użytkownika.
+  5. *Wdrożenie w add-onie:* tokeny i zasady z zaakceptowanego systemu do repo (`docs/DESIGN.md` + `app.css`),
+     podmiana szablonów, weryfikacja w przeglądarce (desktop i telefon), cache-busting, wydanie skillem
+     `release`. Do implementacji skill `impeccable` (`init` → `PRODUCT.md`, potem `document`).
+  Ograniczenia: naśladujemy **styl** (paleta, kształt, charakter), bez logo, znaków towarowych i zastrzeżonych
+  fontów Lidl; zastrzeżenie „nieoficjalny, niepowiązany z Lidl” zostaje widoczne w UI i README.
   Do ustalenia przed startem: czy naśladować bardziej stronę, czy aplikację (różnią się), oraz jasny/ciemny motyw.
-  Do pracy nad UI użyć skilla `impeccable` (`init` → `PRODUCT.md`, potem `document`).
 - **E2 Historia paragonów:** import całej historii wszystkich kont (powoli, z przerwami), deduplikacja pozycji,
   normalizacja produktów, ranking „najczęściej kupowane” (częstość, cena, ostatni zakup). Na początek **punkt
   odniesienia oszczędności**: lista paragonów ma pola `savings` i `couponsUsedCount` — suma „ile oszczędzaliśmy
