@@ -66,8 +66,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   Ograniczenia: naśladujemy **styl** (paleta, kształt, charakter), bez logo, znaków towarowych i zastrzeżonych
   fontów Lidl; zastrzeżenie „nieoficjalny, niepowiązany z Lidl” zostaje widoczne w UI i README.
   Decyzje (2026-10-07): wzorzec = **aplikacja** (strona i aplikacja są do siebie podobne; przy różnicach wygrywa
-  aplikacja); zgoda użytkownika na wgranie referencji do prywatnego artefaktu Claude Design. Do ustalenia przed
-  startem: jasny/ciemny motyw, kolejność względem E2, sposób dostarczenia zrzutów z aplikacji.
+  aplikacja); motyw **jasny**; D1 robimy **przed E2**; zrzuty z aplikacji dostarcza użytkownik wklejając je do
+  czatu; zgoda na wgranie referencji do prywatnego artefaktu Claude Design (po osobnym „go” przy kroku 2).
 - **E2 Historia paragonów:** import całej historii wszystkich kont (powoli, z przerwami), deduplikacja pozycji,
   normalizacja produktów, ranking „najczęściej kupowane” (częstość, cena, ostatni zakup). Na początek **punkt
   odniesienia oszczędności**: lista paragonów ma pola `savings` i `couponsUsedCount` — suma „ile oszczędzaliśmy
