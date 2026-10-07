@@ -71,7 +71,27 @@ z tokenu) i czy hosty przyjmują nasz token bez dodatkowych nagłówków. Rozstr
 `stampcardbenefits`, jedno konto, tylko odczyt (bez `start`, `redeemed`, `view`); wypisuje status HTTP i nazwy kluczy
 oraz liczności, bez surowych odpowiedzi.
 
+## Wyniki E20.1 (2026-10-08, konto osoby 1, tylko GET)
+
+`~/dev/lidl-spike/probe_rewards.py` (wypisuje strukturę i pola z białej listy, bez tokenu i `userId`).
+
+- **Zdrapki — działa (200).** `GET purchaselottery …/v2/PL/lotteries?userId=<sub z tokenu>` → lista; element:
+  `id`, `promotionId`, `promotionCode`, `type` (`Scratch`), `creationDate`, `expirationDate` (lokalna strefa, koniec
+  dnia), `logo`, `background`, `translations`. Brak pola `status` — lista zawiera tylko niezdrapane (do potwierdzenia
+  po zdrapaniu). Ważność krótka: utworzona 05.10 wieczorem, ważna do 08.10 23:59 (3 dni) → przypomnienie ma sens.
+- **Coupon Plus — działa (200)** bez dodatkowych parametrów (nagłówek `Segment-Ids` jak przy kuponach).
+  `promotionCode`, `type` (`Standard`), `endDate`; `clusters[]`: `type` (`Store`), `status` (`Active`),
+  `reachedAmount` (335,7), `reachedPercent` (22,38 → ostatni próg 1500 zł), `goals[]` (5): `value` (50, 300, 500, …),
+  `status` (`Won`/`Uncompleted`), `prize.type` (`Coupon`), `prize.coupon.title` (nagroda). „Brakuje do progu” =
+  pierwszy `Uncompleted.value − reachedAmount`.
+- **Pieczątki (`stampcard` v3/v4, `stampcardbenefits` v3):** bez `storeId` → 400; ze `storeId` (=`storeCode` z
+  paragonu) → 404 — najpewniej brak aktywnej akcji pieczątkowej dla konta. Do sprawdzenia, gdy w aplikacji pojawi
+  się Pieczątka Plus; do tego czasu poza zakresem.
+
+**Wniosek:** E20 = zdrapki (przypomnienie o ważności) + Coupon Plus (postęp i brakująca kwota). Następny krok: wywiad
+o kształcie funkcji (gdzie pokazać, kiedy i komu powiadomienie, oba konta), potem plan E20.2+.
+
 ## Stan
 
-- [x] E20.0 rozpoznanie APK — 2026-10-08: wykonalne, endpointy i pola wyżej. Sprzątanie `apk/` i `tools/` robi użytkownik.
-- [ ] E20.1 próbny GET z tokenem jednego konta.
+- [x] E20.0 rozpoznanie APK — 2026-10-08: wykonalne, endpointy i pola wyżej. Katalogi `apk/` i `tools/` usunięte.
+- [x] E20.1 próbny GET z tokenem jednego konta — 2026-10-08: zdrapki i Coupon Plus działają, pieczątki 404 (brak akcji).
