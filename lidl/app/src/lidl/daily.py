@@ -1,4 +1,5 @@
-"""Dzienny przebieg o stałej godzinie (opcja `run_time`, czas lokalny): paragony, kupony, powiadomienie."""
+"""Dzienny przebieg o stałej godzinie (opcja `run_time`, czas lokalny): paragony, kupony, nagrody,
+powiadomienie; wieczorem (18:00) przypomnienie o zdrapkach wygasających dziś."""
 
 from __future__ import annotations
 
@@ -6,16 +7,19 @@ import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 import aiohttp
 
 from . import notify
 from .accounts import AccountStore
 from .coupons import CouponRunner
+from .rewards import RewardsRunner
 from .sync import HistorySync
 
 log = logging.getLogger(__name__)
+
+EVENING = time(18, 0)
 
 
 def seconds_until(now: datetime, at: time) -> float:
@@ -43,36 +47,45 @@ async def at_time_loop(
 
 
 class DailyJob:
-    """Nowe paragony, potem kupony wszystkich połączonych kont i jedno powiadomienie o nowych decyzjach."""
+    """Nowe paragony, potem kupony i nagrody wszystkich połączonych kont i jedno powiadomienie."""
 
     def __init__(
         self,
         store: AccountStore,
         sync: HistorySync,
         runner: CouponRunner,
+        rewards: RewardsRunner,
         session: aiohttp.ClientSession,
         *,
         dry_run: bool,
     ) -> None:
-        self._store, self._sync, self._runner, self._session = store, sync, runner, session
+        self._store, self._sync, self._runner, self._rewards = store, sync, runner, rewards
+        self._session = session
         self.dry_run = dry_run
         self.last_check: datetime | None = None
         self.running = False  # kupony w toku (rano albo „Sprawdź teraz”)
         self._task: asyncio.Task[None] | None = None
 
+    def _accounts(self) -> list[tuple[str, str]]:
+        return [(a.slug, a.label) for a in self._store.list() if a.connected]
+
     async def __call__(self) -> None:
-        accounts = [a for a in self._store.list() if a.connected]
-        await self._sync.run_daily([a.slug for a in accounts])
-        await self._coupons([(a.slug, a.label) for a in accounts])
+        accounts = self._accounts()
+        await self._sync.run_daily([slug for slug, _ in accounts])
+        await self._coupons(accounts)
+
+    async def evening(self) -> None:
+        """Zdrapki wygasające dziś — osobne powiadomienie (nie zastępuje porannego)."""
+        message = notify.compose_expiring(await self._rewards.run_all(self._accounts()), date.today())
+        if message:
+            await notify.send(self._session, message, tag=notify.TAG_SCRATCH)
 
     def start_coupons(self) -> bool:
         """„Sprawdź teraz” w panelu: kupony w tle; False, gdy przebieg już trwa."""
         if self.running:
             return False
         self.running = True  # panel od razu pokazuje „sprawdzam”, zanim zadanie ruszy
-        self._task = asyncio.create_task(
-            self._coupons([(a.slug, a.label) for a in self._store.list() if a.connected])
-        )
+        self._task = asyncio.create_task(self._coupons(self._accounts()))
         return True
 
     async def close(self) -> None:
@@ -86,9 +99,10 @@ class DailyJob:
         self.running = True
         try:
             results = await self._runner.run_all(accounts, dry_run=self.dry_run)
+            rewards = await self._rewards.run_all(accounts)
         finally:
             self.running = False
         self.last_check = datetime.now()
-        message = notify.compose(results, dry_run=self.dry_run)
+        message = notify.compose(results, rewards, dry_run=self.dry_run)
         if message:
             await notify.send(self._session, message)

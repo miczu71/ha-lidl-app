@@ -28,9 +28,10 @@ from lidl import __version__
 from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
-from lidl.daily import DailyJob, at_time_loop
+from lidl.daily import EVENING, DailyJob, at_time_loop
 from lidl.history import CANDIDATE_MIN_PURCHASES, History
 from lidl.receipt import parse_detail
+from lidl.rewards import RewardsRunner
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
@@ -75,16 +76,27 @@ def create_app(settings: Settings) -> FastAPI:
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             sync = HistorySync(service, history)
             runner = CouponRunner(service, history)
-            job = DailyJob(service.store, sync, runner, session, dry_run=not settings.auto_activate)
+            job = DailyJob(
+                service.store,
+                sync,
+                runner,
+                RewardsRunner(service),
+                session,
+                dry_run=not settings.auto_activate,
+            )
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.runner, app.state.job = runner, job
-            daily = asyncio.create_task(at_time_loop(settings.run_time, job))
+            loops = [
+                asyncio.create_task(at_time_loop(settings.run_time, job)),
+                asyncio.create_task(at_time_loop(EVENING, job.evening)),
+            ]
             try:
                 yield
             finally:
-                daily.cancel()
-                with suppress(asyncio.CancelledError):
-                    await daily
+                for loop in loops:
+                    loop.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await loop
                 await job.close()
                 await sync.close()
 

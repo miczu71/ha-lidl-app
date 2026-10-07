@@ -1,17 +1,19 @@
-"""Poranne powiadomienie na `notify.family` (API Core przez Supervisora, `homeassistant_api`): którą kartę
-wziąć na zakupy i jakie kupony są na niej aktywne."""
+"""Powiadomienia na `notify.family` (API Core przez Supervisora, `homeassistant_api`): poranne — którą kartę
+wziąć na zakupy, jakie kupony są na niej aktywne i jakie zdrapki czekają; wieczorne — zdrapki wygasające
+dziś."""
 
 from __future__ import annotations
 
 import logging
 import os
 import re
-from datetime import date
+from datetime import date, timedelta
 
 import aiohttp
 
 from .coupons import AccountReport, ActiveCoupon
-from .text import count_text
+from .rewards import Rewards
+from .text import count_text, fmt_day_month, plural
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +21,7 @@ NOTIFY_URL = "http://supervisor/core/api/services/notify/family"
 # panel add-onu w HA: Supervisor nadaje kontenerowi HOSTNAME = slug z „-” zamiast „_” (np. f0987e0f-lidl)
 PANEL = "/app/" + os.environ.get("HOSTNAME", "f0987e0f-lidl").replace("-", "_")
 TAG = "lidl-kupony"  # nowe powiadomienie zastępuje poprzednie
+TAG_SCRATCH = "lidl-zdrapki"  # wieczorne przypomnienie nie zastępuje porannego
 
 
 def _name(c: ActiveCoupon) -> str:
@@ -40,26 +43,42 @@ def _label(c: ActiveCoupon) -> str:
     return f"{_name(c)} {_discount(c.discount)}"
 
 
+def _until(d: date, today: date) -> str:
+    return "dziś" if d == today else "jutra" if d == today + timedelta(days=1) else fmt_day_month(d)
+
+
 def compose(
-    results: dict[str, AccountReport], *, dry_run: bool, today: date | None = None
+    results: dict[str, AccountReport],
+    rewards: dict[str, Rewards] | None = None,
+    *,
+    dry_run: bool,
+    today: date | None = None,
 ) -> tuple[str, str] | None:
-    """Tytuł z rekomendacją karty i treść z kuponami per karta; None, gdy żadna karta nie ma aktywnych kuponów
-    na nasze produkty."""
-    day = (today or date.today()).isoformat()
+    """Tytuł z rekomendacją karty i treść z kuponami per karta oraz zdrapkami; None, gdy żadna karta nie ma
+    aktywnych kuponów na nasze produkty ani zdrapek."""
+    today = today or date.today()
+    prefix = "Lidl (tryb próbny): " if dry_run else "Lidl: "
+    cards = [
+        f"{label} do {_until(c.expires.astimezone().date(), today)}"
+        for label, r in (rewards or {}).items()
+        for c in r.scratch_cards
+    ]
+    scratch = "Zdrapki: " + " · ".join(cards)
     shown = {
         label: sorted((c for c in r.active if c.weight or c.general), key=lambda c: (-c.weight, _name(c)))
         for label, r in results.items()
         if r.weighted_count
     }
     if not shown:
-        return None
+        title = plural(len(cards), "zdrapka", "zdrapki", "zdrapek") + " do zdrapania"
+        return (prefix + title, scratch) if cards else None
     labels = {label: [_label(c) for c in cs] for label, cs in shown.items()}
     common = set.intersection(*map(set, labels.values())) if len(labels) > 1 else set()
     lines = [f"{label}: " + " · ".join(x for x in ls if x not in common) for label, ls in labels.items()]
     lines = [line for line in lines if not line.endswith(": ")]
     if common:
         lines.append("Obie: " + " · ".join(x for x in next(iter(labels.values())) if x in common))
-    ending = dict.fromkeys(_name(c) for cs in shown.values() for c in cs if c.valid_to == day)
+    ending = dict.fromkeys(_name(c) for cs in shown.values() for c in cs if c.valid_to == today.isoformat())
     if ending:
         lines.append("Koniec dziś: " + ", ".join(ending))
     failed = [
@@ -70,20 +89,37 @@ def compose(
     ]
     if failed:
         lines.append("Nie udało się: " + ", ".join(failed))
+    if cards:
+        lines.append(scratch)
     best = max(results, key=lambda label: results[label].score)
     count = count_text(results[best].weighted_count, "kupon", "kupony", "kuponów") + " na Wasze produkty"
     tie = sum(r.score == results[best].score for r in results.values()) > 1
     title = f"obie karty podobnie ({count})" if tie else f"dziś karta {best} ({count})"
-    return ("Lidl (tryb próbny): " if dry_run else "Lidl: ") + title, "\n".join(lines)
+    return prefix + title, "\n".join(lines)
 
 
-async def send(session: aiohttp.ClientSession, message: tuple[str, str]) -> None:
+def compose_expiring(rewards: dict[str, Rewards], today: date | None = None) -> tuple[str, str] | None:
+    """Wieczorne przypomnienie: zdrapki wygasające dziś (kto ma je zdrapać); None, gdy żadnej."""
+    today = today or date.today()
+    labels = [
+        label
+        for label, r in rewards.items()
+        for c in r.scratch_cards
+        if c.expires.astimezone().date() == today
+    ]
+    if not labels:
+        return None
+    title = "zdrapka wygasa" if len(labels) == 1 else "zdrapki wygasają"
+    return f"Lidl: {title} dziś o 23:59", ", ".join(labels) + " — zdrap w aplikacji Lidl Plus"
+
+
+async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag: str = TAG) -> None:
     token = os.environ.get("SUPERVISOR_TOKEN")
     if not token:
         log.info("Brak SUPERVISOR_TOKEN (tryb dev) — powiadomienie tylko w logu: %s", message[0])
         return
     title, body = message
-    payload = {"title": title, "message": body, "data": {"clickAction": PANEL, "url": PANEL, "tag": TAG}}
+    payload = {"title": title, "message": body, "data": {"clickAction": PANEL, "url": PANEL, "tag": tag}}
     try:
         async with session.post(
             NOTIFY_URL, json=payload, headers={"Authorization": f"Bearer {token}"}

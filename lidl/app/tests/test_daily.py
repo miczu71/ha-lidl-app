@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import pytest
@@ -10,6 +10,7 @@ from lidl import notify
 from lidl.accounts import Account
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.daily import DailyJob, at_time_loop, seconds_until
+from lidl.rewards import Rewards, ScratchCard
 
 
 @pytest.mark.parametrize(
@@ -68,6 +69,22 @@ class FakeRunner:
         }
 
 
+class FakeRewards:
+    def __init__(self, log: list[str], expires: datetime | None = None) -> None:
+        self.log, self.expires = log, expires
+
+    async def run_all(self, accounts: list[tuple[str, str]]) -> dict[str, Rewards]:
+        self.log.append(f"nagrody {accounts}")
+        cards = (ScratchCard("Scratch", datetime(2026, 10, 5, 19, 0), self.expires),) if self.expires else ()
+        return {"Osoba 1": Rewards(cards, None)}
+
+
+def _job(log: list[str], expires: datetime | None = None) -> DailyJob:
+    return DailyJob(
+        FakeStore(), FakeSync(log), FakeRunner(log), FakeRewards(log, expires), None, dry_run=True
+    )  # type: ignore[arg-type]
+
+
 async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -77,18 +94,34 @@ async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
         log.append(f"powiadomienie {message[0]}")
 
     monkeypatch.setattr(notify, "send", send)
-    job = DailyJob(FakeStore(), FakeSync(log), FakeRunner(log), None, dry_run=True)  # type: ignore[arg-type]
-    await job()
+    await _job(log)()
     assert log == [
         "paragony ['osoba-1']",
         "kupony [('osoba-1', 'Osoba 1')] próbnie=True",
+        "nagrody [('osoba-1', 'Osoba 1')]",
         "powiadomienie Lidl (tryb próbny): dziś karta Osoba 1 (1 kupon na Wasze produkty)",
     ]
 
 
 async def test_start_coupons_reports_running_at_once_and_only_one_run() -> None:
     log: list[str] = []
-    job = DailyJob(FakeStore(), FakeSync(log), FakeRunner(log), None, dry_run=True)  # type: ignore[arg-type]
+    job = _job(log)
     assert job.start_coupons() is True and job.running is True
     assert job.start_coupons() is False
     await job.close()
+
+
+@pytest.mark.parametrize(("days", "sent"), [(0, True), (1, False)])
+async def test_evening_reminds_only_about_cards_expiring_today(
+    monkeypatch: pytest.MonkeyPatch, days: int, sent: bool
+) -> None:
+    log: list[str] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str) -> None:
+        log.append(f"powiadomienie {message[0]} [{tag}]")
+
+    monkeypatch.setattr(notify, "send", send)
+    expires = datetime.combine(date.today() + timedelta(days=days), time(23, 59, 59))
+    await _job(log, expires).evening()
+    reminder = "powiadomienie Lidl: zdrapka wygasa dziś o 23:59 [lidl-zdrapki]"
+    assert log == ["nagrody [('osoba-1', 'Osoba 1')]"] + ([reminder] if sent else [])

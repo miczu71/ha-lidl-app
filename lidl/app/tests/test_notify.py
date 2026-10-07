@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 import pytest
 
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
-from lidl.notify import NOTIFY_URL, PANEL, compose, send
+from lidl.notify import NOTIFY_URL, PANEL, compose, compose_expiring, send
+from lidl.rewards import Rewards, ScratchCard
 
 TODAY = date(2026, 10, 7)
 LATER = "2026-10-10"
@@ -66,6 +67,37 @@ def test_dry_run_title_and_new_failures_line() -> None:
     assert body.splitlines()[-1] == "Nie udało się: Jajka L (Osoba 1)"
 
 
+def _rewards(*days: int) -> Rewards:
+    cards = tuple(
+        ScratchCard("Scratch", datetime(2026, 10, 5, 19, 0), datetime(2026, 10, d, 23, 59, 59)) for d in days
+    )
+    return Rewards(cards, None)
+
+
+def test_scratch_cards_line_after_coupons() -> None:
+    report = AccountReport([], [_c("Banany", "-10%", 4)])
+    rewards = {"Osoba 1": _rewards(7), "Osoba 2": _rewards(8, 12)}
+    _, body = compose({"Osoba 1": report}, rewards, dry_run=False, today=TODAY) or ("", "")
+    assert body.splitlines()[-1] == "Zdrapki: Osoba 1 do dziś · Osoba 2 do jutra · Osoba 2 do 12 paź"
+
+
+def test_scratch_card_alone_still_sends_morning_message() -> None:
+    assert compose({}, {"Osoba 1": _rewards(9)}, dry_run=False, today=TODAY) == (
+        "Lidl: zdrapka do zdrapania",
+        "Zdrapki: Osoba 1 do 9 paź",
+    )
+    assert compose({}, {"Osoba 1": _rewards()}, dry_run=False, today=TODAY) is None
+
+
+def test_expiring_reminder_lists_only_cards_ending_today() -> None:
+    rewards = {"Osoba 1": _rewards(7), "Osoba 2": _rewards(7, 9), "Osoba 3": _rewards(8)}
+    assert compose_expiring(rewards, TODAY) == (
+        "Lidl: zdrapki wygasają dziś o 23:59",
+        "Osoba 1, Osoba 2 — zdrap w aplikacji Lidl Plus",
+    )
+    assert compose_expiring({"Osoba 3": _rewards(8)}, TODAY) is None
+
+
 class FakeResponse:
     status = 200
 
@@ -96,6 +128,13 @@ async def test_send_posts_to_notify_family_with_tap_action_and_tag(monkeypatch: 
         "message": "Treść",
         "data": {"clickAction": PANEL, "url": PANEL, "tag": "lidl-kupony"},
     }
+
+
+async def test_send_with_own_tag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "t")
+    session = FakeSession()
+    await send(session, ("Tytuł", "Treść"), tag="lidl-zdrapki")  # type: ignore[arg-type]
+    assert session.posts[0][1]["data"]["tag"] == "lidl-zdrapki"
 
 
 async def test_send_without_token_only_logs(monkeypatch: pytest.MonkeyPatch) -> None:
