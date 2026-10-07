@@ -149,3 +149,23 @@ async def test_daily_run_skips_accounts_never_imported(history: History) -> None
     src.list_calls.clear()
     await sync.run_daily(["osoba-1", "osoba-2"])
     assert src.list_calls == [0]
+
+
+async def test_daily_loop_waits_then_runs_every_interval(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    waits: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 3:
+            raise asyncio.CancelledError
+
+    sync = HistorySync(src, history, pause=0, sleep=sleep)
+    await sync.import_account("osoba-1", full=True)
+    src.list_calls.clear()
+    waits.clear()
+    with pytest.raises(asyncio.CancelledError):
+        await sync.daily_loop(lambda: ["osoba-1"], first_delay=300, interval=86400)
+    assert waits[0] == 300
+    assert 86400 in waits
+    assert src.list_calls == [0, 0]

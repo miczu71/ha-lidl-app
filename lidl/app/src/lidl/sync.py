@@ -67,6 +67,10 @@ class HistorySync:
         self._progress: dict[str, SyncProgress] = {}
         self._tasks: dict[str, asyncio.Task[SyncResult]] = {}
 
+    @property
+    def pause(self) -> float:
+        return self._pause
+
     def progress(self, slug: str) -> SyncProgress:
         return self._progress.setdefault(slug, SyncProgress())
 
@@ -79,6 +83,13 @@ class HistorySync:
         self._tasks[slug] = asyncio.create_task(self.import_account(slug, full=full))
         return True
 
+    async def close(self) -> None:
+        """Przerywa trwające importy (zamykanie add-onu); postęp zostaje w bazie."""
+        tasks = [t for t in self._tasks.values() if not t.done()]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     async def wait(self, slug: str) -> None:
         task = self._tasks.get(slug)
         if task:
@@ -89,6 +100,15 @@ class HistorySync:
         for slug in slugs:
             if self._history.ticket_count(slug) > 0 and self.start(slug, full=False):
                 await self.wait(slug)
+
+    async def daily_loop(
+        self, slugs: Callable[[], list[str]], *, first_delay: float = 300.0, interval: float = 86400.0
+    ) -> None:
+        """Dzienny przebieg w tle (anulowany przy zamykaniu add-onu)."""
+        await self._sleep(first_delay)
+        while True:
+            await self.run_daily(slugs())
+            await self._sleep(interval)
 
     async def import_account(self, slug: str, *, full: bool) -> SyncResult:
         progress = self.progress(slug)

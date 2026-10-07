@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block head %}{% if status.state == 'running' %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Produkty</h1>
+  <p class="lead">Co kupujemy najczęściej i ile na to wydajemy. Dane z paragonów Lidl Plus wszystkich kont.</p>
+</div>
+
+{% if status.state == 'ok' %}
+<p class="notice" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></span>
+  <span>{{ ok_text }}</span>
+</p>
+{% elif status.state == 'running' %}
+<section class="card" aria-labelledby="imp">
+  <h2 class="s" id="imp">Pobieram historię paragonów</h2>
+  {% if status.total %}
+  <div class="prog" role="progressbar" aria-label="Postęp pobierania paragonów" aria-valuemin="0" aria-valuemax="{{ status.total }}" aria-valuenow="{{ status.done }}"><div class="prog__fill" style="width: {{ (status.done * 100 // status.total) }}%"></div></div>
+  <p class="meta" style="margin: 0">{{ status.done }} z {{ status.total }} paragonów, jeszcze około {{ status.eta }} min. Import działa w tle, panel możesz zamknąć. Strona odświeża się sama.</p>
+  {% else %}
+  <p class="meta" style="margin: 0">Pobieram listę paragonów. Import działa w tle, panel możesz zamknąć. Strona odświeża się sama.</p>
+  {% endif %}
+</section>
+{% elif status.state == 'error' %}
+<div class="notice notice--err" role="alert">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg></span>
+  <div style="display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start">
+    <span>Import przerwany: Lidl nie odpowiedział albo ogranicza liczbę żądań. Postęp jest zapisany, nic się nie dubluje.</span>
+    <form method="post" action="{{ base }}/history/resume"><button class="ds-btn ds-btn--secondary" type="submit">Wznów teraz</button></form>
+  </div>
+</div>
+{% endif %}
+
+{% if status.state == 'empty' %}
+<section class="card card--flush" aria-label="Brak historii zakupów">
+  <div class="acc">
+    <div class="acc__who"><div>
+      <h2 class="s">Brak historii zakupów</h2>
+      <div class="meta">Pierwsze pobranie obejmuje wszystkie paragony konta i trwa kilkanaście minut. Później nowe paragony dochodzą same.</div>
+    </div></div>
+  </div>
+  {% for a in accounts %}
+  <div class="acc">
+    <div class="acc__who">
+      <span class="avatar" aria-hidden="true">{{ (a.label.split()|map('first')|join)[:2]|upper }}</span>
+      <div class="name">{{ a.label }}{% if a.connected %}<span class="status status--on">Połączone</span>{% else %}<span class="status">Nie zalogowano</span>{% endif %}</div>
+    </div>
+    <div class="acts">
+      {% if a.connected %}
+      <form method="post" action="{{ base }}/accounts/{{ a.slug }}/history"><button class="ds-btn" type="submit">Pobierz historię</button></form>
+      {% else %}
+      <a class="ds-btn ds-btn--secondary" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="acc"><span class="meta">Brak kont. Dodaj konto w zakładce Konta.</span></div>
+  {% endfor %}
+</section>
+{% else %}
+
+<section class="card" aria-labelledby="kpi">
+  <h2 class="s" id="kpi">Dotychczasowe oszczędności</h2>
+  <div class="kpi"><span class="kpi__num">{{ kpi_total }}</span><span class="kpi__cap">od początku historii</span></div>
+  <dl class="facts">
+    <div><dt>Ostatnie 12 miesięcy</dt><dd>{{ kpi_last12 }}</dd></div>
+    <div><dt>Paragony</dt><dd>{{ kpi_tickets }}</dd></div>
+    <div><dt>Użyte kupony</dt><dd>{{ kpi_coupons }}</dd></div>
+  </dl>
+  <p class="hint" style="margin: 0">Punkt odniesienia z paragonów, zanim add-on zacznie aktywować kupony.</p>
+</section>
+
+<section class="card" aria-labelledby="wyk" id="wykres">
+  <h2 class="s" id="wyk">Wydatki w czasie</h2>
+  <form class="ctl" method="get" action="{{ base }}/produkty#wykres">
+    {% set bad = query.error == 'range' %}
+    <div class="ctl__dates">
+      <div class="f">
+        <label for="od">Od</label>
+        <input class="field{% if bad %} field--err{% endif %}" id="od" name="od" type="date" value="{{ query.start.isoformat() }}"{% if bad %} aria-invalid="true" aria-describedby="blad-zakresu"{% endif %}>
+      </div>
+      <div class="f">
+        <label for="do">Do</label>
+        <input class="field{% if bad %} field--err{% endif %}" id="do" name="do" type="date" value="{{ query.end.isoformat() }}"{% if bad %} aria-invalid="true" aria-describedby="blad-zakresu"{% endif %}>
+      </div>
+    </div>
+    {% if bad %}
+    <p class="err" id="blad-zakresu" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>Data „Od” jest późniejsza niż „Do”. Zamień je miejscami.</p>
+    {% endif %}
+    <div class="row2">
+      <button class="ds-chip{% if query.preset == '12m' %} ds-chip--on{% endif %}" type="submit" name="zakres" value="12m" aria-pressed="{{ 'true' if query.preset == '12m' else 'false' }}">12 miesięcy</button>
+      <button class="ds-chip{% if query.preset == 'all' %} ds-chip--on{% endif %}" type="submit" name="zakres" value="all" aria-pressed="{{ 'true' if query.preset == 'all' else 'false' }}">Od początku</button>
+    </div>
+    <fieldset>
+      <legend>Krok</legend>
+      <div class="seg">
+        {% for value, label in [('week', 'Tydzień'), ('month', 'Miesiąc'), ('quarter', 'Kwartał'), ('year', 'Rok')] %}
+        <label><input type="radio" name="krok" value="{{ value }}"{% if query.step == value %} checked{% endif %}><span>{{ label }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <div class="ctl__pair">
+      <div class="f">
+        <label for="prod">Produkt</label>
+        <select class="field" id="prod" name="produkt">
+          <option value="">Wszystkie produkty</option>
+          {% for o in options %}<option value="{{ o.id }}"{% if o.id == query.art_id %} selected{% endif %}>{{ o.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <fieldset>
+        <legend>Pokaż</legend>
+        <div class="seg">
+          <label><input type="radio" name="miara" value="wydatki"{% if query.metric == 'spend' %} checked{% endif %}><span>Wydatki (zł)</span></label>
+          <label><input type="radio" name="miara" value="sztuki"{% if query.metric == 'qty' %} checked{% endif %}><span>Sztuki</span></label>
+        </div>
+      </fieldset>
+    </div>
+    <div><button class="ds-btn" type="submit">Pokaż wykres</button></div>
+  </form>
+
+  {% if query.truncated %}<p class="hint" style="margin: 0">Zakres skrócony do ostatnich 400 przedziałów.</p>{% endif %}
+
+  {% if chart and not chart.empty %}
+  <div class="plot">
+    <div class="yl" aria-hidden="true">{% for t in chart.ticks %}<span>{{ t }}</span>{% endfor %}</div>
+    <div class="bars">
+      {% for b in chart.bars %}<div class="bars__col" role="img" aria-label="{{ b.aria }}"><div class="bars__bar" style="height: {{ b.height }}"></div></div>{% endfor %}
+    </div>
+    <div class="xl" aria-hidden="true">{% for b in chart.bars %}<span>{{ b.label }}</span>{% endfor %}</div>
+  </div>
+  <p class="sum">Suma w zakresie: <strong>{{ chart.total }}</strong> · średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.{% if query.metric == 'spend' %} Bez kaucji za opakowania.{% endif %}</p>
+  {% elif chart %}
+  <p class="notice notice--info" role="status">
+    <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+    <span>Brak zakupów w tym zakresie. Zmień daty albo wybierz „Od początku”.</span>
+  </p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="rank-h" id="rank">
+  <h2 class="s" id="rank-h">Najczęściej kupowane</h2>
+  <ol class="rklist" aria-labelledby="rank-h">
+    {% for r in rows %}
+    <li class="rk">
+      <span class="pos">{{ r.pos }}</span>
+      <span class="rk__name">{{ r.name }}</span>
+      <span class="rk__meta"><span>{{ r.count }}</span><span>{{ r.last }}</span><span>{{ r.cycle }}</span></span>
+      <a class="ds-btn ds-btn--link" href="{{ r.href }}" aria-label="{{ r.aria }}">Wykres</a>
+    </li>
+    {% else %}
+    <li class="meta">Paragony są pobrane, ale pozycje jeszcze się wczytują.</li>
+    {% endfor %}
+  </ol>
+  {% if more_href %}<div><a class="ds-btn ds-btn--secondary" href="{{ more_href }}">Pokaż więcej</a></div>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

@@ -9,11 +9,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
+from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import aiohttp
 from fastapi import FastAPI, Form, Request
@@ -24,8 +27,13 @@ from fastapi.templating import Jinja2Templates
 from lidl import __version__
 from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
+from lidl.history import History
 from lidl.service import LidlService
 from lidl.settings import Settings
+from lidl.sync import HistorySync
+
+from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
+from .products import MORE_STEP, count_text, import_status, parse_limit, ranking_rows
 
 log = logging.getLogger(__name__)
 
@@ -58,8 +66,20 @@ def create_app(settings: Settings) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         timeout = aiohttp.ClientTimeout(total=30)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            app.state.service = LidlService(AccountStore(settings.accounts_dir), session)
-            yield
+            service = LidlService(AccountStore(settings.accounts_dir), session)
+            history = History(settings.data_dir / "history.db")
+            sync = HistorySync(service, history)
+            app.state.service, app.state.history, app.state.sync = service, history, sync
+            daily = asyncio.create_task(
+                sync.daily_loop(lambda: [a.slug for a in service.store.list() if a.connected])
+            )
+            try:
+                yield
+            finally:
+                daily.cancel()
+                with suppress(asyncio.CancelledError):
+                    await daily
+                await sync.close()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
@@ -103,7 +123,7 @@ def create_app(settings: Settings) -> FastAPI:
         if m in MESSAGES:
             kind, text = MESSAGES[m]
             msg = {"kind": kind, "text": text}
-        return render(request, "index.html", accounts=svc.store.list(), msg=msg)
+        return render(request, "index.html", section="konta", accounts=svc.store.list(), msg=msg)
 
     @app.post("/accounts")
     async def add_account(request: Request, label: str = Form(...)) -> Response:
@@ -163,5 +183,71 @@ def create_app(settings: Settings) -> FastAPI:
         except KeyError:
             pass
         return go(request, "/?m=deleted")
+
+    @app.get("/produkty")
+    async def products(request: Request) -> Response:
+        svc = service(request)
+        history: History = request.app.state.history
+        sync: HistorySync = request.app.state.sync
+        params = dict(request.query_params)
+        accounts = svc.store.list()
+        status = import_status(sync, history, accounts)
+
+        def link(**over: object) -> str:
+            keep = {
+                k: v
+                for k, v in params.items()
+                if k in ("od", "do", "krok", "produkt", "miara", "zakres", "limit")
+            }
+            keep.update({k: str(v) for k, v in over.items()})
+            return f"{base(request)}/produkty?{urlencode(keep)}"
+
+        ctx: dict[str, Any] = {"section": "produkty", "status": status, "accounts": accounts}
+        if status["state"] != "empty":
+            kpi = history.savings_kpi()
+            first = date.fromisoformat(kpi.first_date) if kpi.first_date else None
+            query = parse_chart_query(params, date.today(), first)
+            chart = None
+            if query.error is None:
+                series = history.spend_series(query.start, query.end, query.step, query.art_id)
+                chart = build_chart(series, query.step, query.metric)
+            ranking = history.ranking()
+            limit = parse_limit(params.get("limit"))
+            ctx.update(
+                query=query,
+                chart=chart,
+                options=[{"id": p.art_id, "name": p.name} for p in ranking],
+                rows=ranking_rows(ranking, limit, link),
+                more_href=link(limit=limit + MORE_STEP) + "#rank" if len(ranking) > limit else None,
+                kpi_total=fmt_pln(kpi.total, 2),
+                kpi_last12=fmt_pln(kpi.last_12m, 2),
+                kpi_tickets=kpi.tickets,
+                kpi_coupons=kpi.coupons_used,
+                ok_text=(
+                    f"Historia jest aktualna: {count_text(kpi.tickets, 'paragon', 'paragony', 'paragonów')}"
+                    + (f" od {fmt_month_year_genitive(first)}" if first else "")
+                    + ". Nowe pobieramy codziennie."
+                ),
+            )
+        return render(request, "products.html", **ctx)
+
+    @app.post("/accounts/{slug}/history")
+    async def start_history(request: Request, slug: str) -> Response:
+        try:
+            account = service(request).store.get(slug)
+        except KeyError:
+            return go(request, "/")
+        if not account.connected:
+            return go(request, "/?m=expired")
+        request.app.state.sync.start(slug, full=True)
+        return go(request, "/produkty")
+
+    @app.post("/history/resume")
+    async def resume_history(request: Request) -> Response:
+        history: History = request.app.state.history
+        for account in service(request).store.list():
+            if account.connected and history.ticket_count(account.slug) > 0:
+                request.app.state.sync.start(account.slug, full=True)
+        return go(request, "/produkty")
 
     return app

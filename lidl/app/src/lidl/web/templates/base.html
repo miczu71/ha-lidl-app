@@ -6,10 +6,17 @@
   <title>{% block title %}Lidl Plus{% endblock %}</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ base }}/static/app.css?v={{ version }}">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="bar">{% block bar %}<a href="{{ base }}/">Lidl Plus</a>{% endblock %}</header>
-  <main class="body"><div class="wrap">{% block main %}{% endblock %}</div></main>
+  <main class="body"><div class="wrap">
+    {% if section %}<nav class="nav" aria-label="Sekcje">
+      <a class="ds-chip{% if section == 'produkty' %} ds-chip--on{% endif %}" href="{{ base }}/produkty"{% if section == 'produkty' %} aria-current="page"{% endif %}>Produkty</a>
+      <a class="ds-chip{% if section == 'konta' %} ds-chip--on{% endif %}" href="{{ base }}/"{% if section == 'konta' %} aria-current="page"{% endif %}>Konta</a>
+    </nav>{% endif %}
+    {% block main %}{% endblock %}
+  </div></main>
   <footer class="body" style="padding-top: 0"><div class="wrap"><div class="foot">Nieoficjalny add-on, niepowiązany z Lidl · Wersja {{ version }}</div></div></footer>
 </body>
 </html>
