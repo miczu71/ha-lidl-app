@@ -135,8 +135,10 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   - **E20 Zdrapki, progi nagród, Pieczątka Plus:** postęp do progu („brakuje 23 zł do nagrody”), przypomnienie
     o niezdrapanych zdrapkach i ich ważności. **Najpierw rozpoznanie:** czy API (biblioteka upstream lub ruch
     aplikacji) udostępnia te dane; bez tego etap odpada. Wstępne rozpoznanie (2026-10-07): klienci open source tego
-    nie mają, ale istnieją hosty `purchaselottery`, `couponplus`, `stampcard` `.lidlplus.com`; następny krok E20.0 =
-    analiza statyczna APK, plan: `docs/PLAN_E20_nagrody.md`.
+    nie mają, ale istnieją hosty `purchaselottery`, `couponplus`, `stampcard` `.lidlplus.com`. E20.0 ✅ (2026-10-08,
+    analiza statyczna APK 17.11.6): **wykonalne** — GET-y tylko do odczytu na zdrapki (`v2/{country}/lotteries`:
+    typ, status, `expirationDate`), progi Coupon Plus (`reachedAmount`, `goals[].value`) i pieczątki (`unitsAchieved`,
+    `unitsPerPrize`); szczegóły i następny krok E20.1 (próbny GET) w `docs/PLAN_E20_nagrody.md`.
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores

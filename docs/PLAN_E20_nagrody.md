@@ -44,6 +44,34 @@ skrypt `~/dev/lidl-spike/probe_rewards.py`, uruchamia użytkownik (`! …`) albo
 Kroki 1–4 nie dotykają kont Lidl (bez ryzyka blokady). ~100 MB na dysku.
 **Cofnięcie:** usunięcie `apk/` i `tools/`; nic poza `~/dev/lidl-spike` się nie zmienia.
 
+## Wyniki E20.0 (2026-10-08)
+
+APK `com.lidl.eci.lidlplus` 17.11.6 z APKPure (sha256 `d980be1b…ae9323f`), podpis v2: Lidl E-Commerce International
+GmbH & Co. KG, Neckarsulm (cert. 2017–2042) — oryginał. Bez v1 (`META-INF/*.RSA`). Analiza: tablice napisów `.dex`,
+adnotacje Retrofit i stałe z adapterów Moshi (Python, bez jadx — krok 5 niepotrzebny). R8 zaciemnia klasy, ale ścieżki,
+nagłówki i klucze JSON są jawne. Przypisanie interfejsu do hosta jest pośrednie (pakiet UI, typ modelu) — potwierdzi GET.
+
+| Funkcja | Host (`https://<host>.lidlplus.com/api/`) | Endpointy | Kluczowe pola |
+|---|---|---|---|
+| Zdrapki / ruletka / „special” | `purchaselottery` | `GET v2/{country}/lotteries?userId=`, `GET v2/{country}/lotteries/{id}`, `PUT …/{id}/redeemed` (zdrapanie — nie wołamy) | `id`, `type` (Scratch/Roulette/Special), `status` (Available/Used/Expired/MinimumHours/None), `creationDate`, `expirationDate`, `promotionCode`; szczegóły: `prize`, `legalTerms` |
+| Coupon Plus (progi „wydaj X → kupon”) | `couponplus` (prawdop.) | `GET v4/{country}/user/promotions` (nagłówek `Segment-Ids`), `PUT …/{id}/start`, `PUT …/{id}/goals/view` | `promotionId`, `endDate`, `clusters[]`: `status`, `reachedAmount`, `reachedPercent`, `goals[]`: `status`, `value`, `prize` (`coupon`/`discount.amount`) |
+| Pieczątki — loteria | `stampcard` | `GET v3/{country}/user/promotions?storeId=`, `GET …/{id}/detail`, `…/congrats`; v4 z `cards/send`, `legalterms/accept` | `unitsAchieved`, `unitsPerPrize`, `unitValue`, `maxUnitsPerPurchase`, `endDate`, `participationsToSend`, `prizes[]` |
+| Pieczątki — nagrody (kupony) | `stampcard` | jw. (`v3 …/cards/viewed`, `started`) | `unitsAchieved`, `completedCards`, `coupons[]` (`couponId`, `isRedeemed`) |
+| Pieczątki — benefity | `stampcardbenefits` | jw. | `unitsAchieved`, `completedCards`, `unitsAvailable` (`available`/`total`), `maxBenefitsPerUser` |
+
+Inne trafienia: `GET /bff-api/v3/{countryCode}/loyaltytab` (host `loyaltytab`, w APK tylko stg/uat — zbiorczy ekran
+„lojalność”, prawdopodobnie agreguje powyższe), `GET v1/{country}/loyalty`. Ekran aplikacji zna też OPEN_GIFT,
+SECRET_BOXES, DAILY_DEALS, BADGES (poza zakresem E20).
+
+**Wniosek: wykonalne** — każdy z trzech celów (niezdrapane zdrapki z datą ważności, postęp do progu Coupon Plus,
+postęp pieczątek) ma GET tylko do odczytu. Niewiadome: które promocje są aktywne w PL, skąd `userId` (prawdop. `sub`
+z tokenu) i czy hosty przyjmują nasz token bez dodatkowych nagłówków. Rozstrzyga E20.1.
+
+**E20.1 (za osobną zgodą):** `probe_rewards.py` — po jednym GET listy na `purchaselottery`, `couponplus`, `stampcard`,
+`stampcardbenefits`, jedno konto, tylko odczyt (bez `start`, `redeemed`, `view`); wypisuje status HTTP i nazwy kluczy
+oraz liczności, bez surowych odpowiedzi.
+
 ## Stan
 
-- [ ] E20.0 rozpoznanie APK — plan zapisany 2026-10-07, czeka na start w nowej sesji.
+- [x] E20.0 rozpoznanie APK — 2026-10-08: wykonalne, endpointy i pola wyżej. Sprzątanie `apk/` i `tools/` robi użytkownik.
+- [ ] E20.1 próbny GET z tokenem jednego konta.
