@@ -121,6 +121,20 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   osoba i komu powiadomienie, osobne powiadomienie czy sekcja w porannym (E3/E14), dopasowanie nazw (dokładne/fuzzy/AI),
   jak nie powiadamiać dwa razy o tym samym kuponie/promocji, relacja do auto-aktywacji (E11) — czy kupon na
   obserwowany produkt też aktywować.
+- **Propozycje z przeglądu rynku** (zlecone 2026-10-07; każdy wymaga wywiadu przed startem, kolejność z użytkownikiem):
+  - **E16 Skuteczność auto-aktywacji i licznik efektu:** ile aktywowanych kuponów faktycznie wykorzystaliśmy
+    (`coupons` ↔ `ticket_coupons`), a ile przepadło; miesięczne oszczędności przed add-onem i po nim (punkt
+    odniesienia z E2). Realizuje miarę sukcesu z nagłówka roadmapy. Dane już są.
+  - **E17 Przypomnienie przy sklepie:** gdy telefon wejdzie w strefę HA wokół sklepu Lidl — którą kartę wziąć
+    i ile kuponów aktywnych (dziś stałe 07:00 z E14). Wymaga stref sklepów, czyli współrzędnych (decyzja z E10:
+    geokodowanie albo ręcznie); do ustalenia: strefy w HA czy w add-onie, kto/które telefony, jak nie dublować.
+  - **E18 Shrinkflation:** mniejsza gramatura przy tej samej cenie — gramatura z nazwy produktu, porównanie ceny
+    za kg/l w czasie. Rozszerzenie E7; do ustalenia: odczyt gramatury (reguły czy AI), produkty ze zmienionym kodem.
+  - **E19 Miesięczne podsumowanie** (w stylu rocznego „Lidl Wrapped”): powiadomienie raz w miesiącu — wydatki,
+    oszczędności, top produkty, zmiana vs poprzedni miesiąc. Do ustalenia: dzień/godzina, komu, link do panelu.
+  - **E20 Zdrapki, progi nagród, Pieczątka Plus:** postęp do progu („brakuje 23 zł do nagrody”), przypomnienie
+    o niezdrapanych zdrapkach i ich ważności. **Najpierw rozpoznanie:** czy API (biblioteka upstream lub ruch
+    aplikacji) udostępnia te dane; bez tego etap odpada.
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
