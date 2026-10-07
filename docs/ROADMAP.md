@@ -108,6 +108,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   niekupowanych od roku), wyszukiwanie na żywo (htmx jak w Budżecie) na Produktach i Kuponach, kontrolki,
   przełączniki i aktywacja bez przeładowania. Wydanie razem z E3 (0.5.0). Podetapy: E13.0 docs ✅, E13.1 ranking ✅,
   E13.2 Produkty ✅, E13.3 Kupony ✅ (2026-10-07; wydanie w 0.5.0).
+- **E14 Którą kartę wziąć** (zgłoszone 2026-10-07 po pierwszej aktywacji; plan: `docs/PLAN_E14_karta.md`): kupony
+  różnią się między kontami, a na zakupach skanuje się jedną kartę — poranne powiadomienie poleca kartę (aktywne
+  kupony na nasze produkty × częstotliwość zakupów), czytelniejszy format, z grupy kuponów SSC najniższy rabat,
+  poprawka wyszukiwania (top 200). Wydanie 0.6.0. Podetapy: E14.0 docs, E14.1 wyszukiwanie, E14.2 logika,
+  E14.3 powiadomienie, E14.4 wydanie.
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
