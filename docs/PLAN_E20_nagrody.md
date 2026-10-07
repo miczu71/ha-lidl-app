@@ -135,4 +135,5 @@ tap → panel.
 - [x] E20.2 weryfikacja po zdrapaniu — 2026-10-08: po zdrapaniu w aplikacji lista `lotteries` osoby 1 pusta
   (`len=0`) → obecność na liście = niezdrapana, `status` niepotrzebny. Spike nie ma tokenów osoby 2 — jej konto
   sprawdzamy na żywo w E20.6 (add-on).
-- [ ] E20.3 dane: klient API, `rewards.py`, testy.
+- [x] E20.3 dane: klient API (`lotteries`, `coupon_plus`, 404 → None), `rewards.py`, testy — 2026-10-08 (0942bfc).
+- [ ] E20.4 powiadomienia: linia poranna, job 18:00.
