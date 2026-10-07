@@ -16,6 +16,7 @@ from typing import Any, Protocol
 from .client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from .history import History
 from .receipt_html import ParsedReceipt, parse_receipt
+from .receipt_native import parse_native
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ class SyncResult:
     details: int
     skipped: int
     stopped: str | None
+    unparsed: int = 0
 
 
 def _fatal(err: LidlPlusError) -> bool:
@@ -113,7 +115,7 @@ class HistorySync:
     async def import_account(self, slug: str, *, full: bool) -> SyncResult:
         progress = self.progress(slug)
         progress.running, progress.done, progress.total, progress.error = True, 0, 0, None
-        new = details = skipped = 0
+        new = details = skipped = unparsed = 0
         stopped: str | None = None
         try:
             try:
@@ -130,7 +132,8 @@ class HistorySync:
                         skipped += 1
                         self._history.save_detail(ticket_id, None, ParsedReceipt())
                         continue
-                    self._history.save_detail(ticket_id, _store_name(detail), _parse(detail))
+                    if not self._history.save_detail(ticket_id, _store_name(detail), _parse(detail)):
+                        unparsed += 1
                     details += 1
                     progress.done = details
             except LidlPlusError as err:
@@ -139,8 +142,11 @@ class HistorySync:
                 log.warning("Import konta %s przerwany: %s", slug, stopped)
         finally:
             progress.running = False
-        log.info("Import konta %s: %d nowych, %d szczegółów, %d pominiętych", slug, new, details, skipped)
-        return SyncResult(new, details, skipped, stopped)
+        log.info(
+            "Import konta %s: %d nowych, %d szczegółów, %d pominiętych, %d nierozpoznanych",
+            slug, new, details, skipped, unparsed,
+        )  # fmt: skip
+        return SyncResult(new, details, skipped, stopped, unparsed)
 
     async def _import_lists(self, slug: str, full: bool) -> int:
         new = 0
@@ -162,5 +168,8 @@ def _store_name(detail: dict[str, Any]) -> str | None:
 
 
 def _parse(detail: dict[str, Any]) -> ParsedReceipt:
+    """Starsze paragony to `itemsLine` (NATIVE), nowsze HTML; nieznany format daje pusty wynik."""
+    if isinstance(detail.get("itemsLine"), list):
+        return parse_native(detail)
     html = detail.get("htmlPrintedReceipt")
     return parse_receipt(html) if isinstance(html, str) else ParsedReceipt()

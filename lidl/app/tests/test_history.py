@@ -11,9 +11,10 @@ from lidl.receipt_html import ParsedReceipt, ReceiptItem
 
 
 def _ticket(
-    tid: str, day: str, total: float = 10.0, savings: float = 0.0, coupons: int = 0
+    tid: str, day: str, total: float = 10.0, savings: float = 0.0, coupons: int = 0, articles: int = 1
 ) -> dict[str, Any]:
     return {
+        "articlesCount": articles,
         "id": tid,
         "date": f"{day}T10:00:00+00:00",
         "totalAmount": total,
@@ -59,19 +60,87 @@ def test_ranking_counts_tickets_and_cycle(tmp_path: Path) -> None:
     assert (bread.purchases, bread.cycle_days) == (1, None)
 
 
-def test_savings_kpi_total_and_last_12_months(tmp_path: Path) -> None:
+def test_savings_kpi_from_item_discounts_split_and_last_12_months(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     h.upsert_tickets(
         "a",
         [
-            _ticket("old", "2024-01-01", savings=10.0, coupons=1),
-            _ticket("new1", "2026-03-01", savings=5.5, coupons=2),
-            _ticket("new2", "2026-09-01", savings=4.5),
+            _ticket("old", "2024-01-01", coupons=1),
+            _ticket("new1", "2026-03-01", coupons=2),
+            _ticket("new2", "2026-09-01"),
+            _ticket("nodetail", "2026-09-02"),
         ],
     )
+
+    def one(discount: float, coupon: float) -> ParsedReceipt:
+        return ParsedReceipt(items=[ReceiptItem("1", "A", 1, 10.0, 10.0, discount, coupon)])
+
+    h.save_detail("old", "S", one(-4.0, -1.0))
+    h.save_detail("new1", "S", one(-5.5, -5.5))
+    h.save_detail("new2", "S", one(-0.5, 0.0))
     kpi = h.savings_kpi(today=date(2026, 10, 7))
-    assert (kpi.tickets, kpi.total, kpi.last_12m, kpi.coupons_used) == (3, 20.0, 10.0, 3)
-    assert (kpi.first_date, kpi.last_date) == ("2024-01-01", "2026-09-01")
+    assert (kpi.total, kpi.coupons, kpi.promotions, kpi.last_12m) == (10.0, 6.5, 3.5, 6.0)
+    assert (kpi.tickets, kpi.with_details, kpi.coupons_used, kpi.unparsed) == (4, 3, 3, 0)
+    assert (kpi.first_date, kpi.last_date) == ("2024-01-01", "2026-09-02")
+
+
+def test_receipt_without_items_is_unparsed_unless_it_had_no_articles(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01", articles=5), _ticket("t2", "2026-01-02", articles=0)])
+    assert h.save_detail("t1", "S", ParsedReceipt()) is False
+    assert h.save_detail("t2", "S", ParsedReceipt()) is True
+    assert h.savings_kpi().unparsed == 1
+    assert h.save_detail("t1", "S", _receipt(("1", "A", 1, 1.0))) is True
+    assert h.savings_kpi().unparsed == 0
+
+
+def test_native_items_merge_with_html_products_by_unique_name(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("old", "2026-01-01"), _ticket("new", "2026-05-01")])
+    h.save_detail(
+        "old", "S", _receipt(("n:57490", "Bagietka  duża", 1, 2.5), ("n:999", "Tylko stare", 1, 9.0))
+    )
+    h.save_detail("new", "S", _receipt(("0193875", "bagietka duża", 2, 2.9)))
+    by_id = {r.art_id: r for r in h.ranking()}
+    assert set(by_id) == {"0193875", "n:999"}
+    assert (by_id["0193875"].purchases, by_id["0193875"].quantity) == (2, 3.0)
+    series = h.spend_series(date(2026, 1, 1), date(2026, 5, 31), "month", art_id="0193875")
+    assert [b.spend for b in series] == [2.5, 0.0, 0.0, 0.0, 5.8]
+
+
+def test_ambiguous_html_name_is_not_merged(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("old", "2026-01-01"), _ticket("new", "2026-05-01")])
+    h.save_detail("old", "S", _receipt(("n:1", "Lody", 1, 5.0)))
+    h.save_detail("new", "S", _receipt(("111", "Lody", 1, 6.0), ("222", "Lody", 1, 7.0)))
+    assert {r.art_id for r in h.ranking()} == {"n:1", "111", "222"}
+
+
+def test_v1_database_is_migrated_and_details_are_refetched(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "h.db"
+    db = sqlite3.connect(path)
+    db.executescript(
+        """
+        CREATE TABLE tickets (id TEXT PRIMARY KEY, account TEXT NOT NULL, day TEXT NOT NULL,
+            total REAL NOT NULL, savings REAL NOT NULL, coupons_used INTEGER NOT NULL, store TEXT,
+            detail_fetched INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE items (ticket_id TEXT NOT NULL, line INTEGER NOT NULL, art_id TEXT NOT NULL,
+            name TEXT NOT NULL, quantity REAL NOT NULL, unit_price REAL NOT NULL, total REAL NOT NULL,
+            discount REAL NOT NULL, PRIMARY KEY (ticket_id, line));
+        INSERT INTO tickets VALUES ('t1', 'a', '2026-01-01', 10, 0, 0, 'S', 1);
+        INSERT INTO items VALUES ('t1', 0, '1', 'A', 1, 5, 5, 0);
+        """
+    )
+    db.commit()
+    db.close()
+    h = History(path)
+    assert h.pending_details("a") == ["t1"]
+    assert h.ranking() == []
+    h.save_detail("t1", "S", _receipt(("1", "A", 1, 5.0)))
+    assert h.savings_kpi().unparsed == 0
+    assert History(path).pending_details("a") == []  # druga migracja nic nie resetuje
 
 
 def _seed_series(h: History) -> None:

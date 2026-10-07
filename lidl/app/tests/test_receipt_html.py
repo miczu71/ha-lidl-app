@@ -82,3 +82,20 @@ def test_several_discounts_on_one_article_are_summed() -> None:
     )
     (item,) = parse_receipt(html).items
     assert item.discount == -3.5
+
+
+def parse_native_html(html: str):  # noqa: ANN201
+    return parse_receipt(html).items
+
+
+def test_lidl_plus_discounts_are_coupons_others_are_not() -> None:
+    html = (
+        _article(1, "0100009", "Produkt D", "10,00", None, "1 * 10.00 10.00 C")
+        + _discount(3, "1", "Lidl Plus kupon", "-3,00")
+        + _discount(4, "2", "Taniej za 2", "-0,50")
+        + _article(5, "0100010", "Produkt E", "5,00", None, "1 * 5.00 5.00 C")
+        + _discount(7, "3", "Lidl Plus voucher", "-1,00")
+    )
+    a, b = parse_native_html(html)
+    assert (a.discount, a.coupon) == (-3.5, -3.0)
+    assert (b.discount, b.coupon) == (-1.0, -1.0)

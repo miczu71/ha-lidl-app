@@ -23,10 +23,12 @@ paragony konta, idzie powoli (jeden paragon na kilka sekund, kilkanaście minut)
 zamknąć. Jeśli Lidl ograniczy liczbę żądań albo zerwie się połączenie, import zatrzymuje się, a **Wznów teraz**
 dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie.
 
-- **Oszczędności** to suma rabatów z paragonów — punkt odniesienia sprzed aktywacji kuponów przez add-on.
+- **Oszczędności** to suma rabatów na pozycjach paragonów (osobno kupony Lidl Plus i promocje) — punkt odniesienia sprzed aktywacji kuponów przez add-on.
 - **Wykres** pokazuje wydatki na pozycje (po rabatach, bez kaucji) w wybranym zakresie dat i kroku; można
   zawęzić do jednego produktu albo pokazać sztuki zamiast złotych.
-- Produkt to kod artykułu z paragonu, więc zmiana kodu przez Lidl tworzy nowy produkt.
+- Produkt to kod artykułu z paragonu. Starsze paragony (sprzed marca 2026) mają inne kody niż nowsze, więc
+  łączymy je po nazwie, gdy jednoznacznie pasuje; zmiana kodu przez Lidl tworzy nowy produkt.
+- Gdy z jakiegoś paragonu nie da się odczytać pozycji, panel pokazuje ich liczbę.
 
 ## Opcje
 

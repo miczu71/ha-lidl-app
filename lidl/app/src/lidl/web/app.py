@@ -220,9 +220,18 @@ def create_app(settings: Settings) -> FastAPI:
                 rows=ranking_rows(ranking, limit, link),
                 more_href=link(limit=limit + MORE_STEP) + "#rank" if len(ranking) > limit else None,
                 kpi_total=fmt_pln(kpi.total, 2),
+                kpi_coupon_money=fmt_pln(kpi.coupons, 2),
+                kpi_promo_money=fmt_pln(kpi.promotions, 2),
                 kpi_last12=fmt_pln(kpi.last_12m, 2),
                 kpi_tickets=kpi.tickets,
+                kpi_with_details=kpi.with_details,
+                kpi_unparsed=kpi.unparsed,
                 kpi_coupons=kpi.coupons_used,
+                pending_accounts=[
+                    a
+                    for a in accounts
+                    if a.connected and history.ticket_count(a.slug) == 0 and not sync.progress(a.slug).running
+                ],
                 ok_text=(
                     f"Historia jest aktualna: {count_text(kpi.tickets, 'paragon', 'paragony', 'paragonów')}"
                     + (f" od {fmt_month_year_genitive(first)}" if first else "")

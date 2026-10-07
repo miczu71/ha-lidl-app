@@ -59,15 +59,43 @@
 </section>
 {% else %}
 
+{% if pending_accounts %}
+<section class="card card--flush" aria-label="Konta bez historii">
+  {% for a in pending_accounts %}
+  <div class="acc">
+    <div class="acc__who">
+      <span class="avatar" aria-hidden="true">{{ (a.label.split()|map('first')|join)[:2]|upper }}</span>
+      <div>
+        <div class="name">{{ a.label }}</div>
+        <div class="meta">Brak historii zakupów tego konta.</div>
+      </div>
+    </div>
+    <div class="acts">
+      <form method="post" action="{{ base }}/accounts/{{ a.slug }}/history"><button class="ds-btn" type="submit">Pobierz historię</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if kpi_unparsed %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Nie udało się odczytać paragonów: {{ kpi_unparsed }} (nieznany format). Nie liczą się do rankingu i wykresu.</span>
+</p>
+{% endif %}
+
 <section class="card" aria-labelledby="kpi">
   <h2 class="s" id="kpi">Dotychczasowe oszczędności</h2>
-  <div class="kpi"><span class="kpi__num">{{ kpi_total }}</span><span class="kpi__cap">od początku historii</span></div>
+  <div class="kpi"><span class="kpi__num">{{ kpi_total }}</span><span class="kpi__cap">rabaty z paragonów od początku historii</span></div>
   <dl class="facts">
+    <div><dt>Kupony Lidl Plus</dt><dd>{{ kpi_coupon_money }}</dd></div>
+    <div><dt>Promocje</dt><dd>{{ kpi_promo_money }}</dd></div>
     <div><dt>Ostatnie 12 miesięcy</dt><dd>{{ kpi_last12 }}</dd></div>
     <div><dt>Paragony</dt><dd>{{ kpi_tickets }}</dd></div>
     <div><dt>Użyte kupony</dt><dd>{{ kpi_coupons }}</dd></div>
   </dl>
-  <p class="hint" style="margin: 0">Punkt odniesienia z paragonów, zanim add-on zacznie aktywować kupony.</p>
+  <p class="hint" style="margin: 0">{% if kpi_with_details < kpi_tickets %}Liczone z {{ kpi_with_details }} z {{ kpi_tickets }} paragonów, reszta jeszcze się pobiera.{% else %}Punkt odniesienia z paragonów, zanim add-on zacznie aktywować kupony.{% endif %}</p>
 </section>
 
 <section class="card" aria-labelledby="wyk" id="wykres">

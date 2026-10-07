@@ -89,7 +89,7 @@ def _seed(client: TestClient, days: tuple[str, ...] = ("2026-09-02", "2026-10-02
             "Sklep X",
             ParsedReceipt(
                 items=[
-                    ReceiptItem("111", "Produkt A", 2, 5.0, 10.0),
+                    ReceiptItem("111", "Produkt A", 2, 5.0, 10.0, discount=-2.0, coupon=-1.0),
                     ReceiptItem("222", "Produkt B", 1, 8.0, 8.0),
                 ]
             ),
@@ -117,8 +117,9 @@ def test_products_empty_history_offers_import_per_account(client: TestClient) ->
 def test_products_shows_kpi_chart_and_ranking(client: TestClient) -> None:
     _seed(client)
     text = client.get("/produkty?zakres=all").text
-    assert "Dotychczasowe oszczędności" in text and "5,00 zł" in text
-    assert "wrzesień 2026: 18 zł" in text
+    assert "Dotychczasowe oszczędności" in text and "4,00 zł" in text
+    assert "Kupony Lidl Plus" in text and "Promocje" in text and "2,00 zł" in text
+    assert "wrzesień 2026: 16 zł" in text
     assert "Produkt A" in text and "2 zakupy" in text
     assert 'aria-pressed="true"' in text and "Historia jest aktualna: 2 paragony" in text
 
@@ -201,3 +202,27 @@ def test_resume_restarts_only_accounts_with_history(client: TestClient, monkeypa
 def test_navigation_links_products_and_accounts(client: TestClient) -> None:
     text = client.get("/").text
     assert 'href="/produkty"' in text and 'aria-current="page"' in text
+
+
+def test_products_warns_about_unparsed_receipts_and_partial_kpi(client: TestClient) -> None:
+    _seed(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets(
+        "osoba-1", [{"id": "tx", "date": "2026-10-03T10:00:00+00:00", "articlesCount": 4, "totalAmount": 9.0}]
+    )
+    history.save_detail("tx", "Sklep X", ParsedReceipt())
+    history.upsert_tickets(
+        "osoba-1", [{"id": "ty", "date": "2026-10-04T10:00:00+00:00", "articlesCount": 2, "totalAmount": 5.0}]
+    )
+    text = client.get("/produkty?zakres=all").text
+    assert "Nie udało się odczytać paragonów: 1" in text
+    assert "Liczone z 3 z 4 paragonów" in text
+
+
+def test_products_offers_import_for_connected_account_without_history(client: TestClient) -> None:
+    _connect(client)
+    _connect(client, "Osoba 2")
+    _seed(client)
+    text = client.get("/produkty").text
+    assert 'action="/accounts/osoba-2/history"' in text
+    assert 'action="/accounts/osoba-1/history"' not in text

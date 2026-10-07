@@ -28,6 +28,8 @@ class FakeSource:
         self.detail_calls: list[str] = []
         self.fail_detail: dict[str, Exception] = {}
         self.fail_list: Exception | None = None
+        self.native: set[str] = set()
+        self.empty: set[str] = set()
 
     async def tickets(self, slug: str, year_offset: int) -> list[dict[str, Any]]:
         self.list_calls.append(year_offset)
@@ -36,7 +38,12 @@ class FakeSource:
         if year_offset not in self.years:
             raise LidlPlusError("http_400", status=400)
         return [
-            {"id": t, "date": f"{2026 - year_offset}-05-0{n + 1}T10:00:00+00:00", "totalAmount": 2.0}
+            {
+                "id": t,
+                "date": f"{2026 - year_offset}-05-0{n + 1}T10:00:00+00:00",
+                "totalAmount": 2.0,
+                "articlesCount": 1,
+            }
             for n, t in enumerate(self.years[year_offset])
         ]
 
@@ -44,6 +51,14 @@ class FakeSource:
         self.detail_calls.append(ticket_id)
         if ticket_id in self.fail_detail:
             raise self.fail_detail[ticket_id]
+        if ticket_id in self.empty:
+            return {"store": {"name": "Sklep X"}, "ticketType": "PDF"}
+        if ticket_id in self.native:
+            line = {
+                "codeInput": "5901", "name": "Produkt N", "quantity": "2", "currentUnitPrice": "3,00",
+                "originalAmount": "6,00", "discounts": [], "deposit": None, "isWeight": False,
+            }  # fmt: skip
+            return {"ticketType": "NATIVE", "store": {"name": "Sklep X"}, "itemsLine": [line]}
         return {"store": {"name": "Sklep X"}, "htmlPrintedReceipt": _html("1", f"Produkt {ticket_id}")}
 
 
@@ -169,3 +184,21 @@ async def test_daily_loop_waits_then_runs_every_interval(history: History) -> No
     assert waits[0] == 300
     assert 86400 in waits
     assert src.list_calls == [0, 0]
+
+
+async def test_native_receipts_are_parsed_by_ticket_format(history: History) -> None:
+    src = FakeSource({0: ["a", "b"]})
+    src.native = {"a"}
+    sync, _ = _sync(src, history)
+    result = await sync.import_account("osoba-1", full=True)
+    assert result.unparsed == 0
+    assert {r.art_id for r in history.ranking()} == {"1", "n:5901"}
+
+
+async def test_receipt_with_unknown_format_is_counted_as_unparsed(history: History) -> None:
+    src = FakeSource({0: ["a", "b"]})
+    src.empty = {"a"}
+    sync, _ = _sync(src, history)
+    result = await sync.import_account("osoba-1", full=True)
+    assert (result.details, result.unparsed) == (2, 1)
+    assert history.savings_kpi().unparsed == 1

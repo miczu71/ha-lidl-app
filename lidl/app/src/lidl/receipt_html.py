@@ -22,6 +22,7 @@ class ReceiptItem:
     unit_price: float
     total: float
     discount: float = 0.0
+    coupon: float = 0.0  # część `discount` z kuponów Lidl Plus (opis zawiera „Lidl Plus”)
 
 
 @dataclass
@@ -69,7 +70,10 @@ class _Parser(HTMLParser):
         elif "discount" in kind:
             amount = _last_number(text)
             if self.receipt.items and amount is not None:
-                self.receipt.items[-1].discount = round(self.receipt.items[-1].discount + amount, 2)
+                item = self.receipt.items[-1]
+                item.discount = round(item.discount + amount, 2)
+                if "lidl plus" in text.lower():
+                    item.coupon = round(item.coupon + amount, 2)
         elif text.startswith("Opakowania zwrotne suma"):
             self.receipt.deposit = _last_number(text) or 0.0
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1
+
+- **Starsze paragony są teraz czytane.** Paragony sprzed 27 marca 2026 przychodzą z API w innym formacie (lista pozycji zamiast HTML); wersja 0.3.0 pobierała je, ale nie rozpoznawała, więc ranking i wykres obejmowały tylko ostatnie pół roku. Teraz cała historia (od 2019) trafia do wykresu i rankingu.
+- Ten sam produkt ze starszych i nowszych paragonów jest łączony po nazwie, gdy nazwa pasuje do dokładnie jednego produktu z nowszych paragonów (kody w obu formatach są różne).
+- **Oszczędności liczone z rabatów na pozycjach paragonów**, osobno kupony Lidl Plus i promocje. Pole „zaoszczędzono” z listy paragonów Lidl wypełnia tylko od sierpnia 2026, więc dawało zaniżoną kwotę (210,70 zł). Przy niepełnym imporcie panel pisze, z ilu paragonów liczy.
+- Paragony, z których nie udało się odczytać żadnych pozycji, są zliczane i pokazywane w panelu zamiast cichego pominięcia.
+- Konto bez historii (np. dodane później druga osoba) ma w panelu Produkty własny przycisk **Pobierz historię**.
+- Po aktualizacji historia zakupów pobiera się od nowa (ok. 15 minut, automatycznie w tle); tokeny kont nie są ruszane.
+
 ## 0.3.0
 
 - Nowy ekran **Produkty** (zakładka obok Kont): oszczędności z dotychczasowych paragonów (łącznie i z ostatnich 12 miesięcy), ranking najczęściej kupowanych produktów (liczba zakupów, ostatnia cena, średni cykl) oraz wykres wydatków.
