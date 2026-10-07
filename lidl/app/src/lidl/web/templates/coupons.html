@@ -1,16 +1,55 @@
 {% extends "base.html" %}
+{% block head %}{% if running %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block main %}
 <div>
   <h1 class="t">Kupony</h1>
-  <p class="lead">Produkty, które kupujemy regularnie. Kupony na zaznaczone add-on będzie aktywował sam, na każdym koncie. Odznacz to, czego nie chcesz.</p>
+  <p class="lead">Kupony Lidl Plus na każdym koncie. Kupony ogólne i na produkty, które kupujemy regularnie, add-on aktywuje sam; resztę aktywujesz tutaj.</p>
 </div>
 
-{% if rows %}
+{% if dry_run %}
 <p class="notice notice--info" role="status">
   <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
-  <span>Automatyczna aktywacja ruszy w kolejnej wersji. Wybór zapisuje się już teraz.</span>
+  <span>Tryb próbny: add-on nie aktywuje kuponów, tylko pokazuje, co by aktywował. Włączysz to opcją „Automatyczna aktywacja kuponów” w konfiguracji add-onu.</span>
 </p>
+{% endif %}
 
+<section class="card" aria-labelledby="kt-h">
+  <h2 class="s" id="kt-h">Kupony w tym tygodniu</h2>
+  <div class="row2 kt-run">
+    <p class="sum">Codziennie o {{ run_time }}{% if last_check %} · ostatnie sprawdzenie {{ last_check }}{% endif %}{% if running %} · sprawdzam teraz…{% endif %}</p>
+    <form method="post" action="{{ base }}/kupony/sprawdz"><button class="ds-btn ds-btn--secondary" type="submit"{% if running %} disabled{% endif %}>Sprawdź teraz</button></form>
+  </div>
+  {% if not cards %}<p class="sum">Brak połączonych kont. Zaloguj konto w zakładce <a href="{{ base }}/">Konta</a>.</p>{% endif %}
+</section>
+
+{% for card in cards %}
+<section class="card" aria-labelledby="kt-{{ card.slug }}" id="kupony-{{ card.slug }}">
+  <div>
+    <h2 class="s" id="kt-{{ card.slug }}">{{ card.label }}</h2>
+    <p class="sum">{% if card.rows %}Aktywne: {{ card.rows|selectattr('kind', 'eq', 'on')|list|length }} z {{ card.rows|length }}{% else %}Kupony pojawią się po pierwszym sprawdzeniu.{% endif %}</p>
+  </div>
+  {% if card.rows %}
+  <ul class="cplist">
+    {% for r in card.rows %}
+    <li class="cp">
+      <div class="cp__txt">
+        <span class="cp__name">{{ r.title }}</span>
+        <span class="cp__meta"><span>{{ r.discount }}</span><span>{{ r.until }}</span></span>
+      </div>
+      <div class="cp__side cp__side--stack">
+        {% if r.label %}<span class="status{% if r.kind == 'on' %} status--on{% elif r.kind == 'err' %} status--err{% endif %}">{{ r.label }}</span>{% endif %}
+        {% if r.kind in ('', 'would', 'err') %}
+        <form method="post" action="{{ base }}/kupony/{{ card.slug }}/{{ r.pid }}/aktywuj"><button class="ds-btn ds-btn--link" type="submit" aria-label="Aktywuj kupon: {{ r.title }}">Aktywuj</button></form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endfor %}
+
+{% if rows %}
 <section class="card" aria-labelledby="cp-h">
   <h2 class="s" id="cp-h">Kupowane regularnie</h2>
   <dl class="facts">
@@ -28,7 +67,7 @@
       </div>
       <div class="cp__side">
       {% if r.matchable %}
-      <form method="post" action="{{ base }}/kupony/{{ r.id }}">
+      <form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}">
         <input type="hidden" name="enabled" value="{{ '0' if r.on else '1' }}">
         <button class="sw" type="submit" role="switch" aria-checked="{{ 'true' if r.on else 'false' }}" aria-label="Auto-aktywacja kuponów: {{ r.name }}">
           <span class="sw__track" aria-hidden="true"></span><span class="sw__txt">{{ 'Włączona' if r.on else 'Wyłączona' }}</span>

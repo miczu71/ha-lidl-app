@@ -283,22 +283,89 @@ def test_coupons_lists_regular_products_with_toggles(client: TestClient) -> None
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
     text = r.text
     assert "Produkt A" in text and "3 zakupy" in text and "kupon 3×" in text and "3,00 zł" in text
-    assert 'role="switch" aria-checked="true"' in text and 'action="/kupony/111"' in text
-    assert "Produkt C" in text and "bez kodu kuponu" in text and 'action="/kupony/n:9"' not in text
+    assert 'role="switch" aria-checked="true"' in text and 'action="/kupony/produkt/111"' in text
+    assert "Produkt C" in text and "bez kodu kuponu" in text and 'action="/kupony/produkt/n:9"' not in text
     assert 'href="/kupony"' in text and 'aria-current="page"' in text
 
 
 def test_coupons_toggle_off_and_on(client: TestClient) -> None:
     _seed_regular(client)
     history = client.app.state.history  # type: ignore[attr-defined]
-    r = client.post("/kupony/111", data={"enabled": "0"})
+    r = client.post("/kupony/produkt/111", data={"enabled": "0"})
     assert r.status_code == 303 and r.headers["location"] == "/kupony#p-111"
     assert history.auto_activate_codes() == set()
     assert 'aria-checked="false"' in client.get("/kupony").text
-    client.post("/kupony/111", data={"enabled": "1"})
+    client.post("/kupony/produkt/111", data={"enabled": "1"})
     assert history.auto_activate_codes() == {"111"}
 
 
 def test_coupons_without_regular_products_says_why(client: TestClient) -> None:
     text = client.get("/kupony").text
     assert "Za mało historii" in text and 'role="switch"' not in text
+
+
+def _seed_coupons(client: TestClient) -> None:
+    from datetime import UTC, datetime
+
+    from lidl.coupons import parse_coupons
+
+    _connect(client)
+    now = datetime.now(UTC)
+    day = timedelta(days=1)
+
+    def promo(pid: str, title: str, start: datetime, active: bool = False) -> dict[str, object]:
+        return {
+            "id": pid, "promotionId": pid, "title": title, "discount": {"title": "-30%"},
+            "validity": {"start": start.isoformat(), "end": (now + 3 * day).isoformat()},
+            "isActivated": active, "articleIds": [],
+        }  # fmt: skip
+
+    payload = {
+        "sections": [
+            {
+                "name": "AllStores",
+                "promotions": [
+                    promo("a", "Kupon aktywny", now - day, active=True),
+                    promo("b", "Kupon do aktywacji", now - day),
+                    promo("c", "Kupon nadchodzący", now + day),
+                ],
+            }
+        ]
+    }
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.save_coupons("osoba-1", parse_coupons(payload), now.isoformat())
+    history.set_coupon_statuses("osoba-1", [("b", "would", None)])
+
+
+def test_coupons_page_lists_current_coupons_per_account(client: TestClient) -> None:
+    _seed_coupons(client)
+    text = client.get("/kupony").text
+    assert "Kupony w tym tygodniu" in text and "Osoba 1" in text
+    assert "Kupon aktywny" in text and "Aktywny" in text
+    assert "Kupon do aktywacji" in text and "Aktywowałbym" in text
+    assert 'action="/kupony/osoba-1/b/aktywuj"' in text
+    assert "Kupon nadchodzący" in text and 'action="/kupony/osoba-1/c/aktywuj"' not in text
+    assert "Tryb próbny" in text and 'action="/kupony/sprawdz"' in text
+
+
+def test_manual_activation_redirects_back(client: TestClient, monkeypatch) -> None:
+    _seed_coupons(client)
+    calls: list[tuple[str, str]] = []
+
+    async def activate_one(slug: str, promotion_id: str) -> bool:
+        calls.append((slug, promotion_id))
+        return True
+
+    monkeypatch.setattr(client.app.state.runner, "activate_one", activate_one)  # type: ignore[attr-defined]
+    r = client.post("/kupony/osoba-1/b/aktywuj")
+    assert r.status_code == 303 and r.headers["location"] == "/kupony#kupony-osoba-1"
+    assert calls == [("osoba-1", "b")]
+
+
+def test_check_now_starts_coupon_run_once(client: TestClient, monkeypatch) -> None:
+    started: list[bool] = []
+    job = client.app.state.job  # type: ignore[attr-defined]
+    monkeypatch.setattr(job, "start_coupons", lambda: started.append(True) or True)
+    r = client.post("/kupony/sprawdz")
+    assert r.status_code == 303 and r.headers["location"] == "/kupony"
+    assert started == [True]

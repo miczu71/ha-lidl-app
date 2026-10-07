@@ -43,7 +43,7 @@ class Activation:
     title: str
     discount: str
     valid_to: str  # dzień końca ważności (czas UTC z API, przycięty do daty)
-    status: str  # activated | would | failed
+    status: str  # activated | would | failed (w bazie także manual — aktywacja z panelu)
     new: bool  # decyzja inna niż w poprzednim przebiegu (powiadamiamy tylko o nowych)
 
 
@@ -121,7 +121,7 @@ class CouponRunner:
         self._history.save_coupons(slug, coupons, now.isoformat())
         codes = self._history.auto_activate_codes(now.date())
         chosen = [c for c in coupons if should_activate(c, codes, now)]
-        done = {} if dry_run else await self._activate(slug, chosen)
+        done = {} if dry_run else await self._activate(slug, [(c.promotion_id, c.coupon_id) for c in chosen])
         statuses = [
             (c.promotion_id, "would" if dry_run else "activated" if c.promotion_id in done else "failed")
             for c in chosen
@@ -134,25 +134,38 @@ class CouponRunner:
             for c, (pid, status) in zip(chosen, statuses, strict=True)
         ]
 
-    async def _activate(self, slug: str, coupons: list[Coupon]) -> dict[str, str]:
-        """Aktywuje kupony; zwraca `promotionId` -> `id`, po którym się udało. Po nieudanych pierwszych
-        próbach pobiera listę raz i ponawia te kupony, które dostały nowe `id` (egzemplarz konta)."""
+    async def activate_one(self, slug: str, promotion_id: str) -> None:
+        """Ręczna aktywacja z panelu (także w trybie próbnym), po `id` zapisanym przy ostatnim przebiegu;
+        status `manual` albo `failed`."""
+        row = next(
+            (r for r in self._history.account_coupons(slug) if r["promotion_id"] == promotion_id), None
+        )
+        done = await self._activate(slug, [(promotion_id, row["coupon_id"])]) if row else {}
+        self._history.set_coupon_statuses(
+            slug, [(promotion_id, "manual" if done else "failed", done.get(promotion_id))]
+        )
+
+    async def _activate(self, slug: str, coupons: list[tuple[str, str]]) -> dict[str, str]:
+        """Aktywuje kupony (`promotionId`, `id`); zwraca `promotionId` -> `id`, po którym się udało. Po
+        nieudanych pierwszych próbach pobiera listę raz i ponawia te, które dostały nowe `id` (egzemplarz
+        konta). Przerwa tylko między kolejnymi żądaniami."""
         done: dict[str, str] = {}
         failed = []
-        for c in coupons:
-            await self._sleep(self._pause)
-            if await self._try(slug, c.coupon_id):
-                done[c.promotion_id] = c.coupon_id
+        for n, (pid, cid) in enumerate(coupons):
+            if n:
+                await self._sleep(self._pause)
+            if await self._try(slug, cid):
+                done[pid] = cid
             else:
-                failed.append(c)
+                failed.append((pid, cid))
         if failed:
             fresh = {c.promotion_id: c.coupon_id for c in parse_coupons(await self._source.promotions(slug))}
-            for c in failed:
-                new_id = fresh.get(c.promotion_id)
-                if new_id and new_id != c.coupon_id:
+            for pid, cid in failed:
+                new_id = fresh.get(pid)
+                if new_id and new_id != cid:
                     await self._sleep(self._pause)
                     if await self._try(slug, new_id):
-                        done[c.promotion_id] = new_id
+                        done[pid] = new_id
         return done
 
     async def _try(self, slug: str, coupon_id: str) -> bool:

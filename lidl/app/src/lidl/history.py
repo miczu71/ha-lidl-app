@@ -458,7 +458,10 @@ class History:
             self._db.executemany(
                 "UPDATE coupons SET status = ?, coupon_id = COALESCE(?, coupon_id),"
                 " activated = MAX(activated, ?) WHERE account = ? AND promotion_id = ?",
-                [(status, cid, int(status == "activated"), account, pid) for pid, status, cid in rows],
+                [
+                    (status, cid, int(status in ("activated", "manual")), account, pid)
+                    for pid, status, cid in rows
+                ],
             )
 
     def account_coupons(self, account: str) -> list[dict[str, Any]]:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from datetime import datetime, time, timedelta
 
 import aiohttp
@@ -54,18 +55,39 @@ class DailyJob:
         dry_run: bool,
     ) -> None:
         self._store, self._sync, self._runner, self._session = store, sync, runner, session
-        self._dry_run = dry_run
+        self.dry_run = dry_run
+        self.last_check: datetime | None = None
+        self.running = False  # kupony w toku (rano albo „Sprawdź teraz”)
+        self._task: asyncio.Task[None] | None = None
 
     async def __call__(self) -> None:
         accounts = [a for a in self._store.list() if a.connected]
         await self._sync.run_daily([a.slug for a in accounts])
         await self._coupons([(a.slug, a.label) for a in accounts])
 
-    async def coupons(self) -> None:
-        await self._coupons([(a.slug, a.label) for a in self._store.list() if a.connected])
+    def start_coupons(self) -> bool:
+        """„Sprawdź teraz” w panelu: kupony w tle; False, gdy przebieg już trwa."""
+        if self.running:
+            return False
+        self._task = asyncio.create_task(
+            self._coupons([(a.slug, a.label) for a in self._store.list() if a.connected])
+        )
+        return True
+
+    async def close(self) -> None:
+        """Przerywa kupony uruchomione z panelu (zamykanie add-onu)."""
+        if self._task and not self._task.done():
+            self._task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._task
 
     async def _coupons(self, accounts: list[tuple[str, str]]) -> None:
-        results = await self._runner.run_all(accounts, dry_run=self._dry_run)
-        message = notify.compose(results, dry_run=self._dry_run)
+        self.running = True
+        try:
+            results = await self._runner.run_all(accounts, dry_run=self.dry_run)
+        finally:
+            self.running = False
+        self.last_check = datetime.now()
+        message = notify.compose(results, dry_run=self.dry_run)
         if message:
             await notify.send(self._session, message)

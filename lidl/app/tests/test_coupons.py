@@ -206,3 +206,15 @@ async def test_run_all_collects_per_account_and_skips_failing_one(tmp_path: Path
     source.promotions = promotions  # type: ignore[method-assign]
     result = await runner.run_all([("osoba-2", "Osoba 2"), ("osoba-1", "Osoba 1")], dry_run=True)
     assert list(result) == ["Osoba 1"] and [a.title for a in result["Osoba 1"]] == ["Produkt A"]
+
+
+async def test_activate_one_uses_fresh_id_and_marks_manual(tmp_path: Path) -> None:
+    history = _history(tmp_path)
+    source = FakeSource(_payload(AllStores=[_promo("x", "Obcy produkt", ["555"])]))
+    runner = _runner(source, history)
+    await runner.run("osoba-1", dry_run=False)  # zapisuje listę; obcy produkt nie jest wybrany
+    source.instance["x"] = "01a1-x"
+    await runner.activate_one("osoba-1", "x")
+    assert source.activations == ["x", "01a1-x"]
+    saved = history.account_coupons("osoba-1")[0]
+    assert (saved["status"], saved["activated"], saved["coupon_id"]) == ("manual", 1, "01a1-x")

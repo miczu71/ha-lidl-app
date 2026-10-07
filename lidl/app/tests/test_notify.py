@@ -79,3 +79,8 @@ async def test_send_without_token_only_logs(monkeypatch: pytest.MonkeyPatch) -> 
     session = FakeSession()
     await send(session, ("Tytuł", "Treść"))  # type: ignore[arg-type]
     assert session.posts == []
+
+
+def test_only_failures_get_their_own_title() -> None:
+    msg = compose({"Osoba 1": [_a("Produkt A", status="failed")]}, dry_run=False)
+    assert msg == ("Lidl: nie udało się aktywować kuponów", "Nie udało się: Produkt A (Osoba 1)")

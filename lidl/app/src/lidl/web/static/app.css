@@ -83,6 +83,7 @@ p.lead { margin: var(--space-2) 0 0; color: var(--ink-muted); max-width: 65ch; }
 .meta { color: var(--ink-muted); font: 400 14px/20px var(--font-sans); }
 .status { display: inline-flex; align-items: center; gap: var(--space-1); margin-left: var(--space-2); padding: 2px 10px; border-radius: var(--radius-pill); background: var(--surface-inset); color: var(--ink-muted); font: 600 13px/18px var(--font-sans); vertical-align: middle; }
 .status--on { color: var(--green-deep); }
+.status--err { color: var(--red-deep); }
 .status--on::before { content: ""; width: 14px; height: 14px; background: currentColor; mask: var(--i-check) center / contain no-repeat; -webkit-mask: var(--i-check) center / contain no-repeat; }
 .acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .acts form { margin: 0; }
@@ -91,6 +92,7 @@ p.lead { margin: var(--space-2) 0 0; color: var(--ink-muted); max-width: 65ch; }
 .ds-btn:hover { background: var(--blue-deep); }
 .ds-btn--secondary { background: var(--surface); color: var(--ink); border-color: var(--control-border); }
 .ds-btn--secondary:hover { background: var(--surface-inset); }
+.ds-btn[disabled] { opacity: 0.55; cursor: default; }
 .ds-btn--link { background: transparent; color: var(--blue); padding: 0 var(--space-3); min-height: 44px; }
 .ds-btn--link:hover { background: var(--blue-wash); }
 .ds-btn--danger { background: transparent; color: var(--red-deep); padding: 0 var(--space-3); min-height: 44px; }
@@ -192,7 +194,11 @@ select.field { appearance: auto; }
 .cp__meta span { white-space: nowrap; }
 .cp__meta span + span::before { content: "\00a0·\00a0"; }
 .cp__side { flex: none; width: 152px; }
-.cp form { margin: 0; }
+.cp form, .kt-run form { margin: 0; }
+.cp__side--stack { width: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
+.cp__side--stack .status { margin-left: 0; white-space: nowrap; }
+.cp__side--stack .ds-btn--link { margin-right: calc(-1 * var(--space-3)); }
+.kt-run { justify-content: space-between; }
 .sw { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ink); font: 600 14px/20px var(--font-sans); cursor: pointer; }
 .sw:hover { background: var(--surface-inset); }
 .sw__track { position: relative; width: 44px; height: 26px; border-radius: var(--radius-pill); border: 1.5px solid var(--control-border); background: var(--surface); flex: none; transition: background-color 0.15s ease-out; }

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from lidl.accounts import Account
@@ -62,6 +62,45 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
             meta.append(f"promocje {fmt_pln(c.promo_saved, 2)}")
         rows.append({"id": c.art_id, "name": c.name, "meta": meta, "matchable": c.matchable, "on": c.enabled})
     return rows
+
+
+def coupon_cards(accounts: list[Account], history: History, now: datetime) -> list[dict[str, Any]]:
+    """Bieżące kupony każdego połączonego konta ze statusem słownym; daty w czasie lokalnym."""
+    cards = []
+    for a in accounts:
+        if not a.connected:
+            continue
+        rows = []
+        for c in history.account_coupons(a.slug):
+            start = datetime.fromisoformat(c["valid_from"])
+            end = datetime.fromisoformat(c["valid_to"])
+            if end <= now:
+                continue
+            if c["activated"]:
+                kind = "on"
+                label = {"activated": "Aktywowany przez add-on", "manual": "Aktywowany ręcznie"}.get(
+                    c["status"], "Aktywny"
+                )
+            elif start > now:
+                kind, label = "soon", "Od " + fmt_day_month(start.astimezone().date())
+            elif c["status"] == "would":
+                kind, label = "would", "Aktywowałbym"
+            elif c["status"] == "failed":
+                kind, label = "err", "Nie udało się"
+            else:
+                kind, label = "", ""
+            rows.append(
+                {
+                    "pid": c["promotion_id"],
+                    "title": c["title"],
+                    "discount": c["discount"],
+                    "until": "do " + fmt_day_month(end.astimezone().date()),
+                    "kind": kind,
+                    "label": label,
+                }
+            )
+        cards.append({"slug": a.slug, "label": a.label, "rows": rows})
+    return cards
 
 
 def import_status(sync: HistorySync, history: History, accounts: list[Account]) -> dict[str, Any]:

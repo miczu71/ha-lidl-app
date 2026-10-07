@@ -13,7 +13,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -34,10 +34,10 @@ from lidl.receipt import parse_detail
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
-from lidl.text import count_text
+from lidl.text import count_text, fmt_time_day_month
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .products import MORE_STEP, coupon_rows, import_status, parse_limit, ranking_rows
+from .products import MORE_STEP, coupon_cards, coupon_rows, import_status, parse_limit, ranking_rows
 
 log = logging.getLogger(__name__)
 
@@ -74,14 +74,10 @@ def create_app(settings: Settings) -> FastAPI:
             history = History(settings.data_dir / "history.db")
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             sync = HistorySync(service, history)
-            job = DailyJob(
-                service.store,
-                sync,
-                CouponRunner(service, history),
-                session,
-                dry_run=not settings.auto_activate,
-            )
+            runner = CouponRunner(service, history)
+            job = DailyJob(service.store, sync, runner, session, dry_run=not settings.auto_activate)
             app.state.service, app.state.history, app.state.sync = service, history, sync
+            app.state.runner, app.state.job = runner, job
             daily = asyncio.create_task(at_time_loop(settings.run_time, job))
             try:
                 yield
@@ -89,6 +85,7 @@ def create_app(settings: Settings) -> FastAPI:
                 daily.cancel()
                 with suppress(asyncio.CancelledError):
                     await daily
+                await job.close()
                 await sync.close()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -267,18 +264,37 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/kupony")
     async def coupons(request: Request) -> Response:
         history: History = request.app.state.history
+        job: DailyJob = request.app.state.job
         rows = coupon_rows(history.coupon_candidates())
         return render(
             request,
             "coupons.html",
             section="kupony",
+            cards=coupon_cards(service(request).store.list(), history, datetime.now(UTC)),
+            dry_run=job.dry_run,
+            running=job.running,
+            last_check=fmt_time_day_month(job.last_check) if job.last_check else None,
+            run_time=settings.run_time.strftime("%H:%M"),
             rows=rows,
             min_purchases=CANDIDATE_MIN_PURCHASES,
             on=sum(r["on"] for r in rows),
             no_code=sum(not r["matchable"] for r in rows),
         )
 
-    @app.post("/kupony/{art_id}")
+    @app.post("/kupony/sprawdz")
+    async def check_coupons(request: Request) -> Response:
+        request.app.state.job.start_coupons()
+        return go(request, "/kupony")
+
+    @app.post("/kupony/{slug}/{promotion_id}/aktywuj")
+    async def activate_coupon(request: Request, slug: str, promotion_id: str) -> Response:
+        try:
+            await request.app.state.runner.activate_one(slug, promotion_id)
+        except LidlPlusError as err:
+            log.warning("Ręczna aktywacja kuponu na koncie %s nieudana: %s", slug, err)
+        return go(request, f"/kupony#kupony-{quote(slug)}")
+
+    @app.post("/kupony/produkt/{art_id}")
     async def toggle_coupon(request: Request, art_id: str, enabled: str = Form(...)) -> Response:
         request.app.state.history.set_auto_activate(art_id, enabled == "1")
         return go(request, f"/kupony#p-{quote(art_id)}")

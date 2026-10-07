@@ -37,7 +37,12 @@ def compose(results: dict[str, list[Activation]], *, dry_run: bool) -> tuple[str
     if not lines:
         return None
     word = count_text(count, "kupon", "kupony", "kuponów")
-    title = f"Lidl (tryb próbny): aktywowałbym {word}" if dry_run else f"Lidl: aktywowano {word}"
+    if not count:
+        title = "Lidl: nie udało się aktywować kuponów"
+    elif dry_run:
+        title = f"Lidl (tryb próbny): aktywowałbym {word}"
+    else:
+        title = f"Lidl: aktywowano {word}"
     return title, "\n".join(lines)
 
 
