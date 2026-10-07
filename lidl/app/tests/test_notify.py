@@ -4,8 +4,12 @@ from typing import Any
 
 import pytest
 
-from lidl.coupons import Activation
+from lidl.coupons import AccountReport, Activation
 from lidl.notify import NOTIFY_URL, compose, send
+
+
+def _r(*items: Activation) -> AccountReport:
+    return AccountReport(list(items), [])
 
 
 def _a(title: str, status: str = "activated", new: bool = True, discount: str = "-30%") -> Activation:
@@ -13,19 +17,19 @@ def _a(title: str, status: str = "activated", new: bool = True, discount: str = 
 
 
 def test_nothing_new_means_no_message() -> None:
-    assert compose({"Osoba 1": [_a("Produkt A", new=False)]}, dry_run=False) is None
+    assert compose({"Osoba 1": _r(_a("Produkt A", new=False))}, dry_run=False) is None
     assert compose({}, dry_run=False) is None
 
 
 def test_activated_message_lists_accounts_with_validity() -> None:
     msg = compose(
         {
-            "Osoba 1": [
+            "Osoba 1": _r(
                 _a("Produkt A"),
                 _a("Rabat od zakupów", discount="10 zł rabatu"),
                 _a("Stary", new=False),
-            ],
-            "Osoba 2": [_a("Produkt B"), _a("Produkt C", status="failed")],
+            ),
+            "Osoba 2": _r(_a("Produkt B"), _a("Produkt C", status="failed")),
         },
         dry_run=False,
     )
@@ -38,7 +42,9 @@ def test_activated_message_lists_accounts_with_validity() -> None:
 
 
 def test_dry_run_title_and_plural() -> None:
-    title, body = compose({"Osoba 1": [_a(f"P{i}", status="would") for i in range(5)]}, dry_run=True) or (
+    title, body = compose(
+        {"Osoba 1": _r(*(_a(f"P{i}", status="would") for i in range(5)))}, dry_run=True
+    ) or (
         "",
         "",
     )
@@ -82,5 +88,5 @@ async def test_send_without_token_only_logs(monkeypatch: pytest.MonkeyPatch) -> 
 
 
 def test_only_failures_get_their_own_title() -> None:
-    msg = compose({"Osoba 1": [_a("Produkt A", status="failed")]}, dry_run=False)
+    msg = compose({"Osoba 1": _r(_a("Produkt A", status="failed"))}, dry_run=False)
     assert msg == ("Lidl: nie udało się aktywować kuponów", "Nie udało się: Produkt A (Osoba 1)")

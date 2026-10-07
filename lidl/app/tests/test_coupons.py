@@ -24,12 +24,13 @@ def _promo(
     start: str = PAST,
     end: str = LATER,
     active: bool = False,
+    discount: str = "-30%",
 ) -> dict[str, Any]:
     return {
         "id": cid or pid,
         "promotionId": pid,
         "title": title,
-        "discount": {"title": "-30%"},
+        "discount": {"title": discount},
         "validity": {"start": start, "end": end},
         "isActivated": active,
         "articleIds": codes,
@@ -118,7 +119,7 @@ async def test_selects_generic_and_matching_skips_rest(tmp_path: Path) -> None:
     )
     result = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
     assert source.activations == ["g1", "cat"]
-    assert [(a.title, a.status, a.valid_to) for a in result] == [
+    assert [(a.title, a.status, a.valid_to) for a in result.activations] == [
         ("Rabat od zakupów", "activated", "2026-10-10"),
         ("Cała kategoria", "activated", "2026-10-10"),
     ]
@@ -128,7 +129,7 @@ async def test_dry_run_sends_nothing_and_marks_would(tmp_path: Path) -> None:
     history = _history(tmp_path)
     source = FakeSource(_payload(AllStores=[_promo("p1", "Produkt A", ["111"])]))
     result = await _runner(source, history).run("osoba-1", dry_run=True)
-    assert source.activations == [] and [a.status for a in result] == ["would"]
+    assert source.activations == [] and [a.status for a in result.activations] == ["would"]
     assert [(c["promotion_id"], c["status"]) for c in history.account_coupons("osoba-1")] == [("p1", "would")]
 
 
@@ -138,16 +139,19 @@ async def test_two_step_activation_retries_with_new_instance_id(tmp_path: Path) 
     source.instance["p1"] = "01a1-nowe"
     result = await _runner(source, history).run("osoba-1", dry_run=False)
     assert source.activations == ["p1", "01a1-nowe"]
-    assert [a.status for a in result] == ["activated"]
+    assert [a.status for a in result.activations] == ["activated"]
     saved = history.account_coupons("osoba-1")[0]
     assert (saved["coupon_id"], saved["status"], saved["activated"]) == ("01a1-nowe", "activated", 1)
 
 
 async def test_failed_coupon_does_not_stop_the_rest(tmp_path: Path) -> None:
-    source = FakeSource(_payload(SSC=[_promo("g1", "Rabat 1", []), _promo("g2", "Rabat 2", [])]))
+    source = FakeSource(_payload(AllStores=[_promo("g1", "Rabat 1", []), _promo("g2", "Rabat 2", [])]))
     source.fail["g1"] = LidlPlusError("http_412", status=412)
     result = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
-    assert [(a.title, a.status) for a in result] == [("Rabat 1", "failed"), ("Rabat 2", "activated")]
+    assert [(a.title, a.status) for a in result.activations] == [
+        ("Rabat 1", "failed"),
+        ("Rabat 2", "activated"),
+    ]
 
 
 async def test_rate_limit_stops_the_run(tmp_path: Path) -> None:
@@ -171,13 +175,13 @@ async def test_saved_list_follows_current_coupons(tmp_path: Path) -> None:
 
 
 async def test_failures_refetch_the_list_only_once(tmp_path: Path) -> None:
-    source = FakeSource(_payload(SSC=[_promo(f"g{i}", f"Rabat {i}", []) for i in range(3)]))
+    source = FakeSource(_payload(AllStores=[_promo(f"g{i}", f"Rabat {i}", []) for i in range(3)]))
     source.instance.update({"g0": "01a1-a", "g2": "01a1-c"})
     source.fail["g1"] = LidlPlusError("http_412", status=412)
     result = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
     assert source.list_calls == 2
     assert source.activations == ["g0", "g1", "g2", "01a1-a", "01a1-c"]
-    assert [a.status for a in result] == ["activated", "failed", "activated"]
+    assert [a.status for a in result.activations] == ["activated", "failed", "activated"]
 
 
 async def test_new_flag_reports_each_decision_once(tmp_path: Path) -> None:
@@ -186,7 +190,7 @@ async def test_new_flag_reports_each_decision_once(tmp_path: Path) -> None:
     first = await _runner(source, history).run("osoba-1", dry_run=True)
     second = await _runner(source, history, NOW + timedelta(days=1)).run("osoba-1", dry_run=True)
     third = await _runner(source, history, NOW + timedelta(days=2)).run("osoba-1", dry_run=False)
-    assert [(a.status, a.new) for a in first + second + third] == [
+    assert [(a.status, a.new) for a in first.activations + second.activations + third.activations] == [
         ("would", True),
         ("would", False),
         ("activated", True),
@@ -205,7 +209,7 @@ async def test_run_all_collects_per_account_and_skips_failing_one(tmp_path: Path
 
     source.promotions = promotions  # type: ignore[method-assign]
     result = await runner.run_all([("osoba-2", "Osoba 2"), ("osoba-1", "Osoba 1")], dry_run=True)
-    assert list(result) == ["Osoba 1"] and [a.title for a in result["Osoba 1"]] == ["Produkt A"]
+    assert list(result) == ["Osoba 1"] and [a.title for a in result["Osoba 1"].activations] == ["Produkt A"]
 
 
 async def test_activate_one_uses_fresh_id_and_marks_manual(tmp_path: Path) -> None:
@@ -218,3 +222,43 @@ async def test_activate_one_uses_fresh_id_and_marks_manual(tmp_path: Path) -> No
     assert source.activations == ["x", "01a1-x"]
     saved = history.account_coupons("osoba-1")[0]
     assert (saved["status"], saved["activated"], saved["coupon_id"]) == ("manual", 1, "01a1-x")
+
+
+async def test_ssc_group_activates_only_the_lowest_amount(tmp_path: Path) -> None:
+    source = FakeSource(
+        _payload(SSC=[_promo(f"g{n}", "Ogólny", [], discount=f"{n} zł rabatu*") for n in (30, 10, 20)])
+    )
+    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
+    assert source.activations == ["g10"]
+    assert [(a.discount, a.status) for a in report.activations] == [("10 zł rabatu*", "activated")]
+
+
+async def test_ssc_group_is_skipped_when_one_is_already_active(tmp_path: Path) -> None:
+    source = FakeSource(_payload(SSC=[_promo("g10", "Ogólny", [], active=True), _promo("g20", "Ogólny", [])]))
+    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
+    assert source.activations == [] and report.activations == []
+
+
+async def test_card_score_weights_active_coupons_by_purchase_frequency(tmp_path: Path) -> None:
+    history = _history(tmp_path)  # 111 i 222 kupione po 3 razy (222 odznaczony, ale nadal „nasz”)
+    source = FakeSource(
+        _payload(
+            SSC=[_promo("g1", "Rabat od zakupów", [])],
+            AllStores=[
+                _promo("p1", "Produkt A", ["111"]),
+                _promo("cat", "Kategoria", ["999", "222", "111"], active=True),
+                _promo("obcy", "Obcy", ["555"], active=True),
+                _promo("soon", "Nadchodzący", ["111"], start=FUTURE),
+            ],
+        )
+    )
+    report = await _runner(source, history).run("osoba-1", dry_run=False)
+    weights = {a.title: a.weight for a in report.active}
+    assert weights == {"Rabat od zakupów": 0, "Produkt A": 3, "Kategoria": 3, "Obcy": 0}
+    assert report.score == 6
+
+
+async def test_dry_run_score_counts_coupons_that_would_be_activated(tmp_path: Path) -> None:
+    source = FakeSource(_payload(AllStores=[_promo("p1", "Produkt A", ["111"])]))
+    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=True)
+    assert source.activations == [] and report.score == 3

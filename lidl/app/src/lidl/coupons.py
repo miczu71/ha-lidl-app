@@ -1,7 +1,9 @@
 """Kupony Lidl Plus: odczyt listy, wybór do aktywacji i aktywacja (E3; rozpoznanie w docs/PLAN_E3_kupony.md).
 
 - Bierzemy tylko sekcje AllStores i SSC. Kupon ogólny (bez kodów artykułów) aktywujemy zawsze, produktowy —
-  gdy któryś kod jest w `History.auto_activate_codes()`. Kupony nadchodzące, wygasłe i już aktywne pomijamy.
+  gdy któryś kod jest na liście „Kupowane regularnie” (`History.coupon_candidates()`, włączone). Kupony
+  nadchodzące, wygasłe i już aktywne pomijamy; z sekcji SSC tylko jeden (najniższy rabat).
+- Ocena karty: aktywne kupony ważone tym, jak często kupujemy trafione produkty (`AccountReport.score`).
 - Aktywacja jest dwuetapowa: pierwszy POST po `id` z listy może się nie udać, ale tworzy egzemplarz kuponu
   konta z nowym `id` (ten sam `promotionId`); wtedy ponawiamy raz z nowym `id`.
 - Przebieg próbny (`dry_run`) nic nie wysyła do Lidla, tylko zapisuje, co byłoby aktywowane.
@@ -11,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -47,6 +50,26 @@ class Activation:
     new: bool  # decyzja inna niż w poprzednim przebiegu (powiadamiamy tylko o nowych)
 
 
+@dataclass(frozen=True)
+class ActiveCoupon:
+    title: str
+    discount: str
+    valid_to: str
+    weight: int  # zakupy produktu z listy „Kupowane regularnie” (12 mies.); 0 = kupon ogólny albo nie nasz
+
+
+@dataclass(frozen=True)
+class AccountReport:
+    """Wynik przebiegu konta: nowe decyzje (do powiadomienia) i kupony aktywne po przebiegu (ocena karty)."""
+
+    activations: list[Activation]
+    active: list[ActiveCoupon]
+
+    @property
+    def score(self) -> int:
+        return sum(c.weight for c in self.active)
+
+
 class CouponSource(Protocol):
     async def promotions(self, slug: str) -> dict[str, Any]: ...
 
@@ -80,6 +103,31 @@ def parse_coupons(payload: dict[str, Any]) -> list[Coupon]:
     return out
 
 
+def _day(c: Coupon) -> str:
+    return c.valid_to.date().isoformat()
+
+
+def _amount(discount: str) -> float:
+    match = re.search(r"\d+(?:[.,]\d+)?", discount)
+    return float(match.group().replace(",", ".")) if match else float("inf")
+
+
+def _ssc_group(c: Coupon) -> tuple[str, datetime] | None:
+    """Kupony SSC o tym samym tytule i końcu ważności różnią się tylko kwotą; Lidl pozwala aktywować jeden."""
+    return (c.title, c.valid_to) if c.section == "SSC" else None
+
+
+def select(coupons: list[Coupon], codes: set[str], now: datetime) -> list[Coupon]:
+    """Kupony do aktywacji; z grupy SSC tylko ten z najniższą kwotą, a gdy któryś jest już aktywny — żaden."""
+    chosen = [c for c in coupons if should_activate(c, codes, now)]
+    keep: set[str] = set()
+    for group in {_ssc_group(c) for c in chosen} - {None}:
+        if not any(c.activated for c in coupons if _ssc_group(c) == group):
+            members = [c for c in chosen if _ssc_group(c) == group]
+            keep.add(min(members, key=lambda c: _amount(c.discount)).promotion_id)
+    return [c for c in chosen if _ssc_group(c) is None or c.promotion_id in keep]
+
+
 def should_activate(coupon: Coupon, codes: set[str], now: datetime) -> bool:
     if coupon.activated or not coupon.valid_from <= now < coupon.valid_to:
         return False
@@ -102,9 +150,9 @@ class CouponRunner:
         self._sleep = sleep
         self._now = now
 
-    async def run_all(self, accounts: list[tuple[str, str]], *, dry_run: bool) -> dict[str, list[Activation]]:
+    async def run_all(self, accounts: list[tuple[str, str]], *, dry_run: bool) -> dict[str, AccountReport]:
         """Wszystkie konta (slug, nazwa); błąd jednego konta (np. wygasła sesja) nie blokuje innych."""
-        out: dict[str, list[Activation]] = {}
+        out: dict[str, AccountReport] = {}
         for slug, label in accounts:
             try:
                 out[label] = await self.run(slug, dry_run=dry_run)
@@ -112,27 +160,38 @@ class CouponRunner:
                 log.warning("Kupony konta %s: przebieg przerwany (%s)", slug, err)
         return out
 
-    async def run(self, slug: str, *, dry_run: bool) -> list[Activation]:
+    async def run(self, slug: str, *, dry_run: bool) -> AccountReport:
         """Pobiera kupony konta, zapisuje je i aktywuje wybrane; błąd jednego kuponu nie przerywa reszty,
         błąd autoryzacji, sieci, limitu lub serwera — tak (jak przy paragonach)."""
         now = self._now()
         coupons = parse_coupons(await self._source.promotions(slug))
         previous = {c["promotion_id"]: c["status"] for c in self._history.account_coupons(slug)}
         self._history.save_coupons(slug, coupons, now.isoformat())
-        codes = self._history.auto_activate_codes(now.date())
-        chosen = [c for c in coupons if should_activate(c, codes, now)]
+        candidates = self._history.coupon_candidates(now.date())
+        codes = {c.art_id for c in candidates if c.enabled}
+        weights = {c.art_id: c.purchases for c in candidates if c.matchable}
+        chosen = select(coupons, codes, now)
         done = {} if dry_run else await self._activate(slug, [(c.promotion_id, c.coupon_id) for c in chosen])
         statuses = [
             (c.promotion_id, "would" if dry_run else "activated" if c.promotion_id in done else "failed")
             for c in chosen
         ]
         self._history.set_coupon_statuses(slug, [(pid, status, done.get(pid)) for pid, status in statuses])
-        return [
-            Activation(
-                c.title, c.discount, c.valid_to.date().isoformat(), status, previous.get(pid) != status
-            )
+        activations = [
+            Activation(c.title, c.discount, _day(c), status, previous.get(pid) != status)
             for c, (pid, status) in zip(chosen, statuses, strict=True)
         ]
+        active = [
+            ActiveCoupon(
+                c.title,
+                c.discount,
+                _day(c),
+                max((weights.get(a, 0) for a in c.article_ids), default=0),
+            )
+            for c in coupons
+            if c.activated or c.promotion_id in done or (dry_run and c in chosen)
+        ]
+        return AccountReport(activations, active)
 
     async def activate_one(self, slug: str, promotion_id: str) -> None:
         """Ręczna aktywacja z panelu (także w trybie próbnym), po `id` zapisanym przy ostatnim przebiegu;

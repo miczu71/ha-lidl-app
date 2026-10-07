@@ -8,7 +8,7 @@ from datetime import date
 
 import aiohttp
 
-from .coupons import Activation
+from .coupons import AccountReport
 from .text import count_text, fmt_day_month
 
 log = logging.getLogger(__name__)
@@ -16,11 +16,12 @@ log = logging.getLogger(__name__)
 NOTIFY_URL = "http://supervisor/core/api/services/notify/family"
 
 
-def compose(results: dict[str, list[Activation]], *, dry_run: bool) -> tuple[str, str] | None:
+def compose(results: dict[str, AccountReport], *, dry_run: bool) -> tuple[str, str] | None:
     """Tytuł i treść o nowych decyzjach; None, gdy nie ma nic nowego."""
     done = "would" if dry_run else "activated"
     lines, failed, count = [], [], 0
-    for label, items in results.items():
+    for label, report in results.items():
+        items = report.activations
         fresh = [a for a in items if a.new and a.status == done]
         failed += [f"{a.title} ({label})" for a in items if a.new and a.status == "failed"]
         if fresh:

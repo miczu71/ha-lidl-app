@@ -345,18 +345,22 @@ def test_coupon_candidates_threshold_window_bridge_and_household(tmp_path: Path)
     assert [c.art_id for c in cands] == ["n:2", "7"]  # po liczbie zakupów, potem nazwie
 
 
-def test_opt_out_is_stored_and_excluded_from_auto_activate_codes(tmp_path: Path) -> None:
+def _codes(h: History, today: date) -> set[str]:
+    return {c.art_id for c in h.coupon_candidates(today) if c.enabled}
+
+
+def test_opt_out_is_stored_and_excluded_from_auto_activation(tmp_path: Path) -> None:
     path = tmp_path / "h.db"
     h = History(path)
     _seed_candidates(h)
     today = date(2026, 10, 7)
-    assert h.auto_activate_codes(today=today) == {"7"}
+    assert _codes(h, today) == {"7"}
     h.set_auto_activate("7", False)
     reopened = History(path)
     assert {c.art_id: c.enabled for c in reopened.coupon_candidates(today=today)}["7"] is False
-    assert reopened.auto_activate_codes(today=today) == set()
+    assert _codes(reopened, today) == set()
     reopened.set_auto_activate("7", True)
-    assert reopened.auto_activate_codes(today=today) == {"7"}
+    assert _codes(reopened, today) == {"7"}
 
 
 def test_ranking_can_be_limited_to_a_date_range(tmp_path: Path) -> None:

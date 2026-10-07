@@ -293,10 +293,10 @@ def test_coupons_toggle_off_and_on(client: TestClient) -> None:
     history = client.app.state.history  # type: ignore[attr-defined]
     r = client.post("/kupony/produkt/111", data={"enabled": "0"})
     assert r.status_code == 303 and r.headers["location"] == "/kupony#p-111"
-    assert history.auto_activate_codes() == set()
+    assert not any(c.enabled for c in history.coupon_candidates())
     assert 'aria-checked="false"' in client.get("/kupony").text
     client.post("/kupony/produkt/111", data={"enabled": "1"})
-    assert history.auto_activate_codes() == {"111"}
+    assert {c.art_id for c in history.coupon_candidates() if c.enabled} == {"111"}
 
 
 def test_coupons_without_regular_products_says_why(client: TestClient) -> None:

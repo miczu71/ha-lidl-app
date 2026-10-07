@@ -450,10 +450,6 @@ class History:
             else:
                 self._db.execute("INSERT OR IGNORE INTO coupon_optout VALUES (?)", (art_id,))
 
-    def auto_activate_codes(self, today: date | None = None) -> set[str]:
-        """Kody artykułów, na które E3 aktywuje kupony."""
-        return {c.art_id for c in self.coupon_candidates(today) if c.enabled}
-
     def save_coupons(self, account: str, coupons: Iterable[Coupon], seen_at: str) -> None:
         """Bieżąca lista kuponów konta; status ostatniej decyzji zostaje, kupony spoza listy znikają."""
         with self._db:
