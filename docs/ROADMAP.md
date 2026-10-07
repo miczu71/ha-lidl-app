@@ -86,6 +86,16 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   (opis „Lidl Plus kupon/voucher” = kupon, reszta = promocja). (3) Wersja 0.3.0 cicho pomijała starsze paragony —
   dlatego 0.3.1 liczy i pokazuje paragony nierozpoznane. (4) Dla E7: ceny jednostkowe z obu formatów są w bazie
   (`items.unit_price`, ważone w kg); dla produktów tylko ze starego formatu jest tylko klucz `n:<EAN>`.
+- **Kaucje i dane z paragonów (0.3.2–0.3.3, 2026-10-07):** kaucje czytamy z podsumowania paragonu HTML — „wydania” to kaucje
+  pobrane, „przyjęcia” to zwroty (zwrot kaucji plus „Opak bez kau”); pozycje po rabatach + pobrane − zwrócone = kwota paragonu
+  (zweryfikowane na 14 prawdziwych paragonach i na żywo: dom 100 952,74 zł zapłacone, kaucje pobrane 76,00 zł, zwrócone 42,70 zł).
+  W NATIVE kaucje są tylko pobierane. Przy okazji ponownego pobrania zapisujemy: godzinę zakupu (czas lokalny, nie przeliczać
+  strefy — końcówka `+00:00` z listy jest mylna), sklep (kod, nazwa, adres, kod pocztowy, miejscowość), sposób płatności, użyte
+  kupony (`ticket_coupons`), opis rabatu i flagę ważenia przy pozycji oraz oczyszczoną, skompresowaną kopię szczegółu paragonu
+  (`ticket_raw`, ~1,3 MB na ~520 paragonów, bez karty/kasjera/danych fiskalnych). Zmiany parsera przetwarzamy teraz lokalnie z kopii
+  (`PARSER_VERSION`), bez pytania Lidla. Dane czekają na ekrany: heatmapa dzień × godzina i ranking sklepów (dane już są;
+  mapa wymaga współrzędnych sklepów — geokodowanie w zewnętrznej usłudze albo ręcznie, decyzja otwarta), analiza kuponów (E3),
+  ceny w czasie (E7), przeglądarka paragonów (E8).
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
