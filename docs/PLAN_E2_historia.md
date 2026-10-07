@@ -85,3 +85,14 @@ downgrade sam). Usunięcie `/data/history.db` nie rusza tokenów w `/data/accoun
 - `cd lidl/app && uv run pytest && uv run ruff check && uv run mypy src`, zielone CI.
 - Playwright na panelu HA (`playwright-ha`): ekran Produkty, brak błędów konsoli, znacznik 0.3.0 w stopce.
 - Liczby z bazy porównane ze spike'iem (334 paragony, suma `savings`).
+
+## Dodatek (2026-10-07): konfigurowalny wykres wydatków
+Decyzja użytkownika: ekran „Produkty” dostaje wykres wydatków w dowolnym zakresie dat, krok domyślnie miesięczny
+(tydzień / miesiąc / kwartał / rok, skróty „12 miesięcy” i „Od początku”), z wyborem produktu z rankingu
+(domyślnie suma wszystkich pozycji) i przełącznikiem „Wydatki zł / Sztuki”.
+- Kategorii produktów w danych nie ma (paragon ma tylko kod artykułu) — wykres jest „wg produktu”; kategorie
+  zostają na E5/E6. Oszczędności zostają jako KPI-liczby, bez wykresu.
+- Dane: `History.spend_series(start, end, step, art_id=None)` — wydatek netto pozycji (cena minus rabaty, bez
+  kaucji), zero-fill pustych przedziałów, tydzień od poniedziałku. ✅ w E2.2.A.
+- UI: inline SVG po stronie serwera, kontrolki jako formularz GET (bez JS i bez nowych zależności); makieta
+  w artefakcie D1 przed implementacją (E2.2.B).

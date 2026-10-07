@@ -62,6 +62,32 @@ class SavingsKpi:
     last_date: str | None
 
 
+@dataclass(frozen=True)
+class SpendBucket:
+    start: str
+    spend: float
+    quantity: float
+    purchases: int
+
+
+def _bucket_start(d: date, step: str) -> date:
+    if step == "week":
+        return d - timedelta(days=d.weekday())
+    if step == "month":
+        return d.replace(day=1)
+    if step == "quarter":
+        return d.replace(month=(d.month - 1) // 3 * 3 + 1, day=1)
+    return d.replace(month=1, day=1)
+
+
+def _next_bucket(d: date, step: str) -> date:
+    if step == "week":
+        return d + timedelta(days=7)
+    months = {"month": 1, "quarter": 3, "year": 12}[step]
+    month = d.month - 1 + months
+    return date(d.year + month // 12, month % 12 + 1, 1)
+
+
 class History:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -158,3 +184,43 @@ class History:
             (since,),
         ).fetchone()
         return SavingsKpi(row[0], round(row[1], 2), round(row[2], 2), row[3], row[4], row[5])
+
+    def spend_series(self, start: date, end: date, step: str, art_id: str | None = None) -> list[SpendBucket]:
+        """Wydatki netto (cena minus rabaty pozycji, bez kaucji) w przedziałach `step`.
+
+        Zakres jest obustronnie domknięty, puste przedziały dostają zera. Bez `art_id` sumuje
+        wszystkie pozycje, z `art_id` tylko jeden produkt.
+        """
+        if step not in ("week", "month", "quarter", "year"):
+            raise ValueError("step")
+        if start > end:
+            raise ValueError("range")
+        sql = (
+            "SELECT t.day, i.total + i.discount, i.quantity, i.ticket_id FROM items i"
+            " JOIN tickets t ON t.id = i.ticket_id WHERE t.day BETWEEN ? AND ?"
+        )
+        args: list[str] = [start.isoformat(), end.isoformat()]
+        if art_id is not None:
+            sql += " AND i.art_id = ?"
+            args.append(art_id)
+        spend: dict[date, float] = {}
+        qty: dict[date, float] = {}
+        tickets: dict[date, set[str]] = {}
+        for day, net, quantity, ticket_id in self._db.execute(sql, args):
+            b = _bucket_start(date.fromisoformat(day), step)
+            spend[b] = spend.get(b, 0.0) + net
+            qty[b] = qty.get(b, 0.0) + quantity
+            tickets.setdefault(b, set()).add(ticket_id)
+        series = []
+        b = _bucket_start(start, step)
+        while b <= end:
+            series.append(
+                SpendBucket(
+                    b.isoformat(),
+                    round(spend.get(b, 0.0), 2),
+                    round(qty.get(b, 0.0), 3),
+                    len(tickets.get(b, ())),
+                )
+            )
+            b = _next_bucket(b, step)
+        return series
