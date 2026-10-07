@@ -54,7 +54,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
      (dostarcza użytkownik z telefonu). Zostają lokalnie, **poza repo** (prawa autorskie). Wgranie ich do
      artefaktu Claude Design to wysłanie do zewnętrznej usługi (artefakt jest domyślnie prywatny, bez
      udostępniania) — zgoda użytkownika przed wgraniem.
-  2. *System designu* (Artifact typu *Design System*, „Lidl Plus — styl”): paleta, typografia, kształty,
+  2. *System designu* (Artifact typu *Design System*, „Lidl Plus styl”; **v1 gotowy 2026-10-07**, prywatny:
+     https://claude.ai/artifact/7Dc5dqGHZaj5dCmRHyxu1u; 7 komponentów, okładka; bez zrzutów, tylko tokeny i opis): paleta, typografia, kształty,
      komponenty (przyciski, chipy, kafelki kuponów, listy), ruch; kontrast ≥ 4,5:1 (żółć na bieli zwykle nie
      przechodzi — osobne warianty tekstowe); wolne od licencji fonty i ikony SVG o podobnym charakterze.
   3. *Makiety* (Artifact typu *Design*): ekrany konta, logowania, a później kupony, ranking produktów, gazetki,
