@@ -119,6 +119,7 @@ def test_products_shows_kpi_chart_and_ranking(client: TestClient) -> None:
     text = client.get("/produkty?zakres=all").text
     assert "Dotychczasowe oszczędności" in text and "4,00 zł" in text
     assert "Kupony Lidl Plus" in text and "Promocje" in text and "2,00 zł" in text
+    assert "Zapłacono łącznie" in text and "40,00 zł" in text and "8,00 zł" in text
     assert "wrzesień 2026: 16 zł" in text
     assert "Produkt A" in text and "2 zakupy" in text
     assert 'aria-pressed="true"' in text and "Historia jest aktualna: 2 paragony" in text
@@ -226,3 +227,21 @@ def test_products_offers_import_for_connected_account_without_history(client: Te
     text = client.get("/produkty").text
     assert 'action="/accounts/osoba-2/history"' in text
     assert 'action="/accounts/osoba-1/history"' not in text
+
+
+def test_chart_summary_shows_deposits_and_paid_total_for_the_range(client: TestClient) -> None:
+    _seed(client)
+    text = client.get("/produkty?zakres=all").text
+    assert "<strong>32 zł</strong>" in text  # wydatki na pozycje po rabatach
+    assert "kaucje <strong>8 zł</strong>" in text
+    assert "z kaucjami zapłacono <strong>40 zł</strong>" in text
+    one_month = client.get("/produkty?od=2026-09-01&do=2026-09-30").text
+    assert "z kaucjami zapłacono <strong>20 zł</strong>" in one_month
+
+
+def test_chart_summary_hides_ticket_level_totals_for_one_product_or_pieces(client: TestClient) -> None:
+    _seed(client)
+    product = client.get("/produkty?zakres=all&produkt=222").text
+    assert "z kaucjami zapłacono" not in product and "na ten produkt" in product
+    pieces = client.get("/produkty?zakres=all&miara=sztuki").text
+    assert "z kaucjami zapłacono" not in pieces

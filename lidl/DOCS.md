@@ -24,6 +24,8 @@ zamknąć. Jeśli Lidl ograniczy liczbę żądań albo zerwie się połączenie,
 dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie.
 
 - **Oszczędności** to suma rabatów na pozycjach paragonów (osobno kupony Lidl Plus i promocje) — punkt odniesienia sprzed aktywacji kuponów przez add-on.
+- **Zapłacono łącznie** to suma kwot paragonów (po rabatach, z kaucją); **kaucje** wyliczamy jako kwotę paragonu
+  minus pozycje po rabatach (bywa o grosze niedokładna). Obie liczby są w karcie oszczędności i pod wykresem.
 - **Wykres** pokazuje wydatki na pozycje (po rabatach, bez kaucji) w wybranym zakresie dat i kroku; można
   zawęzić do jednego produktu albo pokazać sztuki zamiast złotych.
 - Produkt to kod artykułu z paragonu. Starsze paragony (sprzed marca 2026) mają inne kody niż nowsze, więc

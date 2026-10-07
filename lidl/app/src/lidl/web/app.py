@@ -208,14 +208,22 @@ def create_app(settings: Settings) -> FastAPI:
             first = date.fromisoformat(kpi.first_date) if kpi.first_date else None
             query = parse_chart_query(params, date.today(), first)
             chart = None
+            range_totals = None
             if query.error is None:
                 series = history.spend_series(query.start, query.end, query.step, query.art_id)
                 chart = build_chart(series, query.step, query.metric)
+                if query.art_id is None and query.metric == "spend":
+                    totals = history.purchase_totals(query.start, query.end)
+                    range_totals = {"paid": fmt_pln(totals.paid), "deposits": fmt_pln(totals.deposits)}
+            all_totals = history.purchase_totals()
             ranking = history.ranking()
             limit = parse_limit(params.get("limit"))
             ctx.update(
                 query=query,
                 chart=chart,
+                range_totals=range_totals,
+                kpi_paid=fmt_pln(all_totals.paid, 2),
+                kpi_deposits=fmt_pln(all_totals.deposits, 2),
                 options=[{"id": p.art_id, "name": p.name} for p in ranking],
                 rows=ranking_rows(ranking, limit, link),
                 more_href=link(limit=limit + MORE_STEP) + "#rank" if len(ranking) > limit else None,

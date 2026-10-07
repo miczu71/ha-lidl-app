@@ -75,6 +75,12 @@ class SavingsKpi:
 
 
 @dataclass(frozen=True)
+class PurchaseTotals:
+    paid: float  # suma kwot paragonów (po rabatach, z kaucją)
+    deposits: float  # kaucje wyliczone: kwota paragonu minus pozycje po rabatach
+
+
+@dataclass(frozen=True)
 class SpendBucket:
     start: str
     spend: float
@@ -253,6 +259,29 @@ class History:
             first_date=t[4],
             last_date=t[5],
         )
+
+    def purchase_totals(self, start: date | None = None, end: date | None = None) -> PurchaseTotals:
+        """Ile zapłacono łącznie i ile z tego to kaucje (zakres dat domknięty, bez zakresu = cała historia).
+
+        Kaucji paragon nie podaje wprost w liście, więc liczymy ją per paragon jako kwotę paragonu minus
+        pozycje po rabatach (min. 0); tylko dla paragonów z rozpoznanymi pozycjami.
+        """
+        where = ""
+        args: list[str] = []
+        if start is not None:
+            where += " AND t.day >= ?"
+            args.append(start.isoformat())
+        if end is not None:
+            where += " AND t.day <= ?"
+            args.append(end.isoformat())
+        paid = self._db.execute(f"SELECT SUM(t.total) FROM tickets t WHERE 1 = 1{where}", args).fetchone()[0]
+        deposits = self._db.execute(
+            "SELECT SUM(MAX(0.0, ROUND(t.total - x.net, 2))) FROM tickets t JOIN"
+            " (SELECT ticket_id, SUM(total + discount) AS net FROM items GROUP BY ticket_id) x"
+            f" ON x.ticket_id = t.id WHERE t.parsed = 1{where}",
+            args,
+        ).fetchone()[0]
+        return PurchaseTotals(round(paid or 0.0, 2), round(deposits or 0.0, 2))
 
     def spend_series(self, start: date, end: date, step: str, art_id: str | None = None) -> list[SpendBucket]:
         """Wydatki netto (cena minus rabaty pozycji, bez kaucji) w przedziałach `step`.

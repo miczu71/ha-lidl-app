@@ -208,3 +208,29 @@ def test_spend_series_rejects_bad_step_and_reversed_range(tmp_path: Path) -> Non
         h.spend_series(date(2026, 1, 1), date(2026, 2, 1), "day")
     with pytest.raises(ValueError, match="range"):
         h.spend_series(date(2026, 2, 1), date(2026, 1, 1), "month")
+
+
+def test_purchase_totals_paid_and_derived_deposits(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a",
+        [
+            _ticket("t1", "2026-01-10", total=20.0),
+            _ticket("t2", "2026-02-10", total=11.0),
+            _ticket("t3", "2026-03-10", total=5.0, articles=3),
+            _ticket("t4", "2026-04-10", total=5.0),
+        ],
+    )
+
+    def receipt(*net: tuple[float, float]) -> ParsedReceipt:
+        return ParsedReceipt(items=[ReceiptItem("1", "A", 1, g, g, d) for g, d in net])
+
+    h.save_detail("t1", "S", receipt((10.0, 0.0), (10.0, -2.0)))  # netto 18 -> kaucja 2
+    h.save_detail("t2", "S", receipt((12.0, -1.0)))  # netto 11 -> kaucja 0
+    h.save_detail("t3", "S", ParsedReceipt())  # nierozpoznany: wlicza się do zapłaconych, nie do kaucji
+    h.save_detail("t4", "S", receipt((8.0, 0.0)))  # netto 8 > 5 (zwrot?) -> kaucja 0, nie ujemna
+    totals = h.purchase_totals()
+    assert (totals.paid, totals.deposits) == (41.0, 2.0)
+    ranged = h.purchase_totals(date(2026, 2, 1), date(2026, 3, 31))
+    assert (ranged.paid, ranged.deposits) == (16.0, 0.0)
+    assert h.purchase_totals(date(2030, 1, 1), date(2030, 12, 31)).paid == 0.0

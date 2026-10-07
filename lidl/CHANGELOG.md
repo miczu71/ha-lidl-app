@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Ekran Produkty pokazuje **ile zapłacono łącznie** (suma kwot paragonów po rabatach, z kaucją) i **ile z tego to kaucje** — w karcie oszczędności za całą historię oraz pod wykresem dla wybranego zakresu dat.
+- Kaucje wyliczamy z paragonów (kwota paragonu minus pozycje po rabatach), więc nie wymaga to ponownego pobierania historii. Przy filtrze na jeden produkt i w mierze „Sztuki” pod wykresem zostaje sama suma wydatków na produkt (kaucja i kwota paragonu nie są przypisane do produktu).
+
 ## 0.3.1
 
 - **Starsze paragony są teraz czytane.** Paragony sprzed 27 marca 2026 przychodzą z API w innym formacie (lista pozycji zamiast HTML); wersja 0.3.0 pobierała je, ale nie rozpoznawała, więc ranking i wykres obejmowały tylko ostatnie pół roku. Teraz cała historia (od 2019) trafia do wykresu i rankingu.

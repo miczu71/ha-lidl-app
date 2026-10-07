@@ -91,6 +91,8 @@
   <dl class="facts">
     <div><dt>Kupony Lidl Plus</dt><dd>{{ kpi_coupon_money }}</dd></div>
     <div><dt>Promocje</dt><dd>{{ kpi_promo_money }}</dd></div>
+    <div><dt>Zapłacono łącznie</dt><dd>{{ kpi_paid }}</dd></div>
+    <div><dt>w tym kaucje</dt><dd>{{ kpi_deposits }}</dd></div>
     <div><dt>Ostatnie 12 miesięcy</dt><dd>{{ kpi_last12 }}</dd></div>
     <div><dt>Paragony</dt><dd>{{ kpi_tickets }}</dd></div>
     <div><dt>Użyte kupony</dt><dd>{{ kpi_coupons }}</dd></div>
@@ -156,7 +158,7 @@
     </div>
     <div class="xl" aria-hidden="true">{% for b in chart.bars %}<span>{{ b.label }}</span>{% endfor %}</div>
   </div>
-  <p class="sum">Suma w zakresie: <strong>{{ chart.total }}</strong> · średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.{% if query.metric == 'spend' %} Bez kaucji za opakowania.{% endif %}</p>
+  <p class="sum">Suma w zakresie: <strong>{{ chart.total }}</strong>{% if query.metric == 'spend' %} {{ 'na ten produkt' if query.art_id else 'na produkty (po rabatach)' }}{% endif %}{% if range_totals %} · kaucje <strong>{{ range_totals.deposits }}</strong> · z kaucjami zapłacono <strong>{{ range_totals.paid }}</strong>{% endif %} · średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.</p>
   {% elif chart %}
   <p class="notice notice--info" role="status">
     <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
