@@ -1,0 +1,17 @@
+{% from "_macros.html" import search_count %}
+<div id="wyniki">
+  {{ search_count(found, ranked, q, clear_href) }}
+  <ol class="rklist" aria-labelledby="rank-h">
+    {% for r in rows %}
+    <li class="rk">
+      <span class="pos">{{ r.pos }}</span>
+      <span class="rk__name">{{ r.name }}</span>
+      <span class="rk__meta"><span>{{ r.count }}</span><span>{{ r.last }}</span><span>{{ r.cycle }}</span></span>
+      <a class="ds-btn ds-btn--link" href="{{ r.href }}" aria-label="{{ r.aria }}" hx-swap="outerHTML show:#wykres:top">Wykres</a>
+    </li>
+    {% else %}
+    <li class="meta">{% if q %}Nic nie pasuje do „{{ q }}” w tym zakresie dat.{% else %}Brak zakupów w tym zakresie dat.{% endif %}</li>
+    {% endfor %}
+  </ol>
+  {% if more_href %}<div><a class="ds-btn ds-btn--secondary" href="{{ more_href }}">Pokaż więcej</a></div>{% endif %}
+</div>

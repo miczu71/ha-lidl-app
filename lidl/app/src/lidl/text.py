@@ -2,9 +2,22 @@
 
 from __future__ import annotations
 
+import unicodedata
 from datetime import date, datetime
 
 SHORT_MONTHS = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
+
+
+def _fold(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text.casefold().replace("ł", "l"))
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def matches(name: str, query: str) -> bool:
+    """Wyszukiwanie jak w Budżecie: każde słowo frazy występuje w nazwie (dowolna kolejność), bez względu
+    na wielkość liter i polskie znaki."""
+    folded = _fold(name)
+    return all(word in folded for word in _fold(query).split())
 
 
 def plural(n: int, one: str, few: str, many: str) -> str:

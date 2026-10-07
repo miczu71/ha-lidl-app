@@ -394,6 +394,16 @@ class History:
             p["name"], p["price"], p["last"] = name, price, day
         return acc
 
+    def product_name(self, art_id: str) -> str | None:
+        """Ostatnia nazwa produktu z paragonów (kod po moście nazw albo `n:<EAN>`)."""
+        resolve = self._resolver()
+        for code, name in self._db.execute(
+            "SELECT i.art_id, i.name FROM items i JOIN tickets t ON t.id = i.ticket_id ORDER BY t.day DESC"
+        ):
+            if resolve(code, name) == art_id:
+                return str(name)
+        return None
+
     def ranking(
         self, limit: int = 200, start: date | None = None, end: date | None = None
     ) -> list[RankedProduct]:

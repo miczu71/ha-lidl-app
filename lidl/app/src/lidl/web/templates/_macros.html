@@ -1,0 +1,10 @@
+{# Wyszukiwanie na żywo (htmx, wzorzec z Budżetu): pole przerysowuje tylko blok `target`, fraza trafia do adresu #}
+{% macro search_input(q, label, placeholder, action, target, form=None) %}
+<div role="search">
+  <label class="search">{{ label }}<input class="field" id="q" type="search" name="q" value="{{ q }}" placeholder="{{ placeholder }}" autocomplete="off" spellcheck="false" enterkeyhint="search"{% if form %} form="{{ form }}" hx-include="#{{ form }}"{% endif %} hx-get="{{ action }}" hx-trigger="input changed delay:200ms, search" hx-target="#{{ target }}" hx-select="#{{ target }}" hx-swap="outerHTML" hx-indicator="#{{ target }}" hx-replace-url="true" hx-sync="this:replace"></label>
+</div>
+{% endmacro %}
+
+{% macro search_count(shown, total, q, clear_url) %}
+{% if q %}<p class="sum">{{ shown }} z {{ total }} · <a href="{{ clear_url }}">wyczyść</a></p>{% endif %}
+{% endmacro %}

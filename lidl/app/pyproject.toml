@@ -30,7 +30,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-"lidl.web" = ["templates/*.html", "static/*.css", "static/fonts/*"]
+"lidl.web" = ["templates/*.html", "static/*.css", "static/*.js", "static/fonts/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

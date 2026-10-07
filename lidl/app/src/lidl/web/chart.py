@@ -84,7 +84,13 @@ def parse_chart_query(params: Mapping[str, str], today: date, first_day: date | 
     elif zakres == "12m" or (od is None and do is None):
         start, end, preset = default_start, default_end, "12m"
     else:
-        start, end, preset = od or first_day or default_start, do or today, None
+        start, end = od or first_day or default_start, do or today
+        if (start, end) == (default_start, default_end):  # np. daty dołączone przez wyszukiwanie na żywo
+            preset = "12m"
+        elif first_day and (start, end) == (first_day, today):
+            preset = "all"
+        else:
+            preset = None
     error = "range" if start > end else None
     truncated = False
     if error is None and (end - start).days / _STEP_DAYS[step] > MAX_BUCKETS:

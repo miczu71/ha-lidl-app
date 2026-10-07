@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import search_count, search_input %}
 {% block head %}{% if status.state == 'running' %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block main %}
 <div>
@@ -101,9 +102,10 @@
   <p class="hint" style="margin: 0">{% if kpi_with_details < kpi_tickets %}Liczone z {{ kpi_with_details }} z {{ kpi_tickets }} paragonów, reszta jeszcze się pobiera.{% else %}Punkt odniesienia z paragonów, zanim add-on zacznie aktywować kupony.{% endif %}{% if kpi_dep_known < kpi_tickets %} Kaucje z {{ kpi_dep_known }} z {{ kpi_tickets }} paragonów.{% endif %}</p>
 </section>
 
+<div id="produkty" hx-boost="true" hx-target="#produkty" hx-select="#produkty" hx-swap="outerHTML show:none" hx-indicator="#produkty">
 <section class="card" aria-labelledby="wyk" id="wykres">
   <h2 class="s" id="wyk">Wydatki w czasie</h2>
-  <form class="ctl" method="get" action="{{ base }}/produkty#wykres">
+  <form class="ctl" id="filtry" method="get" action="{{ base }}/produkty#wykres" hx-get="{{ base }}/produkty" hx-trigger="change, submit" hx-replace-url="true" hx-sync="this:replace">
     {% set bad = query.error == 'range' %}
     <div class="ctl__dates">
       <div class="f">
@@ -130,23 +132,18 @@
         {% endfor %}
       </div>
     </fieldset>
-    <div class="ctl__pair">
-      <div class="f">
-        <label for="prod">Produkt</label>
-        <select class="field" id="prod" name="produkt">
-          <option value="">Wszystkie produkty</option>
-          {% for o in options %}<option value="{{ o.id }}"{% if o.id == query.art_id %} selected{% endif %}>{{ o.name }}</option>{% endfor %}
-        </select>
+    <fieldset>
+      <legend>Pokaż</legend>
+      <div class="seg">
+        <label><input type="radio" name="miara" value="wydatki"{% if query.metric == 'spend' %} checked{% endif %}><span>Wydatki (zł)</span></label>
+        <label><input type="radio" name="miara" value="sztuki"{% if query.metric == 'qty' %} checked{% endif %}><span>Sztuki</span></label>
       </div>
-      <fieldset>
-        <legend>Pokaż</legend>
-        <div class="seg">
-          <label><input type="radio" name="miara" value="wydatki"{% if query.metric == 'spend' %} checked{% endif %}><span>Wydatki (zł)</span></label>
-          <label><input type="radio" name="miara" value="sztuki"{% if query.metric == 'qty' %} checked{% endif %}><span>Sztuki</span></label>
-        </div>
-      </fieldset>
-    </div>
-    <div><button class="ds-btn" type="submit">Pokaż wykres</button></div>
+    </fieldset>
+    {% if query.art_id %}
+    <input type="hidden" name="produkt" value="{{ query.art_id }}">
+    <p class="sum sel">Produkt: <strong>{{ product_name }}</strong> <a class="sel__x" href="{{ all_products_href }}" aria-label="Usuń filtr produktu, pokaż wszystkie produkty"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></a></p>
+    {% endif %}
+    <noscript><div><button class="ds-btn" type="submit">Pokaż wykres</button></div></noscript>
   </form>
 
   {% if query.truncated %}<p class="hint" style="margin: 0">Zakres skrócony do ostatnich 400 przedziałów.</p>{% endif %}
@@ -173,19 +170,10 @@
     <h2 class="s" id="rank-h">Najczęściej kupowane</h2>
     <p class="sum">{{ rank_range }}</p>
   </div>
-  <ol class="rklist" aria-labelledby="rank-h">
-    {% for r in rows %}
-    <li class="rk">
-      <span class="pos">{{ r.pos }}</span>
-      <span class="rk__name">{{ r.name }}</span>
-      <span class="rk__meta"><span>{{ r.count }}</span><span>{{ r.last }}</span><span>{{ r.cycle }}</span></span>
-      <a class="ds-btn ds-btn--link" href="{{ r.href }}" aria-label="{{ r.aria }}">Wykres</a>
-    </li>
-    {% else %}
-    <li class="meta">Paragony są pobrane, ale pozycje jeszcze się wczytują.</li>
-    {% endfor %}
-  </ol>
-  {% if more_href %}<div><a class="ds-btn ds-btn--secondary" href="{{ more_href }}">Pokaż więcej</a></div>{% endif %}
+  {# pole należy do formularza #filtry: każda zmiana kontrolek wysyła bieżącą frazę #}
+  {{ search_input(q, "Szukaj produktu", "np. banany, ser, mleko", base ~ "/produkty", "wyniki", form="filtry") }}
+  {% include "_ranking.html" %}
 </section>
+</div>
 {% endif %}
 {% endblock %}

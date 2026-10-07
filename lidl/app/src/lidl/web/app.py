@@ -34,7 +34,7 @@ from lidl.receipt import parse_detail
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_date, fmt_time_day_month
+from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
 from .products import MORE_STEP, coupon_cards, coupon_rows, import_status, parse_limit, ranking_rows
@@ -204,16 +204,32 @@ def create_app(settings: Settings) -> FastAPI:
             keep = {
                 k: v
                 for k, v in params.items()
-                if k in ("od", "do", "krok", "produkt", "miara", "zakres", "limit")
+                if k in ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
             }
             keep.update({k: str(v) for k, v in over.items()})
-            return f"{base(request)}/produkty?{urlencode(keep)}"
+            keep = {k: v for k, v in keep.items() if v}  # pusta wartość = bez filtra
+            return f"{base(request)}/produkty?{urlencode(keep)}" if keep else f"{base(request)}/produkty"
 
         ctx: dict[str, Any] = {"section": "produkty", "status": status, "accounts": accounts}
         if status["state"] != "empty":
             kpi = history.savings_kpi()
             first = date.fromisoformat(kpi.first_date) if kpi.first_date else None
             query = parse_chart_query(params, date.today(), first)
+            ranking = history.ranking(start=query.start, end=query.end) if query.error is None else []
+            q = params.get("q", "").strip()
+            found = [p for p in ranking if matches(p.name, q)] if q else ranking
+            limit = parse_limit(params.get("limit"))
+            ctx.update(
+                query=query,
+                q=q,
+                found=len(found),
+                ranked=len(ranking),
+                clear_href=link(q=""),
+                rows=ranking_rows(found, limit, link),
+                more_href=link(limit=limit + MORE_STEP) if len(found) > limit else None,
+            )
+            if request.headers.get("hx-target") == "wyniki":  # wyszukiwanie na żywo: tylko wyniki rankingu
+                return render(request, "_ranking.html", **ctx)
             chart = None
             range_totals = None
             if query.error is None:
@@ -227,21 +243,16 @@ def create_app(settings: Settings) -> FastAPI:
                         "refunded": fmt_pln(totals.refunded),
                     }
             all_totals = history.purchase_totals()
-            ranking = history.ranking(start=query.start, end=query.end) if query.error is None else []
-            all_products = history.ranking()  # lista wyboru produktu (do E13.2 z całej historii)
-            limit = parse_limit(params.get("limit"))
             ctx.update(
-                query=query,
                 chart=chart,
                 range_totals=range_totals,
                 kpi_paid=fmt_pln(all_totals.paid, 2),
                 kpi_charged=fmt_pln(all_totals.charged, 2),
                 kpi_refunded=fmt_pln(all_totals.refunded, 2),
                 kpi_dep_known=all_totals.with_deposits,
-                options=[{"id": p.art_id, "name": p.name} for p in all_products],
+                product_name=query.art_id and (history.product_name(query.art_id) or query.art_id),
+                all_products_href=link(produkt=""),
                 rank_range=f"{fmt_date(query.start)} – {fmt_date(query.end)}",
-                rows=ranking_rows(ranking, limit, link),
-                more_href=link(limit=limit + MORE_STEP) + "#rank" if len(ranking) > limit else None,
                 kpi_total=fmt_pln(kpi.total, 2),
                 kpi_coupon_money=fmt_pln(kpi.coupons, 2),
                 kpi_promo_money=fmt_pln(kpi.promotions, 2),

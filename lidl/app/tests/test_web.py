@@ -135,7 +135,7 @@ def test_products_filters_chart_by_product_and_metric(client: TestClient) -> Non
     _seed(client)
     text = client.get("/produkty?zakres=all&produkt=222&miara=sztuki").text
     assert "wrzesień 2026: 1 szt." in text
-    assert 'value="222" selected' in text
+    assert 'name="produkt" value="222"' in text and "Produkt: <strong>Produkt B</strong>" in text
 
 
 def test_products_reversed_range_shows_error_without_chart(client: TestClient) -> None:
@@ -388,3 +388,41 @@ def test_ranking_follows_chart_range_and_shows_year_for_old_purchases(client: Te
     ranking = everything[everything.index('id="rank"') :]
     assert "Produkt stary" in ranking and f" {date.fromisoformat(old).year}" in ranking
     assert "zakres=all" in ranking[ranking.index("Produkt stary") :].split("Wykres")[0]
+
+
+def test_product_search_filters_ranking_and_offers_clear(client: TestClient) -> None:
+    _seed(client)
+    text = client.get("/produkty?q=produkt a").text
+    ranking = text[text.index('id="rank"') :]
+    assert "Produkt A" in ranking and "Produkt B" not in ranking
+    assert "1 z 2" in ranking and "wyczyść" in ranking
+    assert (
+        'type="search"' in text and 'name="q"' in text and 'name="produkt"' not in text.split('id="rank"')[0]
+    )
+
+
+def test_search_ignores_case_and_polish_diacritics(client: TestClient) -> None:
+    from lidl.text import matches
+
+    assert matches("Jabłka Pinova luz", "JABLKA") and matches("Pieczarki 500g", "piecz")
+    assert not matches("Banany luz", "jablka")
+
+
+def test_selected_product_shows_as_removable_chip(client: TestClient) -> None:
+    _seed(client)
+    text = client.get("/produkty?produkt=111").text
+    assert "Produkt: <strong>Produkt A</strong>" in text and "Usuń filtr produktu" in text
+    assert "<select" not in text and "htmx.min.js?v=" in text
+
+
+def test_live_search_returns_only_the_ranking_results(client: TestClient) -> None:
+    _seed(client)
+    text = client.get("/produkty?q=produkt b", headers={"HX-Target": "wyniki"}).text
+    assert text.lstrip().startswith('<div id="wyniki">') and "Produkt B" in text and "Produkt A" not in text
+    assert "Wydatki w czasie" not in text and "<html" not in text
+
+
+def test_search_matches_every_word_in_any_order() -> None:
+    from lidl.text import matches
+
+    assert matches("Ser gouda plastry 150 g", "plastry ser") and not matches("Ser gouda", "ser mleko")

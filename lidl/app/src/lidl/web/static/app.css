@@ -150,8 +150,6 @@ select.field { appearance: auto; }
 .ctl { display: flex; flex-direction: column; gap: var(--space-4); }
 .ctl__dates { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .ctl__dates .f { flex: 1 1 140px; min-width: 0; }
-.ctl__pair { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
-.ctl__pair > * { flex: 1 1 240px; min-width: 0; }
 .seg { display: flex; border: 1.5px solid var(--control-border); border-radius: var(--radius-pill); overflow: hidden; background: var(--surface); }
 .seg label { position: relative; flex: 1; margin: 0; }
 .seg label + label { border-left: 1.5px solid var(--line); }
@@ -212,3 +210,13 @@ select.field { appearance: auto; }
   .sw__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .sw__track, .sw__track::after { transition: none; } }
+
+/* Wyszukiwanie na żywo (htmx) i wybrany produkt wykresu */
+#produkty { display: flex; flex-direction: column; gap: var(--space-5); }
+label.search { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; max-width: 420px; }
+input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
+.sel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
+.sel__x { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -12px -12px -12px -8px; border-radius: 50%; color: var(--ink-muted); }
+.sel__x:hover { background: var(--surface-inset); color: var(--ink); }
+.sel__x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+#wyniki.htmx-request, #produkty.htmx-request { opacity: 0.6; transition: opacity 0.15s ease-out; }

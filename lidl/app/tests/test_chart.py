@@ -113,3 +113,11 @@ def test_day_month_and_genitive_month_year() -> None:
 
     assert fmt_day_month(date(2026, 10, 5)) == "5 paź"
     assert fmt_month_year_genitive(date(2019, 5, 10)) == "maja 2019"
+
+
+def test_dates_equal_to_a_preset_are_recognised_as_that_preset() -> None:
+    q = parse_chart_query({"od": "2025-11-01", "do": "2026-10-31"}, TODAY, None)
+    assert q.preset == "12m"
+    q = parse_chart_query({"od": "2019-05-10", "do": "2026-10-07"}, TODAY, date(2019, 5, 10))
+    assert q.preset == "all"
+    assert parse_chart_query({"od": "2026-01-15", "do": "2026-03-01"}, TODAY, None).preset is None
