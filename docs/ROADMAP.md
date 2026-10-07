@@ -134,7 +134,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     oszczędności, top produkty, zmiana vs poprzedni miesiąc. Do ustalenia: dzień/godzina, komu, link do panelu.
   - **E20 Zdrapki, progi nagród, Pieczątka Plus:** postęp do progu („brakuje 23 zł do nagrody”), przypomnienie
     o niezdrapanych zdrapkach i ich ważności. **Najpierw rozpoznanie:** czy API (biblioteka upstream lub ruch
-    aplikacji) udostępnia te dane; bez tego etap odpada.
+    aplikacji) udostępnia te dane; bez tego etap odpada. Wstępne rozpoznanie (2026-10-07): klienci open source tego
+    nie mają, ale istnieją hosty `purchaselottery`, `couponplus`, `stampcard` `.lidlplus.com`; następny krok E20.0 =
+    analiza statyczna APK, plan: `docs/PLAN_E20_nagrody.md`.
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
