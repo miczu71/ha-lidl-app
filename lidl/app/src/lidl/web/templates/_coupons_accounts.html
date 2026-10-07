@@ -11,34 +11,48 @@
   {% if not cards %}<p class="sum">Brak połączonych kont. Zaloguj konto w zakładce <a href="{{ base }}/">Konta</a>.</p>{% endif %}
 </section>
 
-{% for card in cards %}
-<section class="card" aria-labelledby="kt-{{ card.slug }}" id="kupony-{{ card.slug }}">
-  <div>
-    <h2 class="s" id="kt-{{ card.slug }}">{{ card.label }}</h2>
-    <p class="sum" id="kt-sum-{{ card.slug }}">{% if card.total %}Aktywne: {{ card.active }} z {{ card.total }}{% else %}Kupony pojawią się po pierwszym sprawdzeniu.{% endif %}</p>
-  </div>
-  {% if card.total %}
-  {{ search_count(card.rows|length, card.total, q, clear_href) }}
-  <ul class="cplist">
-    {% for r in card.rows %}
-    <li class="cp" id="k-{{ card.slug }}-{{ r.pid }}">
-      <div class="cp__txt">
-        <span class="cp__name">{{ r.title }}</span>
-        <span class="cp__meta"><span>{{ r.discount }}</span><span>{{ r.until }}</span></span>
-      </div>
-      <div class="cp__side cp__side--stack">
-        {% if r.label %}<span class="status{% if r.kind == 'on' %} status--on{% elif r.kind == 'err' %} status--err{% endif %}">{{ r.label }}</span>{% endif %}
-        {% if r.kind in ('', 'would', 'err') %}
-        {% set row = "#k-" ~ card.slug ~ "-" ~ r.pid %}
-        <form method="post" action="{{ base }}/kupony/{{ card.slug }}/{{ r.pid }}/aktywuj" hx-post="{{ base }}/kupony/{{ card.slug }}/{{ r.pid }}/aktywuj" hx-target="{{ row }}" hx-select="{{ row }}" hx-select-oob="#kt-sum-{{ card.slug }}" hx-swap="outerHTML"><button class="ds-btn ds-btn--link" type="submit" aria-label="Aktywuj kupon: {{ r.title }}">Aktywuj</button></form>
-        {% endif %}
-      </div>
-    </li>
-    {% else %}
-    {{ no_match(q) }}
+{% if cards %}
+{# Zakładki kont w jednym rzędzie; na starcie zwinięte (przy wyszukiwaniu otwarta pierwsza z trafieniami).
+   Przełączanie i zachowanie otwartej zakładki przy podmianach htmx: skrypt w base.html (data-tab). #}
+{% set open = (cards|selectattr("rows")|first|default({})).slug if q else "" %}
+<section class="card card--flush" aria-label="Kupony kont">
+  <div class="tabs">
+    {% for card in cards %}
+    <button class="tab" type="button" id="tab-{{ card.slug }}" data-tab aria-controls="kupony-{{ card.slug }}" aria-expanded="{{ 'true' if open == card.slug else 'false' }}">
+      <span class="tab__name">{{ card.label }}<svg class="tab__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
+      <span class="tab__sum" id="kt-sum-{{ card.slug }}">{% if card.total %}aktywne {{ card.active }} z {{ card.total }}{% if card.only %} · tylko tu: {{ card.only }}{% endif %}{% if q %} · pasuje {{ card.rows|length }}{% endif %}{% else %}brak kuponów{% endif %}</span>
+    </button>
     {% endfor %}
-  </ul>
-  {% endif %}
+  </div>
+  {% for card in cards %}
+  <div class="tabpanel" id="kupony-{{ card.slug }}" role="region" aria-labelledby="tab-{{ card.slug }}"{% if open != card.slug %} hidden{% endif %}>
+    {% if card.total %}
+    {{ search_count(card.rows|length, card.total, q, clear_href) }}
+    <ul class="cplist">
+      {% for r in card.rows %}
+      <li class="cp" id="k-{{ card.slug }}-{{ r.pid }}">
+        <div class="cp__txt">
+          <span class="cp__name">{{ r.title }}</span>
+          <span class="cp__meta"><span>{{ r.discount }}</span><span>{{ r.until }}</span></span>
+        </div>
+        <div class="cp__side cp__side--stack">
+          {% if r.shared %}<span class="tag">wspólny</span>{% elif r.shared is false %}<span class="tag tag--own">tylko {{ card.label }}</span>{% endif %}
+          {% if r.label %}<span class="status{% if r.kind == 'on' %} status--on{% elif r.kind == 'err' %} status--err{% endif %}">{{ r.label }}</span>{% endif %}
+          {% if r.kind in ('', 'would', 'err') %}
+          {% set row = "#k-" ~ card.slug ~ "-" ~ r.pid %}
+          <form method="post" action="{{ base }}/kupony/{{ card.slug }}/{{ r.pid }}/aktywuj" hx-post="{{ base }}/kupony/{{ card.slug }}/{{ r.pid }}/aktywuj" hx-target="{{ row }}" hx-select="{{ row }}" hx-select-oob="#kt-sum-{{ card.slug }}" hx-swap="outerHTML"><button class="ds-btn ds-btn--link" type="submit" aria-label="Aktywuj kupon: {{ r.title }}">Aktywuj</button></form>
+          {% endif %}
+        </div>
+      </li>
+      {% else %}
+      {{ no_match(q) }}
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="sum tabpanel__empty">Kupony pojawią się po pierwszym sprawdzeniu.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
 </section>
-{% endfor %}
+{% endif %}
 </div>

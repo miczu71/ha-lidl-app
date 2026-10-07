@@ -474,3 +474,53 @@ def test_search_covers_products_beyond_the_first_two_hundred(client: TestClient)
     history.save_detail("duzy", "S", ParsedReceipt(items=items))
     part = client.get("/produkty?q=rzadki", headers={"HX-Target": "wyniki"}).text
     assert "Zzz rzadki produkt" in part and "1 z 205" in part
+
+
+def _seed_second_account(client: TestClient) -> None:
+    """Osoba 2 ma wspólny „Kupon aktywny” i własny „Kupon drugiej osoby”."""
+    from datetime import UTC, datetime
+
+    from lidl.coupons import parse_coupons
+
+    _connect(client, "Osoba 2")
+    now = datetime.now(UTC)
+    validity = {"start": (now - timedelta(days=1)).isoformat(), "end": (now + timedelta(days=3)).isoformat()}
+    promos = [
+        {"id": pid, "promotionId": pid, "title": title, "discount": {"title": "-30%"}, "validity": validity,
+         "isActivated": False, "articleIds": []}
+        for pid, title in (("a2", "Kupon aktywny"), ("x2", "Kupon drugiej osoby"))
+    ]  # fmt: skip
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.save_coupons(
+        "osoba-2", parse_coupons({"sections": [{"name": "AllStores", "promotions": promos}]}), now.isoformat()
+    )
+
+
+def test_account_coupons_are_collapsed_tabs_with_shared_and_unique_tags(client: TestClient) -> None:
+    _seed_coupons(client)
+    _seed_second_account(client)
+    text = client.get("/kupony").text
+    assert text.count("data-tab aria-controls") == 2 and 'aria-expanded="true"' not in text
+    assert 'id="kupony-osoba-1" role="region"' in text and text.count("hidden>") >= 2
+    assert "tylko tu: 2" in text and "tylko tu: 1" in text
+    one = text[text.index('id="kupony-osoba-1"') : text.index('id="kupony-osoba-2"')]
+    assert (
+        "wspólny" in one.split("Kupon do aktywacji")[0]
+        and "tylko Osoba 1" in one.split("Kupon do aktywacji")[1]
+    )
+    two = text[text.index('id="kupony-osoba-2"') :]
+    assert "tylko Osoba 2" in two.split("Kupon drugiej osoby")[1]
+
+
+def test_search_opens_the_first_tab_with_matches(client: TestClient) -> None:
+    _seed_coupons(client)
+    _seed_second_account(client)
+    text = client.get("/kupony?q=drugiej").text
+    assert 'aria-controls="kupony-osoba-2" aria-expanded="true"' in text
+    assert 'aria-controls="kupony-osoba-1" aria-expanded="false"' in text
+
+
+def test_single_account_has_no_shared_tags(client: TestClient) -> None:
+    _seed_coupons(client)
+    text = client.get("/kupony").text
+    assert "wspólny" not in text and "tylko Osoba 1" not in text

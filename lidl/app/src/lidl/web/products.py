@@ -67,9 +67,10 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
 def coupon_cards(
     accounts: list[Account], history: History, now: datetime, q: str = ""
 ) -> list[dict[str, Any]]:
-    """Bieżące kupony każdego połączonego konta ze statusem słownym (daty w czasie lokalnym); liczniki
-    z całej listy, wiersze zawężone do frazy `q`."""
-    cards = []
+    """Bieżące kupony każdego połączonego konta ze statusem słownym (daty w czasie lokalnym) i znacznikiem
+    „wspólny” / „tylko <konto>” (ten sam tytuł i rabat na wszystkich kontach); liczniki z całej listy, wiersze
+    zawężone do frazy `q`."""
+    cards: list[dict[str, Any]] = []
     for a in accounts:
         if not a.connected:
             continue
@@ -102,14 +103,22 @@ def coupon_cards(
                     "label": label,
                 }
             )
-        cards.append(
-            {
-                "slug": a.slug,
-                "label": a.label,
-                "total": len(rows),
-                "active": sum(r["kind"] == "on" for r in rows),
-                "rows": [r for r in rows if matches(r["title"], q)],
-            }
+        cards.append({"slug": a.slug, "label": a.label, "rows": rows})
+    # wspólny = ten sam tytuł i rabat na wszystkich kontach; None przy jednym koncie (bez znaczników)
+    common = (
+        set.intersection(*({(r["title"], r["discount"]) for r in c["rows"]} for c in cards))
+        if cards
+        else set()
+    )
+    for card in cards:
+        rows = card["rows"]
+        for r in rows:
+            r["shared"] = (r["title"], r["discount"]) in common if len(cards) > 1 else None
+        card.update(
+            total=len(rows),
+            active=sum(r["kind"] == "on" for r in rows),
+            only=sum(r["shared"] is False for r in rows),
+            rows=[r for r in rows if matches(r["title"], q)],
         )
     return cards
 

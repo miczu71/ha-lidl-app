@@ -20,5 +20,27 @@
     {% block main %}{% endblock %}
   </div></main>
   <footer class="body" style="padding-top: 0"><div class="wrap"><div class="foot">Nieoficjalny add-on, niepowiązany z Lidl · Wersja {{ version }}</div></div></footer>
+  <script>
+    // Zakładki (data-tab): klik rozwija swój panel i zwija pozostałe, ponowny klik zwija; otwarta zakładka
+    // przetrwa podmiany htmx (odświeżanie „Sprawdź teraz”, „Aktywuj”, wyszukiwanie).
+    (() => {
+      let open = null;
+      const apply = () => {
+        if (open === null) return;
+        for (const b of document.querySelectorAll("[data-tab]")) {
+          const id = b.getAttribute("aria-controls");
+          b.setAttribute("aria-expanded", String(id === open));
+          document.getElementById(id)?.toggleAttribute("hidden", id !== open);
+        }
+      };
+      document.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-tab]");
+        if (!b) return;
+        open = b.getAttribute("aria-expanded") === "true" ? "" : b.getAttribute("aria-controls");
+        apply();
+      });
+      document.addEventListener("htmx:afterSettle", apply);
+    })();
+  </script>
 </body>
 </html>
