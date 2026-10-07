@@ -181,3 +181,28 @@ select.field { appearance: auto; }
   .rk__meta span { color: var(--ink-muted); font: 400 14px/20px var(--font-sans); }
   .rk__meta span + span::before { content: none; }
 }
+
+/* Kupony: lista produktów z przełącznikiem auto-aktywacji (formularz, bez JS) */
+.cplist { list-style: none; margin: 0; padding: 0; }
+.cp { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1.5px solid var(--line); scroll-margin-top: var(--space-5); }
+.cp:first-child { border-top: 0; }
+.cp__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cp__name { font: 700 16px/22px var(--font-sans); overflow-wrap: anywhere; }
+.cp__meta { display: flex; flex-wrap: wrap; color: var(--ink-muted); font: 400 14px/20px var(--font-sans); }
+.cp__meta span { white-space: nowrap; }
+.cp__meta span + span::before { content: "\00a0·\00a0"; }
+.cp__side { flex: none; width: 152px; }
+.cp form { margin: 0; }
+.sw { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--ink); font: 600 14px/20px var(--font-sans); cursor: pointer; }
+.sw:hover { background: var(--surface-inset); }
+.sw__track { position: relative; width: 44px; height: 26px; border-radius: var(--radius-pill); border: 1.5px solid var(--control-border); background: var(--surface); flex: none; transition: background-color 0.15s ease-out; }
+.sw__track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: var(--control-border); transition: transform 0.15s ease-out; }
+.sw[aria-checked="true"] .sw__track { background: var(--blue); border-color: var(--blue); }
+.sw[aria-checked="true"] .sw__track::after { transform: translateX(18px); background: var(--on-blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230050aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='3.5' d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center / 11px no-repeat; }
+.sw__txt { min-width: 76px; text-align: left; }
+.sw[aria-checked="false"] .sw__txt { color: var(--ink-muted); }
+@media (max-width: 479px) {
+  .cp__side { width: auto; }
+  .sw__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) { .sw__track, .sw__track::after { transition: none; } }

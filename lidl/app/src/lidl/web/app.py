@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager, suppress
 from datetime import date
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import aiohttp
 from fastapi import FastAPI, Form, Request
@@ -27,14 +27,14 @@ from fastapi.templating import Jinja2Templates
 from lidl import __version__
 from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
-from lidl.history import History
+from lidl.history import CANDIDATE_MIN_PURCHASES, History
 from lidl.receipt import parse_detail
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .products import MORE_STEP, count_text, import_status, parse_limit, ranking_rows
+from .products import MORE_STEP, count_text, coupon_rows, import_status, parse_limit, ranking_rows
 
 log = logging.getLogger(__name__)
 
@@ -255,6 +255,25 @@ def create_app(settings: Settings) -> FastAPI:
                 ),
             )
         return render(request, "products.html", **ctx)
+
+    @app.get("/kupony")
+    async def coupons(request: Request) -> Response:
+        history: History = request.app.state.history
+        rows = coupon_rows(history.coupon_candidates())
+        return render(
+            request,
+            "coupons.html",
+            section="kupony",
+            rows=rows,
+            min_purchases=CANDIDATE_MIN_PURCHASES,
+            on=sum(r["on"] for r in rows),
+            no_code=sum(not r["matchable"] for r in rows),
+        )
+
+    @app.post("/kupony/{art_id}")
+    async def toggle_coupon(request: Request, art_id: str, enabled: str = Form(...)) -> Response:
+        request.app.state.history.set_auto_activate(art_id, enabled == "1")
+        return go(request, f"/kupony#p-{quote(art_id)}")
 
     @app.post("/accounts/{slug}/history")
     async def start_history(request: Request, slug: str) -> Response:

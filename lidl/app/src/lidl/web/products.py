@@ -1,4 +1,4 @@
-"""Widok „Produkty”: stan importu, wiersze rankingu i odmiana liczebników."""
+"""Widoki „Produkty” i „Kupony”: stan importu, wiersze list i odmiana liczebników."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from datetime import date
 from typing import Any
 
 from lidl.accounts import Account
-from lidl.history import History, RankedProduct
+from lidl.history import CouponCandidate, History, RankedProduct
 from lidl.sync import HistorySync
 
 from .chart import fmt_day_month, fmt_pln
@@ -57,6 +57,21 @@ def ranking_rows(ranking: list[RankedProduct], limit: int, link: Callable[..., s
                 "href": link(produkt=p.art_id) + "#wykres",
             }
         )
+    return rows
+
+
+def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
+    rows = []
+    for c in candidates:
+        meta = [
+            count_text(c.purchases, "zakup", "zakupy", "zakupów"),
+            "ostatnio " + fmt_day_month(date.fromisoformat(c.last_date)),
+        ]
+        if c.coupon_uses:
+            meta.append(f"kupon {c.coupon_uses}×, {fmt_pln(c.coupon_saved, 2)}")
+        if c.promo_saved > 0:
+            meta.append(f"promocje {fmt_pln(c.promo_saved, 2)}")
+        rows.append({"id": c.art_id, "name": c.name, "meta": meta, "matchable": c.matchable, "on": c.enabled})
     return rows
 
 

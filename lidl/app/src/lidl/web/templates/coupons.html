@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block main %}
+<div>
+  <h1 class="t">Kupony</h1>
+  <p class="lead">Produkty, które kupujemy regularnie. Kupony na zaznaczone add-on będzie aktywował sam, na każdym koncie. Odznacz to, czego nie chcesz.</p>
+</div>
+
+{% if rows %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Automatyczna aktywacja ruszy w kolejnej wersji. Wybór zapisuje się już teraz.</span>
+</p>
+
+<section class="card" aria-labelledby="cp-h">
+  <h2 class="s" id="cp-h">Kupowane regularnie</h2>
+  <dl class="facts">
+    <div><dt>Produkty</dt><dd>{{ rows|length }}</dd></div>
+    <div><dt>Z auto-aktywacją</dt><dd>{{ on }}</dd></div>
+    {% if no_code %}<div><dt>Bez kodu kuponu</dt><dd>{{ no_code }}</dd></div>{% endif %}
+  </dl>
+  <p class="hint" style="margin: 0">Kupione co najmniej {{ min_purchases }} razy w ostatnich 12 miesiącach, na wszystkich kontach.</p>
+  <ul class="cplist">
+    {% for r in rows %}
+    <li class="cp" id="p-{{ r.id }}">
+      <div class="cp__txt">
+        <span class="cp__name">{{ r.name }}</span>
+        <span class="cp__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}</span>
+      </div>
+      <div class="cp__side">
+      {% if r.matchable %}
+      <form method="post" action="{{ base }}/kupony/{{ r.id }}">
+        <input type="hidden" name="enabled" value="{{ '0' if r.on else '1' }}">
+        <button class="sw" type="submit" role="switch" aria-checked="{{ 'true' if r.on else 'false' }}" aria-label="Auto-aktywacja kuponów: {{ r.name }}">
+          <span class="sw__track" aria-hidden="true"></span><span class="sw__txt">{{ 'Włączona' if r.on else 'Wyłączona' }}</span>
+        </button>
+      </form>
+      {% else %}
+      <span class="status" title="Produkt znamy tylko ze starych paragonów, bez numeru artykułu z kuponów">bez kodu kuponu</span>
+      {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Za mało historii: żaden produkt nie był kupiony co najmniej {{ min_purchases }} razy w ostatnich 12 miesiącach. Historię paragonów pobierzesz w zakładce <a href="{{ base }}/produkty">Produkty</a>.</span>
+</p>
+{% endif %}
+{% endblock %}

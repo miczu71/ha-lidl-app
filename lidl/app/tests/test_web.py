@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+
 from fastapi.testclient import TestClient
 
 from lidl import __version__
@@ -252,3 +254,51 @@ def test_chart_summary_hides_ticket_level_totals_for_one_product_or_pieces(clien
     assert "kaucje pobrane <strong>" not in product and "na ten produkt" in product
     pieces = client.get("/produkty?zakres=all&miara=sztuki").text
     assert "kaucje pobrane <strong>" not in pieces
+
+
+def _seed_regular(client: TestClient) -> None:
+    """Trzy paragony z ostatniego kwartału: Produkt A (kupon) i Produkt C bez kodu kuponu."""
+    history = client.app.state.history  # type: ignore[attr-defined]
+    days = [(date.today() - timedelta(days=d)).isoformat() for d in (5, 40, 80)]
+    history.upsert_tickets(
+        "osoba-1",
+        [{"id": f"r{i}", "date": f"{d}T10:00:00+00:00", "totalAmount": 9.0} for i, d in enumerate(days)],
+    )
+    for i in range(3):
+        history.save_detail(
+            f"r{i}",
+            "Sklep X",
+            ParsedReceipt(
+                items=[
+                    ReceiptItem("111", "Produkt A", 1, 5.0, 5.0, discount=-1.0, coupon=-1.0),
+                    ReceiptItem("n:9", "Produkt C", 1, 4.0, 4.0),
+                ]
+            ),
+        )
+
+
+def test_coupons_lists_regular_products_with_toggles(client: TestClient) -> None:
+    _seed_regular(client)
+    r = client.get("/kupony")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    text = r.text
+    assert "Produkt A" in text and "3 zakupy" in text and "kupon 3×" in text and "3,00 zł" in text
+    assert 'role="switch" aria-checked="true"' in text and 'action="/kupony/111"' in text
+    assert "Produkt C" in text and "bez kodu kuponu" in text and 'action="/kupony/n:9"' not in text
+    assert 'href="/kupony"' in text and 'aria-current="page"' in text
+
+
+def test_coupons_toggle_off_and_on(client: TestClient) -> None:
+    _seed_regular(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    r = client.post("/kupony/111", data={"enabled": "0"})
+    assert r.status_code == 303 and r.headers["location"] == "/kupony#p-111"
+    assert history.auto_activate_codes() == set()
+    assert 'aria-checked="false"' in client.get("/kupony").text
+    client.post("/kupony/111", data={"enabled": "1"})
+    assert history.auto_activate_codes() == {"111"}
+
+
+def test_coupons_without_regular_products_says_why(client: TestClient) -> None:
+    text = client.get("/kupony").text
+    assert "Za mało historii" in text and 'role="switch"' not in text
