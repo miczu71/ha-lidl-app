@@ -101,7 +101,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   produkty kupione ≥3 razy w ostatnich 12 miesiącach, lista wspólna dla domu, przełącznik „auto-aktywuj”
   domyślnie włączony (zapisujemy tylko odznaczenia); produkty z samym kluczem `n:<EAN>` bez kodu kuponu.
   E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs ✅, E11.1 dane ✅, E11.2 ekran „Kupony”
-  (`/kupony`) ✅, E11.3 wydanie 0.4.0.
+  (`/kupony`) ✅, E11.3 wydanie 0.4.0 ✅ (2026-10-07, na żywo: 206 kandydatów, 187 z auto-aktywacją, 19 bez kodu
+  kuponu; odznaczenie przetrwa przeładowanie). Lista jest długa — filtr tekstowy do decyzji przy E3.
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
