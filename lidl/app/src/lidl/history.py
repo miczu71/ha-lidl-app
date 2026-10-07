@@ -22,6 +22,7 @@ from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
 
 SCHEMA_VERSION = 3
+CANDIDATE_MIN_PURCHASES = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tickets (
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS ticket_coupons (
     discount TEXT NOT NULL,
     PRIMARY KEY (ticket_id, line)
 );
+CREATE TABLE IF NOT EXISTS coupon_optout (art_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS ticket_raw (
     ticket_id TEXT PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
     data BLOB NOT NULL
@@ -86,6 +88,19 @@ class RankedProduct:
     last_price: float
     last_date: str
     cycle_days: float | None
+
+
+@dataclass(frozen=True)
+class CouponCandidate:
+    art_id: str
+    name: str
+    purchases: int  # paragony z ostatnich 365 dni
+    last_date: str
+    coupon_uses: int  # pozycje z rabatem z kuponu Lidl Plus
+    coupon_saved: float
+    promo_saved: float
+    matchable: bool  # kod z paragonu HTML = kod w `articleIds` kuponu; `n:<EAN>` się nie dopasuje
+    enabled: bool  # do auto-aktywacji w E3 (domyślnie tak, chyba że odznaczony)
 
 
 @dataclass(frozen=True)
@@ -135,6 +150,10 @@ def _next_bucket(d: date, step: str) -> date:
     months = {"month": 1, "quarter": 3, "year": 12}[step]
     month = d.month - 1 + months
     return date(d.year + month // 12, month % 12 + 1, 1)
+
+
+def _year_ago(today: date | None) -> str:
+    return ((today or date.today()) - timedelta(days=365)).isoformat()
 
 
 def _norm(name: str) -> str:
@@ -326,21 +345,34 @@ class History:
 
         return resolve
 
-    def ranking(self, limit: int = 200) -> list[RankedProduct]:
+    def _products(self, since: str = "") -> dict[str, dict[str, Any]]:
+        """Pozycje z paragonów od `since` zebrane per produkt (po moście nazw); nazwa i cena z ostatniego
+        zakupu."""
         resolve = self._resolver()
         rows = self._db.execute(
-            "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day"
-            " FROM items i JOIN tickets t ON t.id = i.ticket_id ORDER BY t.day, i.ticket_id, i.line"
+            "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day, i.discount, i.coupon"
+            " FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE t.day >= ?"
+            " ORDER BY t.day, i.ticket_id, i.line",
+            (since,),
         )
         acc: dict[str, dict[str, Any]] = {}
-        for art_id, name, qty, price, ticket_id, day in rows:
-            p = acc.setdefault(resolve(art_id, name), {"tickets": set(), "days": set(), "qty": 0.0})
+        for art_id, name, qty, price, ticket_id, day, discount, coupon in rows:
+            p = acc.setdefault(
+                resolve(art_id, name),
+                {"tickets": set(), "days": set(), "qty": 0.0, "uses": 0, "discount": 0.0, "coupon": 0.0},
+            )
             p["tickets"].add(ticket_id)
             p["days"].add(day)
             p["qty"] += qty
+            p["uses"] += coupon < 0
+            p["discount"] += discount
+            p["coupon"] += coupon
             p["name"], p["price"], p["last"] = name, price, day
+        return acc
+
+    def ranking(self, limit: int = 200) -> list[RankedProduct]:
         ranked = []
-        for key, p in acc.items():
+        for key, p in self._products().items():
             days = sorted(date.fromisoformat(d) for d in p["days"])
             cycle = (days[-1] - days[0]).days / (len(days) - 1) if len(days) > 1 else None
             ranked.append(
@@ -351,10 +383,46 @@ class History:
         ranked.sort(key=lambda r: (-r.purchases, r.name))
         return ranked[:limit]
 
+    def coupon_candidates(self, today: date | None = None) -> list[CouponCandidate]:
+        """Produkty kupowane regularnie (≥ `CANDIDATE_MIN_PURCHASES` paragonów w ostatnich 365 dniach, cały
+        dom) — kandydaci do auto-aktywacji kuponów. Zapisujemy tylko odznaczenia, więc nowy jest włączony."""
+        opted_out = {r[0] for r in self._db.execute("SELECT art_id FROM coupon_optout")}
+        out = []
+        for key, p in self._products(_year_ago(today)).items():
+            if len(p["tickets"]) < CANDIDATE_MIN_PURCHASES:
+                continue
+            matchable = not key.startswith("n:")
+            out.append(
+                CouponCandidate(
+                    key,
+                    p["name"],
+                    len(p["tickets"]),
+                    p["last"],
+                    p["uses"],
+                    round(-p["coupon"], 2),
+                    round(p["coupon"] - p["discount"], 2),
+                    matchable,
+                    matchable and key not in opted_out,
+                )
+            )
+        out.sort(key=lambda c: (-c.purchases, c.name))
+        return out
+
+    def set_auto_activate(self, art_id: str, enabled: bool) -> None:
+        with self._db:
+            if enabled:
+                self._db.execute("DELETE FROM coupon_optout WHERE art_id = ?", (art_id,))
+            else:
+                self._db.execute("INSERT OR IGNORE INTO coupon_optout VALUES (?)", (art_id,))
+
+    def auto_activate_codes(self, today: date | None = None) -> set[str]:
+        """Kody artykułów, na które E3 aktywuje kupony."""
+        return {c.art_id for c in self.coupon_candidates(today) if c.enabled}
+
     def savings_kpi(self, today: date | None = None) -> SavingsKpi:
         """Oszczędności z rabatów na pozycjach (kupony Lidl Plus osobno od promocji); lista API ma to pole
         tylko dla garstki najnowszych paragonów, więc go nie używamy."""
-        since = ((today or date.today()) - timedelta(days=365)).isoformat()
+        since = _year_ago(today)
         t = self._db.execute(
             "SELECT COUNT(*), COALESCE(SUM(detail_fetched), 0),"
             " COALESCE(SUM(CASE WHEN detail_fetched = 1 AND parsed = 0 THEN 1 ELSE 0 END), 0),"

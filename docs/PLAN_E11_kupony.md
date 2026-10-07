@@ -20,14 +20,14 @@ produkty E3 ma automatycznie aktywować kupony. Nic nie pobieramy z Lidla.
 
 ## Projekt
 **Dane (`lidl/app/src/lidl/history.py`)**
-- Nowa tabela `coupon_optout (art_id TEXT PRIMARY KEY, name TEXT NOT NULL, since TEXT NOT NULL)`;
-  `SCHEMA_VERSION` 3 → 4 (`CREATE TABLE IF NOT EXISTS` w `_SCHEMA` wystarcza, bez migracji danych).
-- `coupon_candidates(today=None) -> list[CouponCandidate]`: jak `ranking()` (ten sam `_resolver()`), ale tylko
-  paragony z ostatnich 365 dni i próg ≥3 paragonów. Pola: `art_id`, `name`, `purchases`, `last_date`,
+- Nowa tabela `coupon_optout (art_id TEXT PRIMARY KEY)` — tylko odznaczenia; `CREATE TABLE IF NOT EXISTS`
+  w `_SCHEMA` wystarcza, więc `SCHEMA_VERSION` zostaje 3 (bez migracji).
+- `coupon_candidates(today=None) -> list[CouponCandidate]`: wspólna agregacja z `ranking()` (`_products(since)`,
+  ten sam most nazw `_resolver()`), tylko paragony z ostatnich 365 dni i próg `CANDIDATE_MIN_PURCHASES = 3`. Pola: `art_id`, `name`, `purchases`, `last_date`,
   `coupon_uses` (pozycje z `coupon < 0`), `coupon_saved`, `promo_saved` (rabat − kupon), `matchable`
   (`not art_id.startswith("n:")`), `enabled` (`matchable` i brak w `coupon_optout`). Sortowanie: liczba
   zakupów malejąco, potem nazwa.
-- `set_auto_activate(art_id, name, enabled)` — wstawia albo usuwa wiersz w `coupon_optout`.
+- `set_auto_activate(art_id, enabled)` — wstawia albo usuwa wiersz w `coupon_optout`.
 - `auto_activate_codes(today=None) -> set[str]` — kody kandydatów z `enabled` (API dla E3).
 
 **UI (`web/app.py`, `web/templates/coupons.html`, nawigacja w `base.html`)**

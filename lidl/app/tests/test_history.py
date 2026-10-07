@@ -313,3 +313,47 @@ def test_v2_database_is_migrated_keeping_items_and_marking_refetch(tmp_path: Pat
     assert h.purchase_totals().with_deposits == 0
     h.save_detail("t1", "S", _with_deposits(charged=1.0))
     assert History(path).pending_details("a") == []
+
+
+def _seed_candidates(h: History) -> None:
+    """Dzień odniesienia 2026-10-07: okno 365 dni zaczyna się 2025-10-07."""
+    days = ["2025-10-06", "2025-10-07", "2026-01-01", "2026-05-01", "2026-09-01"]
+    h.upsert_tickets("a", [_ticket(f"t{i}", d) for i, d in enumerate(days)])
+    h.upsert_tickets("b", [_ticket("b1", "2026-09-02")])
+    h.save_detail("t0", "S", _receipt(("n:1", "Mleko", 1, 3.0), ("5", "Ser", 1, 9.0)))
+    h.save_detail("t1", "S", _receipt(("n:1", "Mleko", 1, 3.0), ("n:2", "Jaja stare", 1, 8.0)))
+    h.save_detail("t2", "S", _receipt(("n:2", "Jaja stare", 1, 8.0), ("5", "Ser", 1, 9.0)))
+    h.save_detail("t3", "S", ParsedReceipt(items=[ReceiptItem("7", "mleko", 2, 3.2, 6.4, -2.0, -1.5)]))
+    h.save_detail("t4", "S", _receipt(("5", "Ser", 1, 9.0)))
+    milk = ReceiptItem("7", "Mleko", 1, 3.2, 3.2, -1.0, -1.0)
+    h.save_detail("b1", "S", ParsedReceipt(items=[milk, ReceiptItem("n:2", "Jaja", 1, 8.0, 8.0)]))
+
+
+def test_coupon_candidates_threshold_window_bridge_and_household(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_candidates(h)
+    cands = h.coupon_candidates(today=date(2026, 10, 7))
+    by_id = {c.art_id: c for c in cands}
+    # Ser: 2 zakupy w oknie (trzeci, t0, jest sprzed 366 dni) — za mało.
+    assert set(by_id) == {"7", "n:2"}
+    milk = by_id["7"]  # most n:1 → 7 po nazwie, oba konta razem: t1, t3, b1
+    assert (milk.name, milk.purchases, milk.last_date) == ("Mleko", 3, "2026-09-02")
+    assert (milk.coupon_uses, milk.coupon_saved, milk.promo_saved) == (2, 2.5, 0.5)
+    assert (milk.matchable, milk.enabled) == (True, True)
+    eggs = by_id["n:2"]
+    assert (eggs.purchases, eggs.matchable, eggs.enabled) == (3, False, False)
+    assert [c.art_id for c in cands] == ["n:2", "7"]  # po liczbie zakupów, potem nazwie
+
+
+def test_opt_out_is_stored_and_excluded_from_auto_activate_codes(tmp_path: Path) -> None:
+    path = tmp_path / "h.db"
+    h = History(path)
+    _seed_candidates(h)
+    today = date(2026, 10, 7)
+    assert h.auto_activate_codes(today=today) == {"7"}
+    h.set_auto_activate("7", False)
+    reopened = History(path)
+    assert {c.art_id: c.enabled for c in reopened.coupon_candidates(today=today)}["7"] is False
+    assert reopened.auto_activate_codes(today=today) == set()
+    reopened.set_auto_activate("7", True)
+    assert reopened.auto_activate_codes(today=today) == {"7"}
