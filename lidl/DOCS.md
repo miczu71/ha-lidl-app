@@ -21,28 +21,50 @@ Jeśli sesja wygaśnie, panel poprosi o ponowne logowanie.
 Po zalogowaniu konta kliknij **Pobierz historię** (zakładka Produkty). Pierwsze pobranie obejmuje wszystkie
 paragony konta, idzie powoli (jeden paragon na kilka sekund, kilkanaście minut) i działa w tle — panel możesz
 zamknąć. Jeśli Lidl ograniczy liczbę żądań albo zerwie się połączenie, import zatrzymuje się, a **Wznów teraz**
-dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie.
+dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie (o godzinie z opcji
+**Godzina dziennego przebiegu**, domyślnie 7:00).
 
 - **Oszczędności** to suma rabatów na pozycjach paragonów (osobno kupony Lidl Plus i promocje) — punkt odniesienia sprzed aktywacji kuponów przez add-on.
 - **Zapłacono łącznie** to suma kwot paragonów (po rabatach, z saldem kaucji). **Kaucje pobrane** i **zwrócone**
   czytamy wprost z paragonu (sekcje „Opakowania zwrotne wydania” i „…przyjęcia”): pozycje po rabatach plus pobrane
   minus zwrócone daje kwotę paragonu. Obie liczby są w karcie oszczędności i pod wykresem.
 - **Wykres** pokazuje wydatki na pozycje (po rabatach, bez kaucji) w wybranym zakresie dat i kroku; można
-  zawęzić do jednego produktu albo pokazać sztuki zamiast złotych.
+  zawęzić do jednego produktu albo pokazać sztuki zamiast złotych. Zmiana dat, kroku czy miary działa od razu.
+- **Najczęściej kupowane** liczymy z tego samego zakresu dat co wykres (domyślnie 12 miesięcy). Pole **Szukaj
+  produktu** filtruje listę w trakcie pisania (wszystkie słowa, bez względu na polskie znaki); **Wykres** przy
+  produkcie pokazuje jego wydatki.
 - Produkt to kod artykułu z paragonu. Starsze paragony (sprzed marca 2026) mają inne kody niż nowsze, więc
   łączymy je po nazwie, gdy jednoznacznie pasuje; zmiana kodu przez Lidl tworzy nowy produkt.
 - Gdy z jakiegoś paragonu nie da się odczytać pozycji, panel pokazuje ich liczbę.
 
 ## Kupony (zakładka Kupony)
 
-Lista produktów kupowanych regularnie: co najmniej 3 razy w ostatnich 12 miesiącach, na wszystkich kontach
-razem. Na zaznaczone produkty add-on będzie sam aktywował kupony na każdym koncie (od kolejnej wersji); domyślnie
-zaznaczone są wszystkie, odznacz to, czego nie chcesz. Produkt oznaczony „bez kodu kuponu” znamy tylko ze
-starszych paragonów, bez numeru artykułu, którym posługują się kupony.
+Codziennie o godzinie dziennego przebiegu (domyślnie 7:00) add-on pobiera kupony Lidl Plus każdego konta
+(sekcje „wszystkie sklepy” i „Twój sklep”) i aktywuje:
+
+- **kupony ogólne** (np. rabat od kwoty zakupów),
+- **kupony na produkty kupowane regularnie** — co najmniej 3 razy w ostatnich 12 miesiącach, na wszystkich kontach
+  razem (lista „Kupowane regularnie”; domyślnie zaznaczone są wszystkie, odznacz to, czego nie chcesz).
+
+Kupony, które jeszcze nie obowiązują, aktywuje w dniu ich startu; kuponów już aktywnych nie rusza. Potem wysyła
+jedno powiadomienie na `notify.family` z nowymi kuponami i datami ważności (bez nowych — nic). Zakładka pokazuje
+kupony tego tygodnia na każdym koncie ze statusem; resztę aktywujesz przyciskiem **Aktywuj**, a **Sprawdź teraz**
+uruchamia sprawdzenie od razu. Pole **Szukaj** filtruje kupony i listę produktów w trakcie pisania.
+
+**Tryb próbny:** dopóki opcja **Automatyczna aktywacja kuponów** jest wyłączona (domyślnie), add-on niczego nie
+aktywuje — panel i powiadomienie pokazują tylko, co zostałoby aktywowane.
+
+Produkt oznaczony „bez kodu kuponu” znamy tylko ze starszych paragonów, bez numeru artykułu, którym posługują się
+kupony — do niego kuponu nie dopasujemy.
 
 ## Opcje
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
+- **Automatyczna aktywacja kuponów** — wyłączona = tryb próbny (patrz wyżej).
+- **Godzina dziennego przebiegu** — GG:MM, czas lokalny; paragony, kupony i powiadomienie.
+
+Add-on ma uprawnienie do API Home Assistanta (`homeassistant_api`) wyłącznie po to, żeby wysłać powiadomienie
+przez `notify.family`.
 
 ## Prywatność
 

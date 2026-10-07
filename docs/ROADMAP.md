@@ -106,15 +106,15 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E13 Wyszukiwanie i zmiany na żywo, spójny okres rankingu** (zgłoszone 2026-10-07; plan:
   `docs/PLAN_E13_na_zywo.md`): ranking liczony z zakresu dat wykresu (naprawa pustego „Wykres” dla produktów
   niekupowanych od roku), wyszukiwanie na żywo (htmx jak w Budżecie) na Produktach i Kuponach, kontrolki,
-  przełączniki i aktywacja bez przeładowania. Wydanie razem z E3 (0.5.0). Podetapy: E13.0 docs, E13.1 ranking,
-  E13.2 Produkty, E13.3 Kupony.
+  przełączniki i aktywacja bez przeładowania. Wydanie razem z E3 (0.5.0). Podetapy: E13.0 docs ✅, E13.1 ranking ✅,
+  E13.2 Produkty ✅, E13.3 Kupony ✅ (2026-10-07; wydanie w 0.5.0).
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
-  i ręczną aktywacją; start w trybie próbnym (`auto_activate` wyłączone). Podetapy: E3.0 docs, E3.1 test
-  aktywacji, E3.2 dane i logika, E3.3 harmonogram i powiadomienie, E3.4 panel, E3.5 wydanie 0.5.0.
+  i ręczną aktywacją; start w trybie próbnym (`auto_activate` wyłączone). Podetapy: E3.0 docs ✅, E3.1 test
+  aktywacji ✅, E3.2 dane i logika ✅, E3.3 harmonogram i powiadomienie ✅, E3.4 panel ✅, E3.5 wydanie 0.5.0.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
   sprawdzić, czy któryś model z puli (freellmapi) czyta obrazy stron; jeśli nie, zostaje tekst z PDF.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.

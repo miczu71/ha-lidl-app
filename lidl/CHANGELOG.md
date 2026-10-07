@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0
+
+- **Automatyczna aktywacja kuponów (na start w trybie próbnym).** Codziennie o 7:00 add-on pobiera kupony każdego
+  konta (wszystkie sklepy i „Twój sklep”) i aktywuje kupony ogólne oraz kupony na produkty z listy „Kupowane
+  regularnie”. Dopóki nowa opcja **Automatyczna aktywacja kuponów** jest wyłączona, tylko pokazuje, co by aktywował.
+- **Powiadomienie** na `notify.family`: jedno na przebieg, z nowymi kuponami obu kont i datami ważności. Add-on
+  dostał do tego uprawnienie do API Home Assistanta.
+- **Zakładka Kupony:** kupony tego tygodnia na każdym koncie ze statusem, przycisk **Aktywuj** przy pozostałych
+  i **Sprawdź teraz**.
+- **Opcja Godzina dziennego przebiegu** (domyślnie 07:00): o tej porze pobierają się też nowe paragony (wcześniej
+  co 24 h od startu add-onu).
+- **Wyszukiwanie i zmiany na żywo:** pole Szukaj na Produktach i Kuponach filtruje w trakcie pisania; daty, krok,
+  przełączniki i aktywacja działają bez przeładowania strony. Lista rozwijana produktów przy wykresie zastąpiona
+  wyszukiwaniem.
+- **Najczęściej kupowane** liczone z zakresu dat wykresu (wcześniej z całej historii, przez co „Wykres” produktu
+  niekupowanego od roku był pusty); przy dacie „ostatnio” rok, gdy to nie bieżący rok.
+
 ## 0.4.0
 
 - Nowa zakładka **Kupony**: produkty kupione co najmniej 3 razy w ostatnich 12 miesiącach (na wszystkich kontach razem), z liczbą zakupów, datą ostatniego, użyciami kuponów i kwotami z kuponów i promocji.
