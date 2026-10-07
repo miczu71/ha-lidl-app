@@ -463,3 +463,14 @@ def test_polling_during_check_returns_only_account_cards(client: TestClient) -> 
     part = client.get("/kupony", headers={"HX-Target": "kupony-konta"}).text
     assert part.lstrip().startswith('<div id="kupony-konta"') and "Kupon aktywny" in part
     assert "Kupowane regularnie" not in part and "<html" not in part
+
+
+def test_search_covers_products_beyond_the_first_two_hundred(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    day = (date.today() - timedelta(days=3)).isoformat()
+    history.upsert_tickets("osoba-1", [{"id": "duzy", "date": f"{day}T10:00:00+00:00"}])
+    items = [ReceiptItem(str(1000 + i), f"Produkt {i:03d}", 1, 1.0, 1.0) for i in range(204)]
+    items.append(ReceiptItem("9999", "Zzz rzadki produkt", 1, 1.0, 1.0))
+    history.save_detail("duzy", "S", ParsedReceipt(items=items))
+    part = client.get("/produkty?q=rzadki", headers={"HX-Target": "wyniki"}).text
+    assert "Zzz rzadki produkt" in part and "1 z 205" in part

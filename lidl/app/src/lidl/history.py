@@ -404,9 +404,7 @@ class History:
                 return str(name)
         return None
 
-    def ranking(
-        self, limit: int = 200, start: date | None = None, end: date | None = None
-    ) -> list[RankedProduct]:
+    def ranking(self, start: date | None = None, end: date | None = None) -> list[RankedProduct]:
         """Najczęściej kupowane w dniach `start`–`end` (domyślnie cała historia)."""
         ranked = []
         for key, p in self._products(start, end).items():
@@ -418,7 +416,7 @@ class History:
                 )
             )
         ranked.sort(key=lambda r: (-r.purchases, r.name))
-        return ranked[:limit]
+        return ranked
 
     def coupon_candidates(self, today: date | None = None) -> list[CouponCandidate]:
         """Produkty kupowane regularnie (≥ `CANDIDATE_MIN_PURCHASES` paragonów w ostatnich 365 dniach, cały
