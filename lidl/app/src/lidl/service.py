@@ -7,6 +7,7 @@ równoległy refresh użyje już unieważnionego tokenu. Stąd blokada per konto
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import aiohttp
 
@@ -79,6 +80,14 @@ class LidlService:
             api = await self._api(slug)
             if not await api.loyalty_id():
                 raise LidlPlusAuthError("no_loyalty_card")
+
+    async def tickets(self, slug: str, year_offset: int) -> list[dict[str, Any]]:
+        async with self._lock(slug):
+            return await (await self._api(slug)).tickets(year_offset)
+
+    async def ticket(self, slug: str, ticket_id: str) -> dict[str, Any]:
+        async with self._lock(slug):
+            return await (await self._api(slug)).ticket(ticket_id)
 
     async def delete(self, slug: str) -> None:
         async with self._lock(slug):

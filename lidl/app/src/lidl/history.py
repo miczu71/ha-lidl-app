@@ -91,8 +91,16 @@ class History:
             )
         return self.ticket_count() - before
 
-    def ticket_count(self) -> int:
-        return int(self._db.execute("SELECT COUNT(*) FROM tickets").fetchone()[0])
+    def ticket_count(self, account: str | None = None) -> int:
+        sql, args = (
+            ("SELECT COUNT(*) FROM tickets", ())
+            if account is None
+            else (
+                "SELECT COUNT(*) FROM tickets WHERE account = ?",
+                (account,),
+            )
+        )
+        return int(self._db.execute(sql, args).fetchone()[0])
 
     def pending_details(self, account: str) -> list[str]:
         """Paragony bez pobranych pozycji, od najnowszych."""
