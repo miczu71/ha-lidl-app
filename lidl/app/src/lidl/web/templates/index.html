@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block main %}
+<h1>Konta Lidl Plus</h1>
+<p class="lead">Dodaj konto każdej osoby, która robi zakupy w Lidlu. Hasło wpisujesz tylko na stronie Lidla — add-on dostaje wyłącznie token sesji.</p>
+
+{% if msg %}<p class="notice {{ msg.kind }}" role="status"><span>{{ msg.text }}</span></p>{% endif %}
+
+<section class="panel" aria-label="Konta Lidl Plus">
+  {% if accounts %}
+  <ul class="rows">
+    {% for a in accounts %}
+    <li class="row">
+      <div class="who">
+        <span class="name">{{ a.label }}</span>
+        {% if a.connected %}<span class="chip on">Połączone</span>{% else %}<span class="chip">Nie zalogowano</span>{% endif %}
+        <div class="meta">{% if a.connected %}Sesja odnawia się automatycznie.{% else %}Zaloguj konto, żeby pobierać paragony i kupony.{% endif %}</div>
+      </div>
+      <div class="acts">
+        {% if a.connected %}
+        <form method="post" action="{{ base }}/accounts/{{ a.slug }}/check"><button class="btn sec" type="submit">Sprawdź połączenie</button></form>
+        <a class="btn quiet" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj ponownie</a>
+        {% else %}
+        <a class="btn" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj</a>
+        {% endif %}
+        <details class="del">
+          <summary>Usuń</summary>
+          <form method="post" action="{{ base }}/accounts/{{ a.slug }}/delete">
+            <button class="btn danger" type="submit">Usuń konto „{{ a.label }}” i jego token</button>
+          </form>
+        </details>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="lead" style="margin:0">Brak kont. Dodaj pierwsze poniżej.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="dodaj">
+  <h2 id="dodaj">Dodaj konto</h2>
+  <form class="add" method="post" action="{{ base }}/accounts">
+    <div class="f">
+      <label for="label">Nazwa konta</label>
+      <input id="label" name="label" type="text" maxlength="40" required autocomplete="off" placeholder="np. imię osoby">
+    </div>
+    <button class="btn" type="submit">Dodaj konto</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,4 @@
+configuration:
+  log_level:
+    name: Log level
+    description: Add-on log verbosity (debug never prints tokens or login codes).
