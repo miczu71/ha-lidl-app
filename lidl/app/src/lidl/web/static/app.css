@@ -32,6 +32,7 @@
   --red-deep: #ad080f;
   --green: #00a170;
   --green-deep: #00704e;
+  --amber: #ffc400;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -240,3 +241,41 @@ input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .sel__x:hover { background: var(--surface-inset); color: var(--ink); }
 .sel__x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .live.htmx-request { opacity: 0.6; transition: opacity 0.15s ease-out; }
+
+/* Nagrody (E20): zdrapki i Kupon Plus — pasek z progami jak w aplikacji (bursztyn = wydane, ✓ zdobyte, prezent) */
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.rw { display: flex; flex-direction: column; gap: var(--space-3); padding-top: var(--space-4); border-top: 1.5px solid var(--line); }
+.rw:first-of-type { padding-top: 0; border-top: 0; }
+h3.rw__who { margin: 0; font: 700 18px/24px var(--font-sans); }
+.scr { display: flex; align-items: center; gap: var(--space-3); }
+.scr__ic { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-inset); color: var(--ink); flex: none; }
+.scr__ic svg, .kp__goal svg, .kp__gift svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.scr__ic svg { width: 22px; height: 22px; stroke-width: 1.75; }
+.scr--last .scr__ic { background: var(--red-deep); color: var(--on-blue); }
+.scr__txt { min-width: 0; display: flex; flex-direction: column; }
+.scr__name { font: 700 16px/22px var(--font-sans); }
+.scr .meta strong { color: var(--red-deep); font-weight: 700; }
+.kp { display: flex; flex-direction: column; gap: var(--space-3); }
+.kp__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+.kp__title { font: 700 16px/22px var(--font-sans); }
+.kp__rail { position: relative; height: 92px; margin: 0 14px; }
+.kp__bubble { position: absolute; top: 0; left: clamp(36px, var(--p), calc(100% - 36px)); transform: translateX(-50%); padding: 3px 10px; border-radius: var(--radius-sm); background: var(--amber); color: var(--ink); font: 800 15px/22px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kp__bubble::after { content: ""; position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); border: 6px solid transparent; border-bottom: 0; border-top-color: var(--amber); }
+.kp__bar, .kp__fill { position: absolute; top: 45px; left: -14px; height: 10px; border-radius: var(--radius-pill); }
+.kp__bar { right: -14px; background: var(--line); }
+.kp__fill { width: calc(var(--p) + 14px); background: var(--amber); }
+.kp__goal { position: absolute; top: 36px; left: var(--g); transform: translateX(-50%); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--blue); color: var(--on-blue); box-shadow: 0 0 0 3px var(--surface); }
+.kp__goal--won { background: var(--green); }
+.kp__goal svg { width: 16px; height: 16px; stroke-width: 2.25; }
+.kp__goal--won svg { stroke-width: 3; }
+.kp__val { position: absolute; top: 70px; left: var(--g); transform: translateX(-50%); color: var(--ink-muted); font: 700 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kp__val--end { transform: translateX(calc(-100% + 14px)); }
+.kp__next { display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4); border-radius: var(--radius-md); background: var(--surface-inset); }
+.kp__nt { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.kp__miss { margin: 0 0 var(--space-2); font: 400 15px/20px var(--font-sans); }
+.kp__miss strong { font-weight: 800; font-variant-numeric: tabular-nums; }
+.kp__lbl { color: var(--ink-muted); font: 400 13px/18px var(--font-sans); }
+.kp__prize { font: 700 16px/22px var(--font-sans); overflow-wrap: anywhere; }
+.kp__disc { margin-top: var(--space-2); padding: 2px 8px; border-radius: var(--radius-xs); background: var(--blue); color: var(--on-blue); font: 800 15px/22px var(--font-sans); }
+.kp__gift { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-wash); color: var(--blue); flex: none; }
+.kp__gift svg { width: 26px; height: 26px; stroke-width: 1.75; }

@@ -1,0 +1,55 @@
+{# Nagrody kont (E20): niezdrapane zdrapki i postęp Kupon Plus; dane z ostatniego odczytu (start add-onu, rano,
+   18:00, „Sprawdź teraz”). Pasek Kupon Plus: progi w pozycjach proporcjonalnych do kwoty, jak w aplikacji. #}
+{% macro ic_check() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>{% endmacro %}
+{% macro ic_gift() %}<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg>{% endmacro %}
+{% if cards %}
+<section class="card" aria-labelledby="nagrody-h">
+  <h2 class="s" id="nagrody-h">Nagrody</h2>
+  {% if not rewards %}<p class="sum">Zdrapki i Kupon Plus pojawią się po pierwszym sprawdzeniu.</p>{% endif %}
+  {% for r in rewards %}
+  <div class="rw">
+    <h3 class="rw__who">{{ r.label }}</h3>
+    {% for s in r.scratch %}
+    <div class="scr{% if s.last %} scr--last{% endif %}">
+      <span class="scr__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2ZM13 5v2M13 17v2M13 11v2"/></svg></span>
+      <span class="scr__txt">
+        <span class="scr__name">Zdrapka z {{ s.created }}</span>
+        <span class="meta">{% if s.last %}<strong>Kończy się dziś o 23:59</strong>{% else %}Ważna do {{ s.until }}{% endif %} · zdrap w aplikacji Lidl Plus</span>
+      </span>
+    </div>
+    {% endfor %}
+    {% if r.plus %}{% set p = r.plus %}
+    <div class="kp">
+      <div class="kp__head">
+        <span class="kp__title">Kupon Plus</span>
+        <span class="meta">{{ p.days }} do końca · do {{ p.ends }}</span>
+      </div>
+      <p class="vh">Wydane {{ p.reached }}. Progi: {% for g in p.goals %}{{ g.value }} {{ "zdobyty" if g.won else "do zdobycia" }}{{ ", " if not loop.last else "." }}{% endfor %}</p>
+      <div class="kp__rail" style="--p: {{ p.pct }}%" aria-hidden="true">
+        <span class="kp__bubble">{{ p.reached }}</span>
+        <span class="kp__bar"></span><span class="kp__fill"></span>
+        {% for g in p.goals %}
+        <span class="kp__goal{% if g.won %} kp__goal--won{% endif %}" style="--g: {{ g.pct }}%">{{ ic_check() if g.won else ic_gift() }}</span>
+        {% if not g.won %}<span class="kp__val{% if loop.last %} kp__val--end{% endif %}" style="--g: {{ g.pct }}%">{{ g.value }}</span>{% endif %}
+        {% endfor %}
+      </div>
+      {% if p.next %}
+      <div class="kp__next">
+        <div class="kp__nt">
+          <p class="kp__miss">Brakuje <strong>{{ p.next.missing }}</strong> do progu {{ p.next.value }}</p>
+          <span class="kp__lbl">Następny kupon</span>
+          <span class="kp__prize">{{ p.next.prize }}</span>
+          {% if p.next.discount %}<span class="kp__disc">{{ p.next.discount }}</span>{% endif %}
+        </div>
+        <span class="kp__gift">{{ ic_gift() }}</span>
+      </div>
+      {% else %}
+      <p class="sum">Wszystkie progi zdobyte — kupony z nagród są w aplikacji Lidl Plus.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if not r.scratch and not r.plus %}<p class="sum">Brak zdrapek i akcji Kupon Plus.</p>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+{% endif %}

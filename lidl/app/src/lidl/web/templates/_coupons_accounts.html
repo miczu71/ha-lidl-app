@@ -2,6 +2,7 @@
 {# Konta i ich kupony. W trakcie sprawdzania blok odświeża się sam co 3 s (z bieżącą frazą z pola #q);
    gdy przebieg się skończy, odpowiedź nie ma już `hx-trigger` i odświeżanie staje. #}
 <div id="kupony-konta" class="stack"{% if running %} hx-get="{{ clear_href }}" hx-include="#q" hx-trigger="every 3s" hx-indicator="#kt-h" hx-select="#kupony-konta" hx-swap="outerHTML"{% endif %}>
+{% include "_rewards.html" %}
 <section class="card" aria-labelledby="kt-h">
   <h2 class="s" id="kt-h">Kupony w tym tygodniu</h2>
   <div class="row2 kt-run">

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 SHORT_MONTHS = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
 
@@ -34,6 +34,11 @@ def count_text(n: int, one: str, few: str, many: str) -> str:
 
 def fmt_day_month(d: date) -> str:
     return f"{d.day} {SHORT_MONTHS[d.month - 1]}"
+
+
+def fmt_until(d: date, today: date) -> str:
+    """Termin względem dziś: „dziś”, „jutra” albo „8 paź” (po „do …”)."""
+    return "dziś" if d == today else "jutra" if d == today + timedelta(days=1) else fmt_day_month(d)
 
 
 def fmt_date(d: date) -> str:

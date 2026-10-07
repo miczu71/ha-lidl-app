@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 
 from fastapi.testclient import TestClient
 
 from lidl import __version__
 from lidl.client.exceptions import LidlPlusAuthError
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
+from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.web.app import create_app
@@ -524,3 +525,35 @@ def test_single_account_has_no_shared_tags(client: TestClient) -> None:
     _seed_coupons(client)
     text = client.get("/kupony").text
     assert "wspólny" not in text and "tylko Osoba 1" not in text
+
+
+def test_coupons_page_shows_rewards_per_account(client: TestClient) -> None:
+    _connect(client)
+    _connect(client, "Osoba 2")
+    today = date.today()
+    card = ScratchCard(
+        "Scratch",
+        datetime.combine(today - timedelta(days=3), time(19)).astimezone(),
+        datetime.combine(today, time(23, 59, 59)).astimezone(),
+    )
+    goals = (
+        Goal(50, True, "Kupon A", "-10 zł"),
+        Goal(300, True, "Produkt B", "-20%"),
+        Goal(500, False, "Produkt C LUB Produkt D", "-50%"),
+        Goal(1500, False, "Produkt E", "-30%"),
+    )
+    client.app.state.rewards.last = {  # type: ignore[attr-defined]
+        "Osoba 1": Rewards((card,), CouponPlus(335.7, goals, today + timedelta(days=23))),
+        "Osoba 2": Rewards((), None),
+    }
+    text = client.get("/kupony").text
+    assert "Nagrody" in text and "Kończy się dziś o 23:59" in text
+    assert "Brakuje <strong>164,30\u00a0zł</strong> do progu 500\u00a0zł" in text
+    assert "Produkt C LUB Produkt D" in text and "-50%" in text and "24 dni do końca" in text
+    assert 'style="--p: 22.38%"' in text and 'style="--g: 33.33%"' in text
+    assert "Brak zdrapek i akcji Kupon Plus." in text
+
+
+def test_coupons_page_rewards_pending_before_first_read(client: TestClient) -> None:
+    _connect(client)
+    assert "pojawią się po pierwszym sprawdzeniu" in client.get("/kupony").text

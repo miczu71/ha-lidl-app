@@ -9,8 +9,9 @@ from typing import Any
 
 from lidl.accounts import Account
 from lidl.history import CouponCandidate, History, RankedProduct
+from lidl.rewards import Rewards
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_day_month, fmt_recent, matches
+from lidl.text import count_text, fmt_day_month, fmt_recent, fmt_until, matches
 
 from .chart import fmt_pln
 
@@ -120,6 +121,53 @@ def coupon_cards(
             only=sum(r["shared"] is False for r in rows),
             rows=[r for r in rows if matches(r["title"], q)],
         )
+    return cards
+
+
+def _pln(value: float) -> str:
+    """Kwota bez łamania wiersza w środku („500 zł”, „1 000 zł”)."""
+    return fmt_pln(value, 0 if value == int(value) else 2).replace(" ", " ")
+
+
+def reward_cards(rewards: dict[str, Rewards], today: date) -> list[dict[str, Any]]:
+    """Nagrody kont do panelu: zdrapki (ważność słowem) i Kupon Plus jako pasek — progi w pozycjach
+    proporcjonalnych do kwoty (ostatni próg = koniec paska), jak w aplikacji."""
+    cards = []
+    for label, r in rewards.items():
+        scratch = []
+        for c in r.scratch_cards:
+            ends = c.expires.astimezone().date()
+            scratch.append(
+                {
+                    "created": fmt_day_month(c.created.astimezone().date()),
+                    "until": fmt_until(ends, today),
+                    "last": ends == today,
+                }
+            )
+        plus = None
+        cp = r.coupon_plus
+        if cp and cp.goals:
+            top = cp.goals[-1].value or 1
+            nxt = cp.next_goal
+            plus = {
+                "reached": _pln(cp.reached),
+                "pct": round(min(cp.reached / top, 1) * 100, 2),
+                "goals": [
+                    {"pct": round(g.value / top * 100, 2), "value": _pln(g.value), "won": g.won}
+                    for g in cp.goals
+                ],
+                "next": nxt
+                and {
+                    "prize": nxt.prize,
+                    "discount": nxt.discount,
+                    "value": _pln(nxt.value),
+                    "missing": _pln(nxt.value - cp.reached),
+                },
+                # jak w aplikacji: dzień końca liczy się do końca
+                "days": count_text((cp.ends - today).days + 1, "dzień", "dni", "dni"),
+                "ends": fmt_day_month(cp.ends),
+            }
+        cards.append({"label": label, "scratch": scratch, "plus": plus})
     return cards
 
 

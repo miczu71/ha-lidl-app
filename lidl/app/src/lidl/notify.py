@@ -7,13 +7,13 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import date, timedelta
+from datetime import date
 
 import aiohttp
 
 from .coupons import AccountReport, ActiveCoupon
 from .rewards import Rewards
-from .text import count_text, fmt_day_month, plural
+from .text import count_text, fmt_until, plural
 
 log = logging.getLogger(__name__)
 
@@ -43,10 +43,6 @@ def _label(c: ActiveCoupon) -> str:
     return f"{_name(c)} {_discount(c.discount)}"
 
 
-def _until(d: date, today: date) -> str:
-    return "dziś" if d == today else "jutra" if d == today + timedelta(days=1) else fmt_day_month(d)
-
-
 def compose(
     results: dict[str, AccountReport],
     rewards: dict[str, Rewards] | None = None,
@@ -59,7 +55,7 @@ def compose(
     today = today or date.today()
     prefix = "Lidl (tryb próbny): " if dry_run else "Lidl: "
     cards = [
-        f"{label} do {_until(c.expires.astimezone().date(), today)}"
+        f"{label} do {fmt_until(c.expires.astimezone().date(), today)}"
         for label, r in (rewards or {}).items()
         for c in r.scratch_cards
     ]

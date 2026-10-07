@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -38,7 +38,15 @@ from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .products import MORE_STEP, coupon_cards, coupon_rows, import_status, parse_limit, ranking_rows
+from .products import (
+    MORE_STEP,
+    coupon_cards,
+    coupon_rows,
+    import_status,
+    parse_limit,
+    ranking_rows,
+    reward_cards,
+)
 
 log = logging.getLogger(__name__)
 
@@ -76,27 +84,22 @@ def create_app(settings: Settings) -> FastAPI:
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             sync = HistorySync(service, history)
             runner = CouponRunner(service, history)
-            job = DailyJob(
-                service.store,
-                sync,
-                runner,
-                RewardsRunner(service),
-                session,
-                dry_run=not settings.auto_activate,
-            )
+            rewards = RewardsRunner(service)
+            job = DailyJob(service.store, sync, runner, rewards, session, dry_run=not settings.auto_activate)
             app.state.service, app.state.history, app.state.sync = service, history, sync
-            app.state.runner, app.state.job = runner, job
+            app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
+
             loops = [
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
                 asyncio.create_task(at_time_loop(EVENING, job.evening)),
+                asyncio.create_task(job.refresh_rewards()),
             ]
             try:
                 yield
             finally:
                 for loop in loops:
                     loop.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await loop
+                await asyncio.gather(*loops, return_exceptions=True)
                 await job.close()
                 await sync.close()
 
@@ -300,6 +303,7 @@ def create_app(settings: Settings) -> FastAPI:
             "running": job.running,
             "last_check": fmt_time_day_month(job.last_check) if job.last_check else None,
             "run_time": settings.run_time.strftime("%H:%M"),
+            "rewards": reward_cards(request.app.state.rewards.last, date.today()),
         }
         target = request.headers.get("hx-target")
         if target == "kupony-konta":  # odświeżanie w trakcie sprawdzania: tylko karty kont

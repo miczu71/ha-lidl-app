@@ -14,7 +14,7 @@ import aiohttp
 from . import notify
 from .accounts import AccountStore
 from .coupons import CouponRunner
-from .rewards import RewardsRunner
+from .rewards import Rewards, RewardsRunner
 from .sync import HistorySync
 
 log = logging.getLogger(__name__)
@@ -74,9 +74,13 @@ class DailyJob:
         await self._sync.run_daily([slug for slug, _ in accounts])
         await self._coupons(accounts)
 
+    async def refresh_rewards(self) -> dict[str, Rewards]:
+        """Nagrody połączonych kont (też przy starcie add-onu, żeby panel nie czekał do rana)."""
+        return await self._rewards.run_all(self._accounts())
+
     async def evening(self) -> None:
         """Zdrapki wygasające dziś — osobne powiadomienie (nie zastępuje porannego)."""
-        message = notify.compose_expiring(await self._rewards.run_all(self._accounts()), date.today())
+        message = notify.compose_expiring(await self.refresh_rewards(), date.today())
         if message:
             await notify.send(self._session, message, tag=notify.TAG_SCRATCH)
 
