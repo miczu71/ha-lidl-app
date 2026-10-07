@@ -138,4 +138,4 @@ tap → panel.
 - [x] E20.3 dane: klient API (`lotteries`, `coupon_plus`, 404 → None), `rewards.py`, testy — 2026-10-08 (0942bfc).
 - [x] E20.4 powiadomienia: linia poranna, job 18:00 (`EVENING`, tag `lidl-zdrapki`) — 2026-10-08.
 - [x] E20.5 panel „Nagrody” (zdrapki, Kupon Plus graficznie, odczyt przy starcie) — 2026-10-08.
-- [ ] E20.6 wydanie 0.7.0.
+- [x] E20.6 wydanie 0.7.0 — 2026-10-08 ~01:10 na żywo (oba konta: Kupon Plus czytany, zdrapek brak; konsola i log czyste). Do obserwacji: poranne 07:00 i 18:00. Znane: etykiety progów nachodzą przy bliskich progach (50/300/500 zł na początku akcji) → 0.7.1.
