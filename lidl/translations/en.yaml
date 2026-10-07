@@ -2,3 +2,8 @@ configuration:
   log_level:
     name: Log level
     description: Add-on log verbosity (debug never prints tokens or login codes).
+  auto_activate:
+    name: Automatic coupon activation
+    description: >-
+      Activates general coupons and coupons for products from the Coupons tab on every account. Off = dry run:
+      the panel and notification only show what would be activated.

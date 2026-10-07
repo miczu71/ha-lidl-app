@@ -16,6 +16,7 @@ class Settings:
     data_dir: Path
     log_level: str
     dev: bool
+    auto_activate: bool = False
 
     @property
     def accounts_dir(self) -> Path:
@@ -33,4 +34,5 @@ def load_settings() -> Settings:
         data_dir=Path(os.environ.get("LIDL_DATA_DIR", "/data")),
         log_level=str(options.get("log_level", "info")),
         dev=os.environ.get("LIDL_DEV") == "1",
+        auto_activate=options.get("auto_activate") is True,
     )

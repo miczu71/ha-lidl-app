@@ -46,7 +46,7 @@ class SyncResult:
     unparsed: int = 0
 
 
-def _fatal(err: LidlPlusError) -> bool:
+def is_fatal(err: LidlPlusError) -> bool:
     """Błąd, po którym dalsze żądania nie mają sensu (autoryzacja, sieć, limit, awaria serwera)."""
     if isinstance(err, (LidlPlusAuthError, LidlPlusCannotConnect)) or err.status is None:
         return True
@@ -127,7 +127,7 @@ class HistorySync:
                     try:
                         detail = await self._source.ticket(slug, ticket_id)
                     except LidlPlusError as err:
-                        if _fatal(err):
+                        if is_fatal(err):
                             raise
                         skipped += 1
                         self._history.save_detail(ticket_id, None, ParsedReceipt())

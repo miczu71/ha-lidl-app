@@ -2,3 +2,8 @@ configuration:
   log_level:
     name: Poziom logów
     description: Szczegółowość logów add-onu (debug nie wypisuje tokenów ani kodów logowania).
+  auto_activate:
+    name: Automatyczna aktywacja kuponów
+    description: >-
+      Aktywuje na każdym koncie kupony ogólne i kupony na produkty z zakładki Kupony. Wyłączone = tryb
+      próbny: panel i powiadomienie pokazują tylko, co zostałoby aktywowane.

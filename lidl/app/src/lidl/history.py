@@ -12,14 +12,17 @@ from __future__ import annotations
 import json
 import sqlite3
 import zlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
+
+if TYPE_CHECKING:
+    from .coupons import Coupon
 
 SCHEMA_VERSION = 3
 CANDIDATE_MIN_PURCHASES = 3
@@ -72,6 +75,19 @@ CREATE TABLE IF NOT EXISTS ticket_coupons (
     PRIMARY KEY (ticket_id, line)
 );
 CREATE TABLE IF NOT EXISTS coupon_optout (art_id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS coupons (
+    account TEXT NOT NULL,
+    promotion_id TEXT NOT NULL,
+    coupon_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    discount TEXT NOT NULL,
+    valid_from TEXT NOT NULL,
+    valid_to TEXT NOT NULL,
+    activated INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT '',
+    seen_at TEXT NOT NULL,
+    PRIMARY KEY (account, promotion_id)
+);
 CREATE TABLE IF NOT EXISTS ticket_raw (
     ticket_id TEXT PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
     data BLOB NOT NULL
@@ -418,6 +434,37 @@ class History:
     def auto_activate_codes(self, today: date | None = None) -> set[str]:
         """Kody artykułów, na które E3 aktywuje kupony."""
         return {c.art_id for c in self.coupon_candidates(today) if c.enabled}
+
+    def save_coupons(self, account: str, coupons: Iterable[Coupon], seen_at: str) -> None:
+        """Bieżąca lista kuponów konta; status ostatniej decyzji zostaje, kupony spoza listy znikają."""
+        with self._db:
+            self._db.executemany(
+                "INSERT INTO coupons (account, promotion_id, coupon_id, title, discount, valid_from,"
+                " valid_to, activated, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " ON CONFLICT (account, promotion_id) DO UPDATE SET coupon_id = excluded.coupon_id,"
+                " title = excluded.title, discount = excluded.discount, valid_from = excluded.valid_from,"
+                " valid_to = excluded.valid_to, activated = excluded.activated, seen_at = excluded.seen_at",
+                [
+                    (account, c.promotion_id, c.coupon_id, c.title, c.discount, c.valid_from.isoformat(),
+                     c.valid_to.isoformat(), int(c.activated), seen_at)
+                    for c in coupons
+                ],
+            )  # fmt: skip
+            self._db.execute("DELETE FROM coupons WHERE account = ? AND seen_at != ?", (account, seen_at))
+
+    def set_coupon_statuses(self, account: str, rows: list[tuple[str, str, str | None]]) -> None:
+        """Decyzje przebiegu: (`promotionId`, status, `id` po udanej aktywacji albo None)."""
+        with self._db:
+            self._db.executemany(
+                "UPDATE coupons SET status = ?, coupon_id = COALESCE(?, coupon_id),"
+                " activated = MAX(activated, ?) WHERE account = ? AND promotion_id = ?",
+                [(status, cid, int(status == "activated"), account, pid) for pid, status, cid in rows],
+            )
+
+    def account_coupons(self, account: str) -> list[dict[str, Any]]:
+        cur = self._db.execute("SELECT * FROM coupons WHERE account = ? ORDER BY valid_to, title", (account,))
+        names = [d[0] for d in cur.description]
+        return [dict(zip(names, row, strict=True)) for row in cur]
 
     def savings_kpi(self, today: date | None = None) -> SavingsKpi:
         """Oszczędności z rabatów na pozycjach (kupony Lidl Plus osobno od promocji); lista API ma to pole

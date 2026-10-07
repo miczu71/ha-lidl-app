@@ -16,5 +16,7 @@ panel_title: "Lidl"
 panel_admin: true
 options:
   log_level: info
+  auto_activate: false
 schema:
   log_level: "list(debug|info|warning|error)"
+  auto_activate: bool
