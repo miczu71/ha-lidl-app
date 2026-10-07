@@ -34,7 +34,7 @@ from lidl.receipt import parse_detail
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_time_day_month
+from lidl.text import count_text, fmt_date, fmt_time_day_month
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
 from .products import MORE_STEP, coupon_cards, coupon_rows, import_status, parse_limit, ranking_rows
@@ -227,7 +227,8 @@ def create_app(settings: Settings) -> FastAPI:
                         "refunded": fmt_pln(totals.refunded),
                     }
             all_totals = history.purchase_totals()
-            ranking = history.ranking()
+            ranking = history.ranking(start=query.start, end=query.end) if query.error is None else []
+            all_products = history.ranking()  # lista wyboru produktu (do E13.2 z całej historii)
             limit = parse_limit(params.get("limit"))
             ctx.update(
                 query=query,
@@ -237,7 +238,8 @@ def create_app(settings: Settings) -> FastAPI:
                 kpi_charged=fmt_pln(all_totals.charged, 2),
                 kpi_refunded=fmt_pln(all_totals.refunded, 2),
                 kpi_dep_known=all_totals.with_deposits,
-                options=[{"id": p.art_id, "name": p.name} for p in ranking],
+                options=[{"id": p.art_id, "name": p.name} for p in all_products],
+                rank_range=f"{fmt_date(query.start)} – {fmt_date(query.end)}",
                 rows=ranking_rows(ranking, limit, link),
                 more_href=link(limit=limit + MORE_STEP) + "#rank" if len(ranking) > limit else None,
                 kpi_total=fmt_pln(kpi.total, 2),

@@ -168,8 +168,8 @@ def _next_bucket(d: date, step: str) -> date:
     return date(d.year + month // 12, month % 12 + 1, 1)
 
 
-def _year_ago(today: date | None) -> str:
-    return ((today or date.today()) - timedelta(days=365)).isoformat()
+def _year_ago(today: date | None) -> date:
+    return (today or date.today()) - timedelta(days=365)
 
 
 def _norm(name: str) -> str:
@@ -361,15 +361,23 @@ class History:
 
         return resolve
 
-    def _products(self, since: str = "") -> dict[str, dict[str, Any]]:
-        """Pozycje z paragonów od `since` zebrane per produkt (po moście nazw); nazwa i cena z ostatniego
-        zakupu."""
+    def _products(self, start: date | None = None, end: date | None = None) -> dict[str, dict[str, Any]]:
+        """Pozycje z paragonów z dni `start`–`end` (domknięty, bez zakresu: całość) zebrane per produkt
+        (po moście nazw); nazwa i cena z ostatniego zakupu."""
         resolve = self._resolver()
+        where = ""
+        args: list[str] = []
+        if start is not None:
+            where += " AND t.day >= ?"
+            args.append(start.isoformat())
+        if end is not None:
+            where += " AND t.day <= ?"
+            args.append(end.isoformat())
         rows = self._db.execute(
             "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day, i.discount, i.coupon"
-            " FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE t.day >= ?"
+            f" FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE 1 = 1{where}"
             " ORDER BY t.day, i.ticket_id, i.line",
-            (since,),
+            args,
         )
         acc: dict[str, dict[str, Any]] = {}
         for art_id, name, qty, price, ticket_id, day, discount, coupon in rows:
@@ -386,9 +394,12 @@ class History:
             p["name"], p["price"], p["last"] = name, price, day
         return acc
 
-    def ranking(self, limit: int = 200) -> list[RankedProduct]:
+    def ranking(
+        self, limit: int = 200, start: date | None = None, end: date | None = None
+    ) -> list[RankedProduct]:
+        """Najczęściej kupowane w dniach `start`–`end` (domyślnie cała historia)."""
         ranked = []
-        for key, p in self._products().items():
+        for key, p in self._products(start, end).items():
             days = sorted(date.fromisoformat(d) for d in p["days"])
             cycle = (days[-1] - days[0]).days / (len(days) - 1) if len(days) > 1 else None
             ranked.append(
@@ -472,7 +483,7 @@ class History:
     def savings_kpi(self, today: date | None = None) -> SavingsKpi:
         """Oszczędności z rabatów na pozycjach (kupony Lidl Plus osobno od promocji); lista API ma to pole
         tylko dla garstki najnowszych paragonów, więc go nie używamy."""
-        since = _year_ago(today)
+        since = _year_ago(today).isoformat()
         t = self._db.execute(
             "SELECT COUNT(*), COALESCE(SUM(detail_fetched), 0),"
             " COALESCE(SUM(CASE WHEN detail_fetched = 1 AND parsed = 0 THEN 1 ELSE 0 END), 0),"

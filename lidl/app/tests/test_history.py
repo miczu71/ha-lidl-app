@@ -357,3 +357,13 @@ def test_opt_out_is_stored_and_excluded_from_auto_activate_codes(tmp_path: Path)
     assert reopened.auto_activate_codes(today=today) == set()
     reopened.set_auto_activate("7", True)
     assert reopened.auto_activate_codes(today=today) == {"7"}
+
+
+def test_ranking_can_be_limited_to_a_date_range(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("old", "2024-12-13"), _ticket("new", "2026-09-01")])
+    h.save_detail("old", "S", _receipt(("1", "Stary produkt", 1, 2.0)))
+    h.save_detail("new", "S", _receipt(("2", "Nowy produkt", 1, 3.0)))
+    assert {r.art_id for r in h.ranking()} == {"1", "2"}
+    assert [r.art_id for r in h.ranking(start=date(2025, 11, 1), end=date(2026, 10, 7))] == ["2"]
+    assert [r.art_id for r in h.ranking(start=date(2024, 1, 1), end=date(2024, 12, 31))] == ["1"]

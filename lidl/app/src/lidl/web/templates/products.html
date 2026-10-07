@@ -169,7 +169,10 @@
 </section>
 
 <section class="card" aria-labelledby="rank-h" id="rank">
-  <h2 class="s" id="rank-h">Najczęściej kupowane</h2>
+  <div>
+    <h2 class="s" id="rank-h">Najczęściej kupowane</h2>
+    <p class="sum">{{ rank_range }}</p>
+  </div>
   <ol class="rklist" aria-labelledby="rank-h">
     {% for r in rows %}
     <li class="rk">

@@ -369,3 +369,22 @@ def test_check_now_starts_coupon_run_once(client: TestClient, monkeypatch) -> No
     r = client.post("/kupony/sprawdz")
     assert r.status_code == 303 and r.headers["location"] == "/kupony"
     assert started == [True]
+
+
+def test_ranking_follows_chart_range_and_shows_year_for_old_purchases(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    old = (date.today() - timedelta(days=500)).isoformat()
+    recent = (date.today() - timedelta(days=10)).isoformat()
+    history.upsert_tickets(
+        "osoba-1",
+        [{"id": "o", "date": f"{old}T10:00:00+00:00"}, {"id": "n", "date": f"{recent}T10:00:00+00:00"}],
+    )
+    history.save_detail("o", "S", ParsedReceipt(items=[ReceiptItem("n:1", "Produkt stary", 1, 2.0, 2.0)]))
+    history.save_detail("n", "S", ParsedReceipt(items=[ReceiptItem("2", "Produkt nowy", 1, 3.0, 3.0)]))
+    default = client.get("/produkty").text
+    ranking = default[default.index('id="rank"') :]
+    assert "Produkt nowy" in ranking and "Produkt stary" not in ranking
+    everything = client.get("/produkty?zakres=all").text
+    ranking = everything[everything.index('id="rank"') :]
+    assert "Produkt stary" in ranking and f" {date.fromisoformat(old).year}" in ranking
+    assert "zakres=all" in ranking[ranking.index("Produkt stary") :].split("Wykres")[0]

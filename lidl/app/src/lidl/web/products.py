@@ -10,7 +10,7 @@ from typing import Any
 from lidl.accounts import Account
 from lidl.history import CouponCandidate, History, RankedProduct
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_day_month
+from lidl.text import count_text, fmt_day_month, fmt_recent
 
 from .chart import fmt_pln
 
@@ -40,7 +40,7 @@ def ranking_rows(ranking: list[RankedProduct], limit: int, link: Callable[..., s
                 "name": p.name,
                 "count": count_text(p.purchases, "zakup", "zakupy", "zakupów"),
                 "last": f"ostatnio {fmt_pln(p.last_price, 2)}, "
-                + fmt_day_month(date.fromisoformat(p.last_date)),
+                + fmt_recent(date.fromisoformat(p.last_date)),
                 "cycle": cycle,
                 "aria": f"Pokaż {p.name} na wykresie",
                 "href": link(produkt=p.art_id) + "#wykres",
@@ -54,7 +54,7 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
     for c in candidates:
         meta = [
             count_text(c.purchases, "zakup", "zakupy", "zakupów"),
-            "ostatnio " + fmt_day_month(date.fromisoformat(c.last_date)),
+            "ostatnio " + fmt_recent(date.fromisoformat(c.last_date)),
         ]
         if c.coupon_uses:
             meta.append(f"kupon {c.coupon_uses}×, {fmt_pln(c.coupon_saved, 2)}")

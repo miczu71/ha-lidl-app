@@ -23,5 +23,14 @@ def fmt_day_month(d: date) -> str:
     return f"{d.day} {SHORT_MONTHS[d.month - 1]}"
 
 
+def fmt_date(d: date) -> str:
+    return f"{fmt_day_month(d)} {d.year}"
+
+
+def fmt_recent(d: date) -> str:
+    """„13 gru” w bieżącym roku, „13 gru 2024” w innym."""
+    return fmt_day_month(d) if d.year == date.today().year else fmt_date(d)
+
+
 def fmt_time_day_month(dt: datetime) -> str:
     return f"{dt:%H:%M}, {fmt_day_month(dt.date())}"
