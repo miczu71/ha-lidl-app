@@ -88,10 +88,48 @@ oraz liczności, bez surowych odpowiedzi.
   paragonu) → 404 — najpewniej brak aktywnej akcji pieczątkowej dla konta. Do sprawdzenia, gdy w aplikacji pojawi
   się Pieczątka Plus; do tego czasu poza zakresem.
 
-**Wniosek:** E20 = zdrapki (przypomnienie o ważności) + Coupon Plus (postęp i brakująca kwota). Następny krok: wywiad
-o kształcie funkcji (gdzie pokazać, kiedy i komu powiadomienie, oba konta), potem plan E20.2+.
+**Wniosek:** E20 = zdrapki (przypomnienie o ważności) + Coupon Plus (postęp i brakująca kwota).
+
+## Projekt E20.2–E20.6 (wywiad 2026-10-08, zatwierdzony)
+
+Ustalenia:
+1. Cel: nie tracić zdrapek (ważne ~3 dni) — priorytet; Coupon Plus — pomoc w planowaniu zakupów pod próg.
+2. Zdrapki: linia w porannym powiadomieniu 07:00 (`notify.family`, z osobą) + w dniu wygaśnięcia przypomnienie
+   ~18:00 do obojga (`notify.family`), jeśli zdrapka nadal jest na liście.
+3. Coupon Plus: tylko panel, bez powiadomień — w formie graficznej jak w aplikacji.
+4. Automatycznie tylko odczyt (GET) i powiadomienia; add-on nie zdrapuje (`redeemed`, `start`, `view` — nigdy).
+5. Sukces: żadna zdrapka nie wygasa niezauważona; w panelu per konto „brakuje X zł do progu Y, do <data>”.
+
+Założenia do sprawdzenia: zdrapuje się w aplikacji Lidl; zdrapana zdrapka znika z listy (E20.2).
+
+**Dane:** `client/api.py` — `lotteries()` (`userId` = `sub` z tokenu) i `coupon_plus()` (`Segment-Ids`). Bez tabel
+w bazie: stan w pamięci, odświeżany przy porannym przebiegu, o 18:00, przy „Sprawdź teraz” i przy starcie add-onu.
+Nowy `rewards.py` zbiera oba źródła dla wszystkich kont; błąd jednego konta nie blokuje reszty (jak `CouponRunner`).
+
+**Powiadomienia:** `notify.compose` dostaje linię „Zdrapki: Osoba 1 — do śr 23:59”; zdrapka sama też wysyła poranne
+powiadomienie (gdy brak kuponów). Drugi `at_time_loop` o 18:00 (stała godzina, bez opcji) odpytuje tylko zdrapki i przy
+wygasających dziś wysyła „Lidl: zdrapka wygasa dziś o 23:59 (Osoba 1)”, tag `lidl-zdrapki` (nie zastępuje porannego),
+tap → panel.
+
+**Panel:** sekcja „Nagrody” w zakładce Kupony, nad kuponami, per konto:
+- Coupon Plus graficznie (jak w aplikacji): pasek z progami rozmieszczonymi proporcjonalnie (`left = value / max`),
+  wypełnienie do `reachedAmount`, dymek z kwotą, ✓ przy `Won`, prezent przy `Uncompleted`, pole „Następny kupon”
+  (`prize.coupon.title` + `discountTitle`), „Dni do końca” z `endDate`, dodatkowo „brakuje X zł do Y zł”. Czysty
+  HTML/CSS, ikony SVG (iconify), styl D1, bez grafik Lidla.
+- Zdrapki: wiersz „Zdrapka z 05.10 — kończy się dziś” (wyróżnienie w ostatnim dniu); bez przycisku „Odbierz”.
+- UI przez skill `impeccable`, weryfikacja Playwright przed pokazaniem.
+
+**Podetapy** (przed każdym dokładne kroki i „go”):
+- **E20.2 weryfikacja:** po zdrapaniu zdrapki przez użytkownika `probe_rewards.py --only zdrapki` — czy znika z listy
+  (logika „nadal jest”); sonda konta osoby 2, jeśli spike ma jego tokeny.
+- **E20.3 dane:** klient API, `rewards.py`, testy na neutralnych fixtures.
+- **E20.4 powiadomienia:** linia poranna, job 18:00, testy `compose`.
+- **E20.5 panel:** sekcja „Nagrody”.
+- **E20.6 wydanie 0.7.0:** skill `release`, weryfikacja na żywo.
 
 ## Stan
 
 - [x] E20.0 rozpoznanie APK — 2026-10-08: wykonalne, endpointy i pola wyżej. Katalogi `apk/` i `tools/` usunięte.
 - [x] E20.1 próbny GET z tokenem jednego konta — 2026-10-08: zdrapki i Coupon Plus działają, pieczątki 404 (brak akcji).
+- [x] Wywiad i projekt E20.2–E20.6 — 2026-10-08.
+- [ ] E20.2 weryfikacja po zdrapaniu.
