@@ -56,6 +56,7 @@ class ActiveCoupon:
     discount: str
     valid_to: str
     weight: int  # zakupy produktu z listy „Kupowane regularnie” (12 mies.); 0 = kupon ogólny albo nie nasz
+    general: bool  # kupon ogólny (bez kodów artykułów), np. rabat od kwoty zakupów
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,11 @@ class AccountReport:
     @property
     def score(self) -> int:
         return sum(c.weight for c in self.active)
+
+    @property
+    def weighted_count(self) -> int:
+        """Aktywne kupony na nasze produkty."""
+        return sum(1 for c in self.active if c.weight)
 
 
 class CouponSource(Protocol):
@@ -187,6 +193,7 @@ class CouponRunner:
                 c.discount,
                 _day(c),
                 max((weights.get(a, 0) for a in c.article_ids), default=0),
+                not c.article_ids,
             )
             for c in coupons
             if c.activated or c.promotion_id in done or (dry_run and c in chosen)

@@ -1,55 +1,69 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 import pytest
 
-from lidl.coupons import AccountReport, Activation
-from lidl.notify import NOTIFY_URL, compose, send
+from lidl.coupons import AccountReport, Activation, ActiveCoupon
+from lidl.notify import NOTIFY_URL, PANEL, compose, send
+
+TODAY = date(2026, 10, 7)
+LATER = "2026-10-10"
 
 
-def _r(*items: Activation) -> AccountReport:
-    return AccountReport(list(items), [])
+def _c(title: str, discount: str, weight: int = 0, end: str = LATER, general: bool = False) -> ActiveCoupon:
+    return ActiveCoupon(title, discount, end, weight, general)
 
 
-def _a(title: str, status: str = "activated", new: bool = True, discount: str = "-30%") -> Activation:
-    return Activation(title, discount, "2026-10-10", status, new)
+def test_recommends_the_card_with_more_weighted_coupons() -> None:
+    general = _c("*na zakupy za min. 100 zł", "10 zł rabatu*", general=True)
+    kiwi = _c("Kiwi Gold | sztuka", "1 + 1 gratis", 5, end="2026-10-07")
+    results = {
+        "Osoba 1": AccountReport(
+            [], [_c("Papryka czerwona | luzem", "-11%", 28, end="2026-10-07"), kiwi, general]
+        ),
+        "Osoba 2": AccountReport([], [_c("Banany | luzem", "2,99 zł / 1 kg", 40), kiwi, general]),
+        "Osoba 3": AccountReport([], [_c("Wyciskarka", "-100 zł")]),
+    }
+    title, body = compose(results, dry_run=False, today=TODAY) or ("", "")
+    assert title == "Lidl: dziś karta Osoba 2 (2 kupony na Wasze produkty)"
+    assert body.splitlines() == [
+        "Osoba 1: Papryka czerwona −11%",
+        "Osoba 2: Banany 2,99 zł/kg",
+        "Obie: Kiwi Gold 1+1 · 10 zł na zakupy od 100 zł",
+        "Koniec dziś: Papryka czerwona, Kiwi Gold",
+    ]
 
 
-def test_nothing_new_means_no_message() -> None:
-    assert compose({"Osoba 1": _r(_a("Produkt A", new=False))}, dry_run=False) is None
-    assert compose({}, dry_run=False) is None
+def test_two_cards_common_line_and_tie() -> None:
+    a = AccountReport([], [_c("Mleko UHT 3,2% Mazurski Smak", "1,99 zł / 1 szt. przy zakupie 6 szt.", 7)])
+    b = AccountReport([], [_c("Ser gouda plastry 150 g", "-30%", 7)])
+    title, body = compose({"Osoba 1": a, "Osoba 2": b}, dry_run=False, today=TODAY) or ("", "")
+    assert title == "Lidl: obie karty podobnie (1 kupon na Wasze produkty)"
+    assert body.splitlines() == [
+        "Osoba 1: Mleko UHT 3,2% Mazurski Smak 1,99 zł/szt. przy 6 szt.",
+        "Osoba 2: Ser gouda plastry 150 g −30%",
+    ]
 
 
-def test_activated_message_lists_accounts_with_validity() -> None:
-    msg = compose(
-        {
-            "Osoba 1": _r(
-                _a("Produkt A"),
-                _a("Rabat od zakupów", discount="10 zł rabatu"),
-                _a("Stary", new=False),
-            ),
-            "Osoba 2": _r(_a("Produkt B"), _a("Produkt C", status="failed")),
-        },
-        dry_run=False,
+def test_nothing_for_our_products_means_no_message() -> None:
+    only_general = AccountReport([], [_c("*na zakupy za min. 100 zł", "10 zł rabatu*", general=True)])
+    assert compose({"Osoba 1": only_general}, dry_run=False, today=TODAY) is None
+    assert compose({}, dry_run=False, today=TODAY) is None
+
+
+def test_dry_run_title_and_new_failures_line() -> None:
+    report = AccountReport(
+        [
+            Activation("Jajka L", "-10%", LATER, "failed", True),
+            Activation("Stary", "-5%", LATER, "failed", False),
+        ],
+        [_c("Banany", "-10%", 4)],
     )
-    assert msg == (
-        "Lidl: aktywowano 3 kupony",
-        "Osoba 1: Produkt A, -30% (do 10 paź); Rabat od zakupów, 10 zł rabatu (do 10 paź)\n"
-        "Osoba 2: Produkt B, -30% (do 10 paź)\n"
-        "Nie udało się: Produkt C (Osoba 2)",
-    )
-
-
-def test_dry_run_title_and_plural() -> None:
-    title, body = compose(
-        {"Osoba 1": _r(*(_a(f"P{i}", status="would") for i in range(5)))}, dry_run=True
-    ) or (
-        "",
-        "",
-    )
-    assert title == "Lidl (tryb próbny): aktywowałbym 5 kuponów"
-    assert body.startswith("Osoba 1: P0, -30% (do 10 paź)")
+    title, body = compose({"Osoba 1": report}, dry_run=True, today=TODAY) or ("", "")
+    assert title == "Lidl (tryb próbny): dziś karta Osoba 1 (1 kupon na Wasze produkty)"
+    assert body.splitlines()[-1] == "Nie udało się: Jajka L (Osoba 1)"
 
 
 class FakeResponse:
@@ -71,13 +85,17 @@ class FakeSession:
         return FakeResponse()
 
 
-async def test_send_posts_to_notify_family_with_supervisor_token(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_send_posts_to_notify_family_with_tap_action_and_tag(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPERVISOR_TOKEN", "t")
     session = FakeSession()
     await send(session, ("Tytuł", "Treść"))  # type: ignore[arg-type]
-    assert session.posts == [
-        (NOTIFY_URL, {"title": "Tytuł", "message": "Treść"}, {"Authorization": "Bearer t"})
-    ]
+    url, body, headers = session.posts[0]
+    assert url == NOTIFY_URL and headers == {"Authorization": "Bearer t"}
+    assert body == {
+        "title": "Tytuł",
+        "message": "Treść",
+        "data": {"clickAction": PANEL, "url": PANEL, "tag": "lidl-kupony"},
+    }
 
 
 async def test_send_without_token_only_logs(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -85,8 +103,3 @@ async def test_send_without_token_only_logs(monkeypatch: pytest.MonkeyPatch) -> 
     session = FakeSession()
     await send(session, ("Tytuł", "Treść"))  # type: ignore[arg-type]
     assert session.posts == []
-
-
-def test_only_failures_get_their_own_title() -> None:
-    msg = compose({"Osoba 1": _r(_a("Produkt A", status="failed"))}, dry_run=False)
-    assert msg == ("Lidl: nie udało się aktywować kuponów", "Nie udało się: Produkt A (Osoba 1)")

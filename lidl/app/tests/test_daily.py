@@ -8,7 +8,7 @@ import pytest
 
 from lidl import notify
 from lidl.accounts import Account
-from lidl.coupons import AccountReport, Activation
+from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.daily import DailyJob, at_time_loop, seconds_until
 
 
@@ -62,7 +62,10 @@ class FakeRunner:
 
     async def run_all(self, accounts: list[tuple[str, str]], *, dry_run: bool) -> dict[str, AccountReport]:
         self.log.append(f"kupony {accounts} próbnie={dry_run}")
-        return {"Osoba 1": AccountReport([Activation("Produkt A", "-30%", "2026-10-10", "would", True)], [])}
+        active = [ActiveCoupon("Produkt A", "-30%", "2026-10-10", 5, False)]
+        return {
+            "Osoba 1": AccountReport([Activation("Produkt A", "-30%", "2026-10-10", "would", True)], active)
+        }
 
 
 async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
@@ -79,7 +82,7 @@ async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
     assert log == [
         "paragony ['osoba-1']",
         "kupony [('osoba-1', 'Osoba 1')] próbnie=True",
-        "powiadomienie Lidl (tryb próbny): aktywowałbym 1 kupon",
+        "powiadomienie Lidl (tryb próbny): dziś karta Osoba 1 (1 kupon na Wasze produkty)",
     ]
 
 
