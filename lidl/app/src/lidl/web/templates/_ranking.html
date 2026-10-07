@@ -1,5 +1,5 @@
-{% from "_macros.html" import search_count %}
-<div id="wyniki">
+{% from "_macros.html" import no_match, search_count %}
+<div id="wyniki" class="live">
   {{ search_count(found, ranked, q, clear_href) }}
   <ol class="rklist" aria-labelledby="rank-h">
     {% for r in rows %}
@@ -10,7 +10,7 @@
       <a class="ds-btn ds-btn--link" href="{{ r.href }}" aria-label="{{ r.aria }}" hx-swap="outerHTML show:#wykres:top">Wykres</a>
     </li>
     {% else %}
-    <li class="meta">{% if q %}Nic nie pasuje do „{{ q }}” w tym zakresie dat.{% else %}Brak zakupów w tym zakresie dat.{% endif %}</li>
+    {% if q %}{{ no_match(q, " w tym zakresie dat") }}{% else %}<li class="meta">Brak zakupów w tym zakresie dat.</li>{% endif %}
     {% endfor %}
   </ol>
   {% if more_href %}<div><a class="ds-btn ds-btn--secondary" href="{{ more_href }}">Pokaż więcej</a></div>{% endif %}

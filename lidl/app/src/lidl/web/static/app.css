@@ -212,11 +212,11 @@ select.field { appearance: auto; }
 @media (prefers-reduced-motion: reduce) { .sw__track, .sw__track::after { transition: none; } }
 
 /* Wyszukiwanie na żywo (htmx) i wybrany produkt wykresu */
-#produkty { display: flex; flex-direction: column; gap: var(--space-5); }
+.stack { display: flex; flex-direction: column; gap: var(--space-5); }
 label.search { display: flex; flex-direction: column; gap: var(--space-1); margin: 0; max-width: 420px; }
 input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
 .sel { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); }
 .sel__x { display: inline-grid; place-items: center; width: 44px; height: 44px; margin: -12px -12px -12px -8px; border-radius: 50%; color: var(--ink-muted); }
 .sel__x:hover { background: var(--surface-inset); color: var(--ink); }
 .sel__x svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-#wyniki.htmx-request, #produkty.htmx-request { opacity: 0.6; transition: opacity 0.15s ease-out; }
+.live.htmx-request { opacity: 0.6; transition: opacity 0.15s ease-out; }

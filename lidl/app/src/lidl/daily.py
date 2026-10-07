@@ -69,6 +69,7 @@ class DailyJob:
         """„Sprawdź teraz” w panelu: kupony w tle; False, gdy przebieg już trwa."""
         if self.running:
             return False
+        self.running = True  # panel od razu pokazuje „sprawdzam”, zanim zadanie ruszy
         self._task = asyncio.create_task(
             self._coupons([(a.slug, a.label) for a in self._store.list() if a.connected])
         )

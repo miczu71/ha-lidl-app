@@ -10,7 +10,7 @@ from typing import Any
 from lidl.accounts import Account
 from lidl.history import CouponCandidate, History, RankedProduct
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_day_month, fmt_recent
+from lidl.text import count_text, fmt_day_month, fmt_recent, matches
 
 from .chart import fmt_pln
 
@@ -64,8 +64,11 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
     return rows
 
 
-def coupon_cards(accounts: list[Account], history: History, now: datetime) -> list[dict[str, Any]]:
-    """Bieżące kupony każdego połączonego konta ze statusem słownym; daty w czasie lokalnym."""
+def coupon_cards(
+    accounts: list[Account], history: History, now: datetime, q: str = ""
+) -> list[dict[str, Any]]:
+    """Bieżące kupony każdego połączonego konta ze statusem słownym (daty w czasie lokalnym); liczniki
+    z całej listy, wiersze zawężone do frazy `q`."""
     cards = []
     for a in accounts:
         if not a.connected:
@@ -99,7 +102,15 @@ def coupon_cards(accounts: list[Account], history: History, now: datetime) -> li
                     "label": label,
                 }
             )
-        cards.append({"slug": a.slug, "label": a.label, "rows": rows})
+        cards.append(
+            {
+                "slug": a.slug,
+                "label": a.label,
+                "total": len(rows),
+                "active": sum(r["kind"] == "on" for r in rows),
+                "rows": [r for r in rows if matches(r["title"], q)],
+            }
+        )
     return cards
 
 

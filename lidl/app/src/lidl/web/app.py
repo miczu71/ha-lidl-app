@@ -278,26 +278,35 @@ def create_app(settings: Settings) -> FastAPI:
     async def coupons(request: Request) -> Response:
         history: History = request.app.state.history
         job: DailyJob = request.app.state.job
-        rows = coupon_rows(history.coupon_candidates())
-        return render(
-            request,
-            "coupons.html",
-            section="kupony",
-            cards=coupon_cards(service(request).store.list(), history, datetime.now(UTC)),
-            dry_run=job.dry_run,
-            running=job.running,
-            last_check=fmt_time_day_month(job.last_check) if job.last_check else None,
-            run_time=settings.run_time.strftime("%H:%M"),
-            rows=rows,
+        q = request.query_params.get("q", "").strip()
+        ctx: dict[str, Any] = {
+            "section": "kupony",
+            "q": q,
+            "clear_href": f"{base(request)}/kupony",
+            "cards": coupon_cards(service(request).store.list(), history, datetime.now(UTC), q),
+            "dry_run": job.dry_run,
+            "running": job.running,
+            "last_check": fmt_time_day_month(job.last_check) if job.last_check else None,
+            "run_time": settings.run_time.strftime("%H:%M"),
+        }
+        target = request.headers.get("hx-target")
+        if target == "kupony-konta":  # odświeżanie w trakcie sprawdzania: tylko karty kont
+            return render(request, "_coupons_accounts.html", **ctx)
+        regular = coupon_rows(history.coupon_candidates())
+        ctx.update(
+            rows=[r for r in regular if matches(r["name"], q)],
+            regular_total=len(regular),
             min_purchases=CANDIDATE_MIN_PURCHASES,
-            on=sum(r["on"] for r in rows),
-            no_code=sum(not r["matchable"] for r in rows),
+            on=sum(r["on"] for r in regular),
+            no_code=sum(not r["matchable"] for r in regular),
         )
+        live = target == "kupony-wyniki"  # wyszukiwanie na żywo: tylko wyniki
+        return render(request, "_coupons_results.html" if live else "coupons.html", **ctx)
 
     @app.post("/kupony/sprawdz")
-    async def check_coupons(request: Request) -> Response:
+    async def check_coupons(request: Request, q: str = Form("")) -> Response:
         request.app.state.job.start_coupons()
-        return go(request, "/kupony")
+        return go(request, f"/kupony?{urlencode({'q': q})}" if q else "/kupony")
 
     @app.post("/kupony/{slug}/{promotion_id}/aktywuj")
     async def activate_coupon(request: Request, slug: str, promotion_id: str) -> Response:

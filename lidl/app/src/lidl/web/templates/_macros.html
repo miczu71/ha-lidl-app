@@ -8,3 +8,7 @@
 {% macro search_count(shown, total, q, clear_url) %}
 {% if q %}<p class="sum">{{ shown }} z {{ total }} · <a href="{{ clear_url }}">wyczyść</a></p>{% endif %}
 {% endmacro %}
+
+{% macro no_match(q, where="") %}
+<li class="meta">Nic nie pasuje do „{{ q }}”{{ where }}.</li>
+{% endmacro %}

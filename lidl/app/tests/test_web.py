@@ -418,7 +418,7 @@ def test_selected_product_shows_as_removable_chip(client: TestClient) -> None:
 def test_live_search_returns_only_the_ranking_results(client: TestClient) -> None:
     _seed(client)
     text = client.get("/produkty?q=produkt b", headers={"HX-Target": "wyniki"}).text
-    assert text.lstrip().startswith('<div id="wyniki">') and "Produkt B" in text and "Produkt A" not in text
+    assert text.lstrip().startswith('<div id="wyniki"') and "Produkt B" in text and "Produkt A" not in text
     assert "Wydatki w czasie" not in text and "<html" not in text
 
 
@@ -426,3 +426,40 @@ def test_search_matches_every_word_in_any_order() -> None:
     from lidl.text import matches
 
     assert matches("Ser gouda plastry 150 g", "plastry ser") and not matches("Ser gouda", "ser mleko")
+
+
+def test_coupons_search_filters_both_sections_and_live_returns_results_only(client: TestClient) -> None:
+    _seed_regular(client)
+    _seed_coupons(client)
+    text = client.get("/kupony?q=aktywacji").text
+    assert "Kupon do aktywacji" in text and "Kupon aktywny" not in text
+    assert "Produkt A" not in text.split('id="cp-h"')[1] and "1 z 3" in text
+    part = client.get("/kupony?q=produkt a", headers={"HX-Target": "kupony-wyniki"}).text
+    assert part.lstrip().startswith('<div id="kupony-wyniki"') and "<html" not in part
+    assert "Produkt A" in part and "Produkt C" not in part
+
+
+def test_coupons_controls_update_in_place(client: TestClient, monkeypatch) -> None:
+    _seed_regular(client)
+    _seed_coupons(client)
+    text = client.get("/kupony").text
+    assert 'hx-post="/kupony/produkt/111"' in text and 'hx-select="#p-111"' in text
+    assert 'hx-post="/kupony/osoba-1/b/aktywuj"' in text and 'hx-post="/kupony/sprawdz"' in text
+    assert 'hx-trigger="every 3s"' not in text and 'http-equiv="refresh"' not in text
+    monkeypatch.setattr(client.app.state.job, "running", True)  # type: ignore[attr-defined]
+    assert 'hx-trigger="every 3s"' in client.get("/kupony").text
+
+
+def test_check_now_keeps_the_search_phrase(client: TestClient, monkeypatch) -> None:
+    job = client.app.state.job  # type: ignore[attr-defined]
+    monkeypatch.setattr(job, "start_coupons", lambda: True)
+    r = client.post("/kupony/sprawdz", data={"q": "ser plastry"})
+    assert r.status_code == 303 and r.headers["location"] == "/kupony?q=ser+plastry"
+
+
+def test_polling_during_check_returns_only_account_cards(client: TestClient) -> None:
+    _seed_regular(client)
+    _seed_coupons(client)
+    part = client.get("/kupony", headers={"HX-Target": "kupony-konta"}).text
+    assert part.lstrip().startswith('<div id="kupony-konta"') and "Kupon aktywny" in part
+    assert "Kupowane regularnie" not in part and "<html" not in part

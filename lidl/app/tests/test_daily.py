@@ -81,3 +81,11 @@ async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
         "kupony [('osoba-1', 'Osoba 1')] próbnie=True",
         "powiadomienie Lidl (tryb próbny): aktywowałbym 1 kupon",
     ]
+
+
+async def test_start_coupons_reports_running_at_once_and_only_one_run() -> None:
+    log: list[str] = []
+    job = DailyJob(FakeStore(), FakeSync(log), FakeRunner(log), None, dry_run=True)  # type: ignore[arg-type]
+    assert job.start_coupons() is True and job.running is True
+    assert job.start_coupons() is False
+    await job.close()

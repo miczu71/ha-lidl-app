@@ -102,7 +102,7 @@
   <p class="hint" style="margin: 0">{% if kpi_with_details < kpi_tickets %}Liczone z {{ kpi_with_details }} z {{ kpi_tickets }} paragonów, reszta jeszcze się pobiera.{% else %}Punkt odniesienia z paragonów, zanim add-on zacznie aktywować kupony.{% endif %}{% if kpi_dep_known < kpi_tickets %} Kaucje z {{ kpi_dep_known }} z {{ kpi_tickets }} paragonów.{% endif %}</p>
 </section>
 
-<div id="produkty" hx-boost="true" hx-target="#produkty" hx-select="#produkty" hx-swap="outerHTML show:none" hx-indicator="#produkty">
+<div id="produkty" class="stack live" hx-boost="true" hx-target="#produkty" hx-select="#produkty" hx-swap="outerHTML show:none" hx-indicator="#produkty">
 <section class="card" aria-labelledby="wyk" id="wykres">
   <h2 class="s" id="wyk">Wydatki w czasie</h2>
   <form class="ctl" id="filtry" method="get" action="{{ base }}/produkty#wykres" hx-get="{{ base }}/produkty" hx-trigger="change, submit" hx-replace-url="true" hx-sync="this:replace">
