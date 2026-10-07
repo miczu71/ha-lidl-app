@@ -31,16 +31,16 @@ produkty E3 ma automatycznie aktywować kupony. Nic nie pobieramy z Lidla.
 - `auto_activate_codes(today=None) -> set[str]` — kody kandydatów z `enabled` (API dla E3).
 
 **UI (`web/app.py`, `web/templates/coupons.html`, nawigacja w `base.html`)**
-- Zakładka „Kupony” obok Produktów i Kont: `GET /coupons` — nagłówek (kandydaci, do auto-aktywacji, bez kodu),
+- Zakładka „Kupony” obok Produktów i Kont: `GET /kupony` — nagłówek (kandydaci, do auto-aktywacji, bez kodu),
   lista z polami `CouponCandidate` i przełącznikiem; na telefonie karty.
-- `POST /coupons/{art_id}` (formularz `enabled`) → przekierowanie na `/coupons` (wzorzec PRG jak `start_history`).
+- `POST /kupony/{art_id}` (formularz `enabled`) → przekierowanie na `/kupony` (wzorzec PRG jak `start_history`).
 - Styl wg `docs/DESIGN.md`, istniejące komponenty; cache-busting jak dotąd (`?v=`).
 
 **Testy (`lidl/app/tests/`)**
 - Próg i okno: zakup sprzed 366 dni się nie liczy, 2 zakupy to za mało.
 - Most `n:` → kod HTML sumuje zakupy obu formatów; `n:` bez mostu ma `matchable=False`.
 - Odznaczenie zapisane i odczytane; `auto_activate_codes` pomija odznaczone i `n:`.
-- Trasy `GET`/`POST /coupons`. Do tego `ruff` i `mypy` jak w CI.
+- Trasy `GET`/`POST /kupony`. Do tego `ruff` i `mypy` jak w CI.
 
 ## Etapy (każdy z checkpointem; przed etapem dokładne kroki i „go”)
 - **E11.0** Dokumentacja: ten plik + wpis w `docs/ROADMAP.md`.

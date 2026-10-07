@@ -33,6 +33,13 @@ dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz 
   łączymy je po nazwie, gdy jednoznacznie pasuje; zmiana kodu przez Lidl tworzy nowy produkt.
 - Gdy z jakiegoś paragonu nie da się odczytać pozycji, panel pokazuje ich liczbę.
 
+## Kupony (zakładka Kupony)
+
+Lista produktów kupowanych regularnie: co najmniej 3 razy w ostatnich 12 miesiącach, na wszystkich kontach
+razem. Na zaznaczone produkty add-on będzie sam aktywował kupony na każdym koncie (od kolejnej wersji); domyślnie
+zaznaczone są wszystkie, odznacz to, czego nie chcesz. Produkt oznaczony „bez kodu kuponu” znamy tylko ze
+starszych paragonów, bez numeru artykułu, którym posługują się kupony.
+
 ## Opcje
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.

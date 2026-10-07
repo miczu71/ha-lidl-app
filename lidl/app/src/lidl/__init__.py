@@ -1,3 +1,3 @@
 """Lidl Plus — add-on Home Assistant (nieoficjalny)."""
 
-__version__ = "0.3.3"
+__version__ = "0.4.0"

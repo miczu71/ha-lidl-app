@@ -100,8 +100,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E11 Lista „produkty kuponowe” — reguły dla E3** (zatwierdzone 2026-10-07; plan: `docs/PLAN_E11_kupony.md`):
   produkty kupione ≥3 razy w ostatnich 12 miesiącach, lista wspólna dla domu, przełącznik „auto-aktywuj”
   domyślnie włączony (zapisujemy tylko odznaczenia); produkty z samym kluczem `n:<EAN>` bez kodu kuponu.
-  E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs, E11.1 dane, E11.2 ekran „Kupony”,
-  E11.3 wydanie 0.4.0.
+  E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs ✅, E11.1 dane ✅, E11.2 ekran „Kupony”
+  (`/kupony`) ✅, E11.3 wydanie 0.4.0.
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie

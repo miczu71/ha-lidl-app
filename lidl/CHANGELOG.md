@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.0
+
+- Nowa zakładka **Kupony**: produkty kupione co najmniej 3 razy w ostatnich 12 miesiącach (na wszystkich kontach razem), z liczbą zakupów, datą ostatniego, użyciami kuponów i kwotami z kuponów i promocji.
+- Przy każdym produkcie przełącznik **auto-aktywacji kuponów** — domyślnie włączony, odznaczenie zapisuje się od razu. Sama aktywacja kuponów przyjdzie w kolejnej wersji; ta lista będzie dla niej regułą.
+- Produkty znane tylko ze starszych paragonów (bez numeru artykułu, który mają kupony) są oznaczone „bez kodu kuponu” — do nich kuponu nie da się dopasować.
+
 ## 0.3.3
 
 - **Kaucje pobrane i zwrócone osobno.** Poprzednia wersja wyliczała jedno saldo kaucji i obcinała je do zera, więc zwroty (kaucja za zgrzewki, skrzynki, opakowania bez kaucji) znikały, a kaucje wychodziły zawyżone. Teraz karta oszczędności i podsumowanie pod wykresem pokazują „kaucje pobrane” i „kaucje zwrócone”, a „zapłacono łącznie” to pozycje po rabatach plus pobrane minus zwrócone.
