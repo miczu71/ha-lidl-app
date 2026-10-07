@@ -35,8 +35,9 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 
 ## Stan i otwarte sprawy (2026-10-07)
 
-- [x] E0 rozpoznanie, E1 add-on 0.1.0 (release `v0.1.0`), CI (testy, ruff, mypy, budowa arm64/amd64).
-- [ ] Zalogować w panelu konta obu osób (pierwsze konto zalogowane w spike E0, drugie jeszcze nie).
+- [x] E0 rozpoznanie, E1 add-on 0.1.0 (release `v0.1.0`), CI (testy, ruff, mypy, budowa arm64/amd64), D1 nowy styl (0.2.0).
+- [x] Konto pierwszej osoby połączone w panelu (add-on 0.2.0 na żywo).
+- [ ] Zalogować w panelu konto drugiej osoby.
 - [ ] Włączyć „Show in sidebar” dla add-onu (domyślnie wyłączone).
 - [ ] Test rotacji tokenu: ponowne pobranie danych po >1 h od logowania (potwierdza zapis nowego refresh tokenu).
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
