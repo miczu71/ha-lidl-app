@@ -58,7 +58,10 @@ class FakeSource:
                 "codeInput": "5901", "name": "Produkt N", "quantity": "2", "currentUnitPrice": "3,00",
                 "originalAmount": "6,00", "discounts": [], "deposit": None, "isWeight": False,
             }  # fmt: skip
-            return {"ticketType": "NATIVE", "store": {"name": "Sklep X"}, "itemsLine": [line]}
+            return {
+                "ticketType": "NATIVE", "store": {"id": "PL0001", "name": "Sklep X"},
+                "date": "2026-03-01T10:00:00", "operatorId": "42", "itemsLine": [line],
+            }  # fmt: skip
         return {"store": {"name": "Sklep X"}, "htmlPrintedReceipt": _html("1", f"Produkt {ticket_id}")}
 
 
@@ -202,3 +205,14 @@ async def test_receipt_with_unknown_format_is_counted_as_unparsed(history: Histo
     result = await sync.import_account("osoba-1", full=True)
     assert (result.details, result.unparsed) == (2, 1)
     assert history.savings_kpi().unparsed == 1
+
+
+async def test_import_stores_envelope_and_a_sanitized_raw_copy(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    src.native = {"a"}
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=True)
+    row = history.ticket_row("a")
+    assert row is not None and row["purchased_at"] == "2026-03-01T10:00:00" and row["store_code"] == "PL0001"
+    raw = history.raw_detail("a")
+    assert raw is not None and raw["ticketType"] == "NATIVE" and "operatorId" not in raw

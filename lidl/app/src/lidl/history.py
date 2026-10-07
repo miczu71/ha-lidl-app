@@ -9,16 +9,19 @@ można przerwać i wznowić w dowolnym miejscu.
 
 from __future__ import annotations
 
+import json
 import sqlite3
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
+from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tickets (
@@ -31,7 +34,17 @@ CREATE TABLE IF NOT EXISTS tickets (
     store TEXT,
     detail_fetched INTEGER NOT NULL DEFAULT 0,
     articles INTEGER NOT NULL DEFAULT -1,
-    parsed INTEGER NOT NULL DEFAULT 0
+    parsed INTEGER NOT NULL DEFAULT 0,
+    purchased_at TEXT,
+    store_code TEXT,
+    store_name TEXT,
+    store_address TEXT,
+    store_postal TEXT,
+    store_locality TEXT,
+    payment TEXT,
+    deposit_charged REAL NOT NULL DEFAULT 0,
+    deposit_refunded REAL NOT NULL DEFAULT 0,
+    detail_version INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS items (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -43,9 +56,24 @@ CREATE TABLE IF NOT EXISTS items (
     total REAL NOT NULL,
     discount REAL NOT NULL,
     coupon REAL NOT NULL DEFAULT 0,
+    is_weight INTEGER NOT NULL DEFAULT 0,
+    promo TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (ticket_id, line)
 );
 CREATE INDEX IF NOT EXISTS items_art ON items(art_id);
+CREATE TABLE IF NOT EXISTS ticket_coupons (
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    line INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    coupon_title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    discount TEXT NOT NULL,
+    PRIMARY KEY (ticket_id, line)
+);
+CREATE TABLE IF NOT EXISTS ticket_raw (
+    ticket_id TEXT PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
+    data BLOB NOT NULL
+);
 """
 
 
@@ -76,8 +104,11 @@ class SavingsKpi:
 
 @dataclass(frozen=True)
 class PurchaseTotals:
-    paid: float  # suma kwot paragonów (po rabatach, z kaucją)
-    deposits: float  # kaucje wyliczone: kwota paragonu minus pozycje po rabatach
+    paid: float  # suma kwot paragonów (po rabatach, z saldem kaucji)
+    charged: float  # kaucje pobrane (z paragonów odczytanych bieżącym parserem)
+    refunded: float  # kaucje i opakowania zwrócone
+    tickets: int  # paragonów w zakresie
+    with_deposits: int  # z nich z odczytanymi kaucjami
 
 
 @dataclass(frozen=True)
@@ -116,8 +147,11 @@ class History:
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._db.execute("PRAGMA foreign_keys = ON")
         has_tables = self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone()
-        if has_tables and self._db.execute("PRAGMA user_version").fetchone()[0] < SCHEMA_VERSION:
+        version = self._db.execute("PRAGMA user_version").fetchone()[0] if has_tables else SCHEMA_VERSION
+        if version < 2:
             self._migrate_v1()
+        if version < 3:
+            self._migrate_v2()
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
@@ -130,6 +164,26 @@ class History:
             self._db.execute("ALTER TABLE tickets ADD COLUMN parsed INTEGER NOT NULL DEFAULT 0")
             self._db.execute("DELETE FROM items")
             self._db.execute("UPDATE tickets SET detail_fetched = 0")
+
+    def _migrate_v2(self) -> None:
+        """v2 → v3: koperta paragonu, kaucje pobrane/zwrócone, opis rabatu i flaga ważenia przy pozycjach.
+        Pozycje zostają (wykres i KPI działają dalej); `detail_version` = 0 oznacza ponowne pobranie."""
+        with self._db:
+            for sql in (
+                "ALTER TABLE tickets ADD COLUMN purchased_at TEXT",
+                "ALTER TABLE tickets ADD COLUMN store_code TEXT",
+                "ALTER TABLE tickets ADD COLUMN store_name TEXT",
+                "ALTER TABLE tickets ADD COLUMN store_address TEXT",
+                "ALTER TABLE tickets ADD COLUMN store_postal TEXT",
+                "ALTER TABLE tickets ADD COLUMN store_locality TEXT",
+                "ALTER TABLE tickets ADD COLUMN payment TEXT",
+                "ALTER TABLE tickets ADD COLUMN deposit_charged REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE tickets ADD COLUMN deposit_refunded REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE tickets ADD COLUMN detail_version INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE items ADD COLUMN is_weight INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE items ADD COLUMN promo TEXT NOT NULL DEFAULT ''",
+            ):
+                self._db.execute(sql)
 
     def upsert_tickets(self, account: str, tickets: list[dict[str, Any]]) -> int:
         """Dodaje nowe paragony z listy API (zwraca ich liczbę); istniejącym odświeża tylko `articles`."""
@@ -167,31 +221,96 @@ class History:
         return int(self._db.execute(sql, args).fetchone()[0])
 
     def pending_details(self, account: str) -> list[str]:
-        """Paragony bez pobranych pozycji, od najnowszych."""
+        """Paragony bez pobranych pozycji albo zapisane starszym parserem, od najnowszych."""
         rows = self._db.execute(
-            "SELECT id FROM tickets WHERE account = ? AND detail_fetched = 0 ORDER BY day DESC, id DESC",
-            (account,),
+            "SELECT id FROM tickets WHERE account = ? AND (detail_fetched = 0 OR detail_version < ?)"
+            " ORDER BY day DESC, id DESC",
+            (account, PARSER_VERSION),
         )
         return [r[0] for r in rows]
 
-    def save_detail(self, ticket_id: str, store: str | None, receipt: ParsedReceipt) -> bool:
-        """Zapisuje pozycje paragonu; zwraca False, gdy paragon miał artykuły, a nic nie rozpoznano."""
+    def save_detail(
+        self,
+        ticket_id: str,
+        store: str | None,
+        receipt: ParsedReceipt,
+        raw: dict[str, Any] | None = None,
+    ) -> bool:
+        """Zapisuje pozycje i kopertę paragonu; zwraca False, gdy paragon miał artykuły, a nic nie rozpoznano.
+
+        `raw` to oczyszczona kopia szczegółu (zapisywana skompresowana); bez niej istniejąca kopia zostaje.
+        """
         row = self._db.execute("SELECT articles FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
         parsed = bool(receipt.items) or (row is not None and row[0] == 0)
+        st = receipt.store or {}
         with self._db:
             self._db.execute("DELETE FROM items WHERE ticket_id = ?", (ticket_id,))
             self._db.executemany(
-                "INSERT INTO items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO items (ticket_id, line, art_id, name, quantity, unit_price, total, discount,"
+                " coupon, is_weight, promo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
-                    (ticket_id, n, i.art_id, i.name, i.quantity, i.unit_price, i.total, i.discount, i.coupon)
+                    (ticket_id, n, i.art_id, i.name, i.quantity, i.unit_price, i.total, i.discount,
+                     i.coupon, int(i.is_weight), i.promo)
                     for n, i in enumerate(receipt.items)
+                ],
+            )  # fmt: skip
+            self._db.execute("DELETE FROM ticket_coupons WHERE ticket_id = ?", (ticket_id,))
+            self._db.executemany(
+                "INSERT INTO ticket_coupons VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (ticket_id, n, c.title, c.coupon_title, c.description, c.discount)
+                    for n, c in enumerate(receipt.coupons)
                 ],
             )
             self._db.execute(
-                "UPDATE tickets SET detail_fetched = 1, parsed = ?, store = COALESCE(?, store) WHERE id = ?",
-                (int(parsed), store, ticket_id),
-            )
+                "UPDATE tickets SET detail_fetched = 1, parsed = ?, store = COALESCE(?, store),"
+                " purchased_at = ?, store_code = ?, store_name = ?, store_address = ?, store_postal = ?,"
+                " store_locality = ?, payment = ?, deposit_charged = ?, deposit_refunded = ?,"
+                " detail_version = ? WHERE id = ?",
+                (
+                    int(parsed), store, receipt.purchased_at, st.get("code"), st.get("name"),
+                    st.get("address"), st.get("postal"), st.get("locality"), receipt.payment,
+                    receipt.deposit_charged, receipt.deposit_refunded, PARSER_VERSION, ticket_id,
+                ),
+            )  # fmt: skip
+            if raw is not None:
+                blob = zlib.compress(json.dumps(raw, ensure_ascii=False).encode(), 6)
+                self._db.execute("INSERT OR REPLACE INTO ticket_raw VALUES (?, ?)", (ticket_id, blob))
         return parsed
+
+    def ticket_row(self, ticket_id: str) -> dict[str, Any] | None:
+        cur = self._db.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,))
+        row = cur.fetchone()
+        return dict(zip([c[0] for c in cur.description], row, strict=True)) if row else None
+
+    def coupons(self, ticket_id: str) -> list[dict[str, str]]:
+        rows = self._db.execute(
+            "SELECT title, coupon_title, description, discount FROM ticket_coupons"
+            " WHERE ticket_id = ? ORDER BY line",
+            (ticket_id,),
+        )
+        return [{"title": r[0], "coupon_title": r[1], "description": r[2], "discount": r[3]} for r in rows]
+
+    def raw_detail(self, ticket_id: str) -> dict[str, Any] | None:
+        row = self._db.execute("SELECT data FROM ticket_raw WHERE ticket_id = ?", (ticket_id,)).fetchone()
+        if row is None:
+            return None
+        detail: dict[str, Any] = json.loads(zlib.decompress(row[0]))
+        return detail
+
+    def reparse(self, parse: Callable[[dict[str, Any]], ParsedReceipt]) -> int:
+        """Przetwarza ponownie paragony z zapisanej kopii (po zmianie parsera), bez pytania Lidla."""
+        rows = self._db.execute(
+            "SELECT t.id FROM tickets t JOIN ticket_raw r ON r.ticket_id = t.id WHERE t.detail_version < ?",
+            (PARSER_VERSION,),
+        ).fetchall()
+        done = 0
+        for (ticket_id,) in rows:
+            detail = self.raw_detail(ticket_id)
+            if detail is not None:
+                self.save_detail(ticket_id, None, parse(detail))
+                done += 1
+        return done
 
     def _resolver(self) -> Callable[[str, str], str]:
         """Most po nazwie: kod `n:` → kod HTML, gdy nazwa pasuje do dokładnie jednego kodu HTML."""
@@ -261,10 +380,11 @@ class History:
         )
 
     def purchase_totals(self, start: date | None = None, end: date | None = None) -> PurchaseTotals:
-        """Ile zapłacono łącznie i ile z tego to kaucje (zakres dat domknięty, bez zakresu = cała historia).
+        """Ile zapłacono łącznie oraz kaucje pobrane i zwrócone (zakres dat domknięty, bez zakresu: całość).
 
-        Kaucji paragon nie podaje wprost w liście, więc liczymy ją per paragon jako kwotę paragonu minus
-        pozycje po rabatach (min. 0); tylko dla paragonów z rozpoznanymi pozycjami.
+        „Zapłacono” to suma kwot paragonów (po rabatach, z saldem kaucji). Kaucje liczymy tylko z paragonów
+        przetworzonych bieżącym parserem i rozpoznanych; `with_deposits` mówi, z ilu paragonów.
+        Zachodzi: pozycje po rabatach + pobrane − zwrócone = zapłacono.
         """
         where = ""
         args: list[str] = []
@@ -274,14 +394,17 @@ class History:
         if end is not None:
             where += " AND t.day <= ?"
             args.append(end.isoformat())
-        paid = self._db.execute(f"SELECT SUM(t.total) FROM tickets t WHERE 1 = 1{where}", args).fetchone()[0]
-        deposits = self._db.execute(
-            "SELECT SUM(MAX(0.0, ROUND(t.total - x.net, 2))) FROM tickets t JOIN"
-            " (SELECT ticket_id, SUM(total + discount) AS net FROM items GROUP BY ticket_id) x"
-            f" ON x.ticket_id = t.id WHERE t.parsed = 1{where}",
-            args,
-        ).fetchone()[0]
-        return PurchaseTotals(round(paid or 0.0, 2), round(deposits or 0.0, 2))
+        paid, tickets = self._db.execute(
+            f"SELECT SUM(t.total), COUNT(*) FROM tickets t WHERE 1 = 1{where}", args
+        ).fetchone()
+        charged, refunded, known = self._db.execute(
+            "SELECT SUM(t.deposit_charged), SUM(t.deposit_refunded), COUNT(*) FROM tickets t"
+            f" WHERE t.parsed = 1 AND t.detail_version >= ?{where}",
+            [PARSER_VERSION, *args],
+        ).fetchone()
+        return PurchaseTotals(
+            round(paid or 0.0, 2), round(charged or 0.0, 2), round(refunded or 0.0, 2), tickets, known
+        )
 
     def spend_series(self, start: date, end: date, step: str, art_id: str | None = None) -> list[SpendBucket]:
         """Wydatki netto (cena minus rabaty pozycji, bez kaucji) w przedziałach `step`.

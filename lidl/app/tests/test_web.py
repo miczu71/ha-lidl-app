@@ -91,7 +91,9 @@ def _seed(client: TestClient, days: tuple[str, ...] = ("2026-09-02", "2026-10-02
                 items=[
                     ReceiptItem("111", "Produkt A", 2, 5.0, 10.0, discount=-2.0, coupon=-1.0),
                     ReceiptItem("222", "Produkt B", 1, 8.0, 8.0),
-                ]
+                ],
+                deposit_charged=5.0 if i == 0 else 4.0,
+                deposit_refunded=1.0 if i == 0 else 0.0,
             ),
         )
 
@@ -119,7 +121,9 @@ def test_products_shows_kpi_chart_and_ranking(client: TestClient) -> None:
     text = client.get("/produkty?zakres=all").text
     assert "Dotychczasowe oszczędności" in text and "4,00 zł" in text
     assert "Kupony Lidl Plus" in text and "Promocje" in text and "2,00 zł" in text
-    assert "Zapłacono łącznie" in text and "40,00 zł" in text and "8,00 zł" in text
+    assert "Zapłacono łącznie" in text and "40,00 zł" in text
+    assert "Kaucje pobrane" in text and "9,00 zł" in text
+    assert "Kaucje zwrócone" in text and "1,00 zł" in text
     assert "wrzesień 2026: 16 zł" in text
     assert "Produkt A" in text and "2 zakupy" in text
     assert 'aria-pressed="true"' in text and "Historia jest aktualna: 2 paragony" in text
@@ -218,6 +222,7 @@ def test_products_warns_about_unparsed_receipts_and_partial_kpi(client: TestClie
     text = client.get("/produkty?zakres=all").text
     assert "Nie udało się odczytać paragonów: 1" in text
     assert "Liczone z 3 z 4 paragonów" in text
+    assert "Kaucje z 2 z 4 paragonów" in text
 
 
 def test_products_offers_import_for_connected_account_without_history(client: TestClient) -> None:
@@ -233,15 +238,17 @@ def test_chart_summary_shows_deposits_and_paid_total_for_the_range(client: TestC
     _seed(client)
     text = client.get("/produkty?zakres=all").text
     assert "<strong>32 zł</strong>" in text  # wydatki na pozycje po rabatach
-    assert "kaucje <strong>8 zł</strong>" in text
-    assert "z kaucjami zapłacono <strong>40 zł</strong>" in text
+    assert "kaucje pobrane <strong>9 zł</strong>" in text
+    assert "zwrócone <strong>1 zł</strong>" in text
+    assert "zapłacono łącznie <strong>40 zł</strong>" in text
     one_month = client.get("/produkty?od=2026-09-01&do=2026-09-30").text
-    assert "z kaucjami zapłacono <strong>20 zł</strong>" in one_month
+    assert "kaucje pobrane <strong>5 zł</strong>" in one_month
+    assert "zapłacono łącznie <strong>20 zł</strong>" in one_month
 
 
 def test_chart_summary_hides_ticket_level_totals_for_one_product_or_pieces(client: TestClient) -> None:
     _seed(client)
     product = client.get("/produkty?zakres=all&produkt=222").text
-    assert "z kaucjami zapłacono" not in product and "na ten produkt" in product
+    assert "kaucje pobrane <strong>" not in product and "na ten produkt" in product
     pieces = client.get("/produkty?zakres=all&miara=sztuki").text
-    assert "z kaucjami zapłacono" not in pieces
+    assert "kaucje pobrane <strong>" not in pieces

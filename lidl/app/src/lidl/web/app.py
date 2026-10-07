@@ -28,6 +28,7 @@ from lidl import __version__
 from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.history import History
+from lidl.receipt import parse_detail
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
@@ -68,6 +69,7 @@ def create_app(settings: Settings) -> FastAPI:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             service = LidlService(AccountStore(settings.accounts_dir), session)
             history = History(settings.data_dir / "history.db")
+            history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             sync = HistorySync(service, history)
             app.state.service, app.state.history, app.state.sync = service, history, sync
             daily = asyncio.create_task(
@@ -214,7 +216,11 @@ def create_app(settings: Settings) -> FastAPI:
                 chart = build_chart(series, query.step, query.metric)
                 if query.art_id is None and query.metric == "spend":
                     totals = history.purchase_totals(query.start, query.end)
-                    range_totals = {"paid": fmt_pln(totals.paid), "deposits": fmt_pln(totals.deposits)}
+                    range_totals = {
+                        "paid": fmt_pln(totals.paid),
+                        "charged": fmt_pln(totals.charged),
+                        "refunded": fmt_pln(totals.refunded),
+                    }
             all_totals = history.purchase_totals()
             ranking = history.ranking()
             limit = parse_limit(params.get("limit"))
@@ -223,7 +229,9 @@ def create_app(settings: Settings) -> FastAPI:
                 chart=chart,
                 range_totals=range_totals,
                 kpi_paid=fmt_pln(all_totals.paid, 2),
-                kpi_deposits=fmt_pln(all_totals.deposits, 2),
+                kpi_charged=fmt_pln(all_totals.charged, 2),
+                kpi_refunded=fmt_pln(all_totals.refunded, 2),
+                kpi_dep_known=all_totals.with_deposits,
                 options=[{"id": p.art_id, "name": p.name} for p in ranking],
                 rows=ranking_rows(ranking, limit, link),
                 more_href=link(limit=limit + MORE_STEP) + "#rank" if len(ranking) > limit else None,

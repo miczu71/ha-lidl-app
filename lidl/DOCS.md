@@ -24,8 +24,9 @@ zamknąć. Jeśli Lidl ograniczy liczbę żądań albo zerwie się połączenie,
 dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie.
 
 - **Oszczędności** to suma rabatów na pozycjach paragonów (osobno kupony Lidl Plus i promocje) — punkt odniesienia sprzed aktywacji kuponów przez add-on.
-- **Zapłacono łącznie** to suma kwot paragonów (po rabatach, z kaucją); **kaucje** wyliczamy jako kwotę paragonu
-  minus pozycje po rabatach (bywa o grosze niedokładna). Obie liczby są w karcie oszczędności i pod wykresem.
+- **Zapłacono łącznie** to suma kwot paragonów (po rabatach, z saldem kaucji). **Kaucje pobrane** i **zwrócone**
+  czytamy wprost z paragonu (sekcje „Opakowania zwrotne wydania” i „…przyjęcia”): pozycje po rabatach plus pobrane
+  minus zwrócone daje kwotę paragonu. Obie liczby są w karcie oszczędności i pod wykresem.
 - **Wykres** pokazuje wydatki na pozycje (po rabatach, bez kaucji) w wybranym zakresie dat i kroku; można
   zawęzić do jednego produktu albo pokazać sztuki zamiast złotych.
 - Produkt to kod artykułu z paragonu. Starsze paragony (sprzed marca 2026) mają inne kody niż nowsze, więc
@@ -39,4 +40,5 @@ dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz 
 ## Prywatność
 
 Hasła nie trafiają do add-onu. Tokeny są w `/data/accounts/` (0600), a historia zakupów w `/data/history.db`;
-oba wchodzą do kopii zapasowych add-onu — traktuj kopie jak dane poufne.
+oba wchodzą do kopii zapasowych add-onu — traktuj kopie jak dane poufne (historia zawiera sklepy, godziny
+zakupów i płatności, a także oczyszczoną kopię szczegółów paragonów, bez danych karty i kasjera).

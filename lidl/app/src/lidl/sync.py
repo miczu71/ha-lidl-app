@@ -15,8 +15,8 @@ from typing import Any, Protocol
 
 from .client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from .history import History
-from .receipt_html import ParsedReceipt, parse_receipt
-from .receipt_native import parse_native
+from .receipt import parse_detail, sanitize_detail
+from .receipt_html import ParsedReceipt
 
 log = logging.getLogger(__name__)
 
@@ -132,7 +132,10 @@ class HistorySync:
                         skipped += 1
                         self._history.save_detail(ticket_id, None, ParsedReceipt())
                         continue
-                    if not self._history.save_detail(ticket_id, _store_name(detail), _parse(detail)):
+                    parsed = parse_detail(detail)
+                    if not self._history.save_detail(
+                        ticket_id, _store_name(detail), parsed, raw=sanitize_detail(detail)
+                    ):
                         unparsed += 1
                     details += 1
                     progress.done = details
@@ -165,11 +168,3 @@ def _store_name(detail: dict[str, Any]) -> str | None:
     store = detail.get("store")
     name = store.get("name") if isinstance(store, dict) else None
     return str(name) if name else None
-
-
-def _parse(detail: dict[str, Any]) -> ParsedReceipt:
-    """Starsze paragony to `itemsLine` (NATIVE), nowsze HTML; nieznany format daje pusty wynik."""
-    if isinstance(detail.get("itemsLine"), list):
-        return parse_native(detail)
-    html = detail.get("htmlPrintedReceipt")
-    return parse_receipt(html) if isinstance(html, str) else ParsedReceipt()

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+- **Kaucje pobrane i zwrócone osobno.** Poprzednia wersja wyliczała jedno saldo kaucji i obcinała je do zera, więc zwroty (kaucja za zgrzewki, skrzynki, opakowania bez kaucji) znikały, a kaucje wychodziły zawyżone. Teraz karta oszczędności i podsumowanie pod wykresem pokazują „kaucje pobrane” i „kaucje zwrócone”, a „zapłacono łącznie” to pozycje po rabatach plus pobrane minus zwrócone.
+- Przy pobieraniu paragonów zapisujemy też: godzinę zakupu (czas lokalny z paragonu), sklep (kod, nazwa, adres, miejscowość), sposób płatności, użyte kupony, opis rabatu przy pozycji i flagę ważenia. Na razie bez nowych ekranów, to baza pod kolejne etapy (sklepy, godziny zakupów, kupony, ceny w czasie).
+- Zapisujemy oczyszczoną, skompresowaną kopię szczegółu każdego paragonu (bez danych karty, kasjera i danych fiskalnych, ok. 1,3 MB na ~500 paragonów). Dzięki niej kolejne zmiany sposobu czytania paragonów przetwarzamy lokalnie, bez ponownego pobierania z Lidla.
+- Po aktualizacji paragony pobierają się od nowa (ok. 20 minut, w tle, panel pisze, z ilu paragonów liczone są kaucje); pozycje, wykres i oszczędności są widoczne przez cały czas.
+
 ## 0.3.2
 
 - Ekran Produkty pokazuje **ile zapłacono łącznie** (suma kwot paragonów po rabatach, z kaucją) i **ile z tego to kaucje** — w karcie oszczędności za całą historię oraz pod wykresem dla wybranego zakresu dat.

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .receipt_html import ParsedReceipt, ReceiptItem
+from .receipt_html import ParsedReceipt, ReceiptItem, add_promo
 
 
 def _num(value: Any) -> float:
@@ -23,24 +23,31 @@ def parse_native(detail: dict[str, Any]) -> ParsedReceipt:
     for line in detail.get("itemsLine") or []:
         name = str(line.get("name") or "").strip()
         code = str(line.get("codeInput") or "").strip()
-        discount = coupon = 0.0
+        item = ReceiptItem(
+            art_id=f"n:{code or name.lower()}",
+            name=name,
+            quantity=_num(line.get("quantity") or 1),
+            unit_price=_num(line.get("currentUnitPrice")),
+            total=_num(line.get("originalAmount")),
+            is_weight=bool(line.get("isWeight")),
+        )
         for d in line.get("discounts") or []:
+            description = str(d.get("description") or "")
             amount = _num(d.get("amount"))
-            discount -= amount
-            if "lidl plus" in str(d.get("description") or "").lower():
-                coupon -= amount
+            item.discount = round(item.discount - amount, 2)
+            if "lidl plus" in description.lower():
+                item.coupon = round(item.coupon - amount, 2)
+            add_promo(item, description)
         deposit = line.get("deposit")
         if isinstance(deposit, dict):
-            receipt.deposit = round(receipt.deposit + _num(deposit.get("amount")), 2)
-        receipt.items.append(
-            ReceiptItem(
-                art_id=f"n:{code or name.lower()}",
-                name=name,
-                quantity=_num(line.get("quantity") or 1),
-                unit_price=_num(line.get("currentUnitPrice")),
-                total=_num(line.get("originalAmount")),
-                discount=round(discount, 2),
-                coupon=round(coupon, 2),
-            )
-        )
+            amount = _num(deposit.get("amount"))
+            if amount >= 0:
+                receipt.deposit_charged = round(receipt.deposit_charged + amount, 2)
+            else:
+                receipt.deposit_refunded = round(receipt.deposit_refunded - amount, 2)
+        receipt.items.append(item)
+    receipt.deposit = round(receipt.deposit_charged - receipt.deposit_refunded, 2)
+    payments = detail.get("payments")
+    if isinstance(payments, list) and payments and isinstance(payments[0], dict):
+        receipt.payment = str(payments[0].get("description") or payments[0].get("type") or "") or None
     return receipt

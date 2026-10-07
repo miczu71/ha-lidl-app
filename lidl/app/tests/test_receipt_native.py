@@ -70,3 +70,27 @@ def test_voucher_counts_as_coupon_and_missing_lines_give_no_items() -> None:
     (item,) = parse_native(detail).items
     assert (item.discount, item.coupon) == (-1.01, -1.01)
     assert parse_native({}).items == []
+
+
+def test_deposit_charged_refunded_weight_flag_promo_and_payment() -> None:
+    detail = {
+        "payments": [{"type": "CreditCard", "description": "Karta płatnicza", "amount": "9,00"}],
+        "itemsLine": [
+            _line(
+                "1",
+                "P",
+                "1",
+                "5,00",
+                "5,00",
+                [("Lidl Plus kupon", "1,00"), ("Rabat grupowy", "0,50")],
+                weight=True,
+            ),
+            _line("2", "Q", "2", "3,00", "6,00", deposit={"amount": "1,00"}),
+            _line("3", "R", "1", "1,00", "1,00", deposit={"amount": "-0,30"}),
+        ],
+    }
+    parsed = parse_native(detail)
+    assert (parsed.deposit, parsed.deposit_charged, parsed.deposit_refunded) == (0.7, 1.0, 0.3)
+    assert [i.is_weight for i in parsed.items] == [True, False, False]
+    assert parsed.items[0].promo == "Lidl Plus kupon; Rabat grupowy"
+    assert parsed.payment == "Karta płatnicza"

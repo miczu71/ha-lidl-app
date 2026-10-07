@@ -99,3 +99,47 @@ def test_lidl_plus_discounts_are_coupons_others_are_not() -> None:
     a, b = parse_native_html(html)
     assert (a.discount, a.coupon) == (-3.5, -3.0)
     assert (b.discount, b.coupon) == (-1.0, -1.0)
+
+
+def _summary(*lines: str) -> str:
+    return "".join(f'<span id="purchase_summary_{n}">{line}</span>' for n, line in enumerate(lines, start=3))
+
+
+def test_deposits_are_split_into_charged_and_refunded_by_section() -> None:
+    parsed = parse_receipt(
+        _summary(
+            "Opakowania zwrotne wydania",
+            "   Kaucja PET              4 * 0.5 2.0",
+            "Opakowania zwrotne przyjęcia",
+            "   Zwrot kaucji           1 * 7.0 -7.0",
+            "   Opak bez kau           1 * 0.2 -0.2",
+            "Opakowania zwrotne suma          -5,20",
+        )
+    )
+    assert (parsed.deposit, parsed.deposit_charged, parsed.deposit_refunded) == (-5.2, 2.0, 7.2)
+
+
+def test_charged_only_deposit_and_inconsistent_lines_fall_back_to_the_sum_line() -> None:
+    charged = parse_receipt(
+        _summary(
+            "Opakowania zwrotne wydania",
+            "   Kaucja puszk            2 * 0.5 1.0",
+            "Opakowania zwrotne suma           1,00",
+        )
+    )
+    assert (charged.deposit_charged, charged.deposit_refunded) == (1.0, 0.0)
+    odd = parse_receipt(
+        _summary(
+            "Opakowania zwrotne wydania",
+            "   Kaucja puszk            2 * 0.5 1.0",
+            "Opakowania zwrotne suma          -5,00",
+        )
+    )
+    assert (odd.deposit_charged, odd.deposit_refunded) == (0.0, 5.0)
+
+
+def test_payment_weight_flag_and_discount_description() -> None:
+    parsed = parse_receipt(RECEIPT + _summary("Płatność        Karta płatnicza 43,69"))
+    assert parsed.payment == "Karta płatnicza"
+    assert [i.is_weight for i in parsed.items] == [False, False, True, False]
+    assert [i.promo for i in parsed.items] == ["Rabat grupowy", "Lidl Plus kupon", "", ""]

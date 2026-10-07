@@ -210,27 +210,106 @@ def test_spend_series_rejects_bad_step_and_reversed_range(tmp_path: Path) -> Non
         h.spend_series(date(2026, 2, 1), date(2026, 1, 1), "month")
 
 
-def test_purchase_totals_paid_and_derived_deposits(tmp_path: Path) -> None:
+def _with_deposits(charged: float = 0.0, refunded: float = 0.0) -> ParsedReceipt:
+    return ParsedReceipt(
+        items=[ReceiptItem("1", "A", 1, 10.0, 10.0)], deposit_charged=charged, deposit_refunded=refunded
+    )
+
+
+def test_purchase_totals_paid_charged_refunded_and_coverage(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     h.upsert_tickets(
         "a",
         [
             _ticket("t1", "2026-01-10", total=20.0),
             _ticket("t2", "2026-02-10", total=11.0),
-            _ticket("t3", "2026-03-10", total=5.0, articles=3),
-            _ticket("t4", "2026-04-10", total=5.0),
+            _ticket("t3", "2026-03-10", total=5.0),
+            _ticket("t4", "2026-04-10", total=7.0, articles=3),
         ],
     )
-
-    def receipt(*net: tuple[float, float]) -> ParsedReceipt:
-        return ParsedReceipt(items=[ReceiptItem("1", "A", 1, g, g, d) for g, d in net])
-
-    h.save_detail("t1", "S", receipt((10.0, 0.0), (10.0, -2.0)))  # netto 18 -> kaucja 2
-    h.save_detail("t2", "S", receipt((12.0, -1.0)))  # netto 11 -> kaucja 0
-    h.save_detail("t3", "S", ParsedReceipt())  # nierozpoznany: wlicza się do zapłaconych, nie do kaucji
-    h.save_detail("t4", "S", receipt((8.0, 0.0)))  # netto 8 > 5 (zwrot?) -> kaucja 0, nie ujemna
+    h.save_detail("t1", "S", _with_deposits(charged=2.5))
+    h.save_detail("t2", "S", _with_deposits(refunded=1.5))
+    h.save_detail("t4", "S", ParsedReceipt())  # nierozpoznany: kaucji nie znamy
+    # t3 nie został jeszcze pobrany: zapłacono liczy się, kaucje nie
     totals = h.purchase_totals()
-    assert (totals.paid, totals.deposits) == (41.0, 2.0)
+    assert (totals.paid, totals.charged, totals.refunded) == (43.0, 2.5, 1.5)
+    assert (totals.tickets, totals.with_deposits) == (4, 2)
     ranged = h.purchase_totals(date(2026, 2, 1), date(2026, 3, 31))
-    assert (ranged.paid, ranged.deposits) == (16.0, 0.0)
+    assert (ranged.paid, ranged.charged, ranged.refunded, ranged.with_deposits) == (16.0, 0.0, 1.5, 1)
     assert h.purchase_totals(date(2030, 1, 1), date(2030, 12, 31)).paid == 0.0
+
+
+def test_save_detail_stores_envelope_coupons_and_sanitized_raw(tmp_path: Path) -> None:
+    from lidl.receipt_html import ReceiptCoupon
+
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-05-05")])
+    receipt = ParsedReceipt(
+        items=[ReceiptItem("1", "A", 0.5, 10.0, 5.0, is_weight=True, promo="Rabat grupowy")],
+        purchased_at="2026-05-05T19:39:20",
+        store={"code": "PL0001", "name": "Miasto A, ul. Testowa 1", "address": "ul. Testowa 1",
+               "postal": "00-001", "locality": "Miasto A"},
+        payment="Karta płatnicza",
+        coupons=[ReceiptCoupon("Produkt X", "-15%", "Produkt X", "-15% Rabat")],
+    )  # fmt: skip
+    h.save_detail("t1", "S", receipt, raw={"id": "t1", "date": "2026-05-05T19:39:20"})
+    row = h.ticket_row("t1")
+    assert row is not None
+    assert (row["purchased_at"], row["store_code"], row["store_locality"], row["payment"]) == (
+        "2026-05-05T19:39:20", "PL0001", "Miasto A", "Karta płatnicza",
+    )  # fmt: skip
+    assert h.coupons("t1") == [
+        {"title": "Produkt X", "coupon_title": "-15%", "description": "Produkt X", "discount": "-15% Rabat"}
+    ]
+    assert h.raw_detail("t1") == {"id": "t1", "date": "2026-05-05T19:39:20"}
+    assert h.raw_detail("nope") is None
+    h.save_detail("t1", "S", receipt)  # ponowny zapis bez raw nie kasuje kopii
+    assert h.raw_detail("t1") is not None
+
+
+def test_old_parser_version_is_pending_again_and_reparse_uses_local_copy(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-05-05"), _ticket("t2", "2026-05-06")])
+    h.save_detail("t1", "S", _with_deposits(), raw={"id": "t1"})
+    h.save_detail("t2", "S", _with_deposits())  # bez kopii
+    assert h.pending_details("a") == []
+    h._db.execute("UPDATE tickets SET detail_version = 2")
+    assert sorted(h.pending_details("a")) == ["t1", "t2"]
+    seen: list[dict[str, Any]] = []
+
+    def parse(detail: dict[str, Any]) -> ParsedReceipt:
+        seen.append(detail)
+        return _with_deposits(charged=3.0)
+
+    assert h.reparse(parse) == 1 and seen == [{"id": "t1"}]
+    assert h.pending_details("a") == ["t2"]  # t2 nie ma kopii, więc trzeba go pobrać od Lidla
+    assert h.purchase_totals().charged == 3.0
+
+
+def test_v2_database_is_migrated_keeping_items_and_marking_refetch(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "h.db"
+    db = sqlite3.connect(path)
+    db.executescript(
+        """
+        CREATE TABLE tickets (id TEXT PRIMARY KEY, account TEXT NOT NULL, day TEXT NOT NULL,
+            total REAL NOT NULL, savings REAL NOT NULL, coupons_used INTEGER NOT NULL, store TEXT,
+            detail_fetched INTEGER NOT NULL DEFAULT 0, articles INTEGER NOT NULL DEFAULT -1,
+            parsed INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE items (ticket_id TEXT NOT NULL, line INTEGER NOT NULL, art_id TEXT NOT NULL,
+            name TEXT NOT NULL, quantity REAL NOT NULL, unit_price REAL NOT NULL, total REAL NOT NULL,
+            discount REAL NOT NULL, coupon REAL NOT NULL DEFAULT 0, PRIMARY KEY (ticket_id, line));
+        INSERT INTO tickets VALUES ('t1', 'a', '2026-01-01', 10, 0, 0, 'S', 1, 1, 1);
+        INSERT INTO items VALUES ('t1', 0, '1', 'A', 1, 5, 5, 0, 0);
+        PRAGMA user_version = 2;
+        """
+    )
+    db.commit()
+    db.close()
+    h = History(path)
+    assert [r.art_id for r in h.ranking()] == ["1"]  # pozycje zostały
+    assert h.pending_details("a") == ["t1"]  # ale paragon czeka na ponowne pobranie
+    assert h.purchase_totals().with_deposits == 0
+    h.save_detail("t1", "S", _with_deposits(charged=1.0))
+    assert History(path).pending_details("a") == []
