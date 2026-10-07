@@ -118,6 +118,21 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   sortowanie i paginacja (setki paragonów), przejścia z rankingu Produktów i wykresu do paragonów danego produktu
   (i odwrotnie), pokazanie paragonów nierozpoznanych (dziś tylko licznik), czy pokazywać oryginalny wygląd
   paragonu czy własny układ. Niezależny od E3–E7, korzysta z danych E2; kolejność do ustalenia.
+- **Propozycje na bazie danych z 0.3.3** (2026-10-07; to pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu przed startem,
+  kolejność z użytkownikiem; dane potrzebne do E9–E11 są już w bazie):
+  - **E9 Rytm zakupów (heatmapa):** heatmapa dzień tygodnia × godzina (liczba zakupów i/lub wydatki), trendy w czasie. Dane:
+    `tickets.purchased_at` (czas lokalny; nie przeliczać strefy). Bez zewnętrznych usług.
+  - **E10 Sklepy:** ranking sklepów (wizyty, wydatki, średni paragon, ostatnia wizyta), podział per konto; na próbce pierwszego
+    konta 13 sklepów, jeden z ~216 wizytami z 327. **Mapa sklepów** wymaga współrzędnych, których paragon nie ma: geokodowanie adresów
+    w zewnętrznej usłudze (publiczne adresy sklepów, ale wysyłka na zewnątrz — zgoda użytkownika) albo ręczne wpisanie kilkunastu
+    sklepów; decyzja otwarta. Dane: `tickets.store_*`.
+  - **E11 Analiza kuponów i promocji:** które kupony faktycznie wykorzystujemy i jak często (`ticket_coupons`: tytuł, opis, rabat),
+    ile dają złotówek, jakie promocje cenowe łapiemy („Rabat grupowy”, „Taniej za 2”, opisy rabatów przy pozycjach `items.promo`),
+    kupony z wielokrotnym użyciem. Wejście dla E3: wiemy, na czym oszczędzamy dziś, zanim add-on zacznie aktywować kupony.
+  - **E12 Drobne usprawnienia ekranu Produkty:** (a) miara „Sztuki” mieszała kilogramy ze sztukami — rozdzielić po `items.is_weight`
+    (jednostka przy produkcie: kg albo szt.); (b) kaucje w czasie (pobrane/zwrócone) na wykresie obok wydatków; (c) struktura płatności
+    (`tickets.payment`) gdy pojawi się więcej niż jedna metoda; (d) przy filtrze na produkt pokazać też liczbę zakupów i średnią cenę
+    w wybranym zakresie.
 
 ## Ryzyka
 
