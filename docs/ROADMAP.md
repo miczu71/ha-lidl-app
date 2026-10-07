@@ -103,8 +103,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs ✅, E11.1 dane ✅, E11.2 ekran „Kupony”
   (`/kupony`) ✅, E11.3 wydanie 0.4.0 ✅ (2026-10-07, na żywo: 206 kandydatów, 187 z auto-aktywacją, 19 bez kodu
   kuponu; odznaczenie przetrwa przeładowanie). Próg 3 zostaje (decyzja 2026-10-07), bez filtra.
-- **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
-  powiadomienia przez aliasy `notify.*`.
+- **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
+  i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
+  (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
+  i ręczną aktywacją; start w trybie próbnym (`auto_activate` wyłączone). Podetapy: E3.0 docs, E3.1 test
+  aktywacji, E3.2 dane i logika, E3.3 harmonogram i powiadomienie, E3.4 panel, E3.5 wydanie 0.5.0.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
   sprawdzić, czy któryś model z puli (freellmapi) czyta obrazy stron; jeśli nie, zostaje tekst z PDF.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
