@@ -10,24 +10,13 @@ from typing import Any
 from lidl.accounts import Account
 from lidl.history import CouponCandidate, History, RankedProduct
 from lidl.sync import HistorySync
+from lidl.text import count_text, fmt_day_month
 
-from .chart import fmt_day_month, fmt_pln
+from .chart import fmt_pln
 
 DEFAULT_LIMIT = 8
 MORE_STEP = 25
 MAX_LIMIT = 200
-
-
-def plural(n: int, one: str, few: str, many: str) -> str:
-    if n == 1:
-        return one
-    if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
-        return few
-    return many
-
-
-def count_text(n: int, one: str, few: str, many: str) -> str:
-    return f"{n} {plural(n, one, few, many)}"
 
 
 def parse_limit(raw: str | None) -> int:

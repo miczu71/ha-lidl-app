@@ -14,9 +14,12 @@ ingress_port: 8099
 panel_icon: mdi:cart-outline
 panel_title: "Lidl"
 panel_admin: true
+homeassistant_api: true
 options:
   log_level: info
   auto_activate: false
+  run_time: "07:00"
 schema:
   log_level: "list(debug|info|warning|error)"
   auto_activate: bool
+  run_time: "match(^([01][0-9]|2[0-3]):[0-5][0-9]$)"

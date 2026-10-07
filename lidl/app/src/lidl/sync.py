@@ -103,15 +103,6 @@ class HistorySync:
             if self._history.ticket_count(slug) > 0 and self.start(slug, full=False):
                 await self.wait(slug)
 
-    async def daily_loop(
-        self, slugs: Callable[[], list[str]], *, first_delay: float = 300.0, interval: float = 86400.0
-    ) -> None:
-        """Dzienny przebieg w tle (anulowany przy zamykaniu add-onu)."""
-        await self._sleep(first_delay)
-        while True:
-            await self.run_daily(slugs())
-            await self._sleep(interval)
-
     async def import_account(self, slug: str, *, full: bool) -> SyncResult:
         progress = self.progress(slug)
         progress.running, progress.done, progress.total, progress.error = True, 0, 0, None

@@ -8,12 +8,13 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from lidl.history import SpendBucket
+from lidl.text import SHORT_MONTHS as _SHORT
+from lidl.text import fmt_day_month as fmt_day_month
 
 STEPS = ("week", "month", "quarter", "year")
 MAX_BUCKETS = 400
 MAX_LABELS = 12
 _STEP_DAYS = {"week": 7, "month": 31, "quarter": 92, "year": 366}
-_SHORT = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
 _FULL = [
     "styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec",
     "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień",
@@ -89,10 +90,6 @@ def parse_chart_query(params: Mapping[str, str], today: date, first_day: date | 
     if error is None and (end - start).days / _STEP_DAYS[step] > MAX_BUCKETS:
         start, truncated = end - timedelta(days=MAX_BUCKETS * _STEP_DAYS[step]), True
     return ChartQuery(start, end, step, art_id, metric, preset, error, truncated)
-
-
-def fmt_day_month(d: date) -> str:
-    return f"{d.day} {_SHORT[d.month - 1]}"
 
 
 def fmt_month_year_genitive(d: date) -> str:

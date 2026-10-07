@@ -44,6 +44,7 @@ class Activation:
     discount: str
     valid_to: str  # dzień końca ważności (czas UTC z API, przycięty do daty)
     status: str  # activated | would | failed
+    new: bool  # decyzja inna niż w poprzednim przebiegu (powiadamiamy tylko o nowych)
 
 
 class CouponSource(Protocol):
@@ -101,11 +102,22 @@ class CouponRunner:
         self._sleep = sleep
         self._now = now
 
+    async def run_all(self, accounts: list[tuple[str, str]], *, dry_run: bool) -> dict[str, list[Activation]]:
+        """Wszystkie konta (slug, nazwa); błąd jednego konta (np. wygasła sesja) nie blokuje innych."""
+        out: dict[str, list[Activation]] = {}
+        for slug, label in accounts:
+            try:
+                out[label] = await self.run(slug, dry_run=dry_run)
+            except LidlPlusError as err:
+                log.warning("Kupony konta %s: przebieg przerwany (%s)", slug, err)
+        return out
+
     async def run(self, slug: str, *, dry_run: bool) -> list[Activation]:
         """Pobiera kupony konta, zapisuje je i aktywuje wybrane; błąd jednego kuponu nie przerywa reszty,
         błąd autoryzacji, sieci, limitu lub serwera — tak (jak przy paragonach)."""
         now = self._now()
         coupons = parse_coupons(await self._source.promotions(slug))
+        previous = {c["promotion_id"]: c["status"] for c in self._history.account_coupons(slug)}
         self._history.save_coupons(slug, coupons, now.isoformat())
         codes = self._history.auto_activate_codes(now.date())
         chosen = [c for c in coupons if should_activate(c, codes, now)]
@@ -116,8 +128,10 @@ class CouponRunner:
         ]
         self._history.set_coupon_statuses(slug, [(pid, status, done.get(pid)) for pid, status in statuses])
         return [
-            Activation(c.title, c.discount, c.valid_to.date().isoformat(), status)
-            for c, (_, status) in zip(chosen, statuses, strict=True)
+            Activation(
+                c.title, c.discount, c.valid_to.date().isoformat(), status, previous.get(pid) != status
+            )
+            for c, (pid, status) in zip(chosen, statuses, strict=True)
         ]
 
     async def _activate(self, slug: str, coupons: list[Coupon]) -> dict[str, str]:

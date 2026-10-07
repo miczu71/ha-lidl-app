@@ -7,3 +7,8 @@ configuration:
     description: >-
       Aktywuje na każdym koncie kupony ogólne i kupony na produkty z zakładki Kupony. Wyłączone = tryb
       próbny: panel i powiadomienie pokazują tylko, co zostałoby aktywowane.
+  run_time:
+    name: Godzina dziennego przebiegu
+    description: >-
+      Codziennie o tej godzinie (GG:MM, czas lokalny) add-on pobiera nowe paragony, aktywuje kupony i wysyła
+      powiadomienie na notify.family.

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from lidl.client.exceptions import LidlPlusError
+from lidl.client.exceptions import LidlPlusAuthError, LidlPlusError
 from lidl.coupons import CouponRunner, parse_coupons
 from lidl.history import History
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
@@ -178,3 +178,31 @@ async def test_failures_refetch_the_list_only_once(tmp_path: Path) -> None:
     assert source.list_calls == 2
     assert source.activations == ["g0", "g1", "g2", "01a1-a", "01a1-c"]
     assert [a.status for a in result] == ["activated", "failed", "activated"]
+
+
+async def test_new_flag_reports_each_decision_once(tmp_path: Path) -> None:
+    history = _history(tmp_path)
+    source = FakeSource(_payload(AllStores=[_promo("p1", "Produkt A", ["111"])]))
+    first = await _runner(source, history).run("osoba-1", dry_run=True)
+    second = await _runner(source, history, NOW + timedelta(days=1)).run("osoba-1", dry_run=True)
+    third = await _runner(source, history, NOW + timedelta(days=2)).run("osoba-1", dry_run=False)
+    assert [(a.status, a.new) for a in first + second + third] == [
+        ("would", True),
+        ("would", False),
+        ("activated", True),
+    ]
+
+
+async def test_run_all_collects_per_account_and_skips_failing_one(tmp_path: Path) -> None:
+    source = FakeSource(_payload(AllStores=[_promo("p1", "Produkt A", ["111"])]))
+    runner = _runner(source, _history(tmp_path))
+    original = source.promotions
+
+    async def promotions(slug: str) -> dict[str, Any]:
+        if slug == "osoba-2":
+            raise LidlPlusAuthError("unauthorized")
+        return await original(slug)
+
+    source.promotions = promotions  # type: ignore[method-assign]
+    result = await runner.run_all([("osoba-2", "Osoba 2"), ("osoba-1", "Osoba 1")], dry_run=True)
+    assert list(result) == ["Osoba 1"] and [a.title for a in result["Osoba 1"]] == ["Produkt A"]

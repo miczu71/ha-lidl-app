@@ -7,3 +7,8 @@ configuration:
     description: >-
       Activates general coupons and coupons for products from the Coupons tab on every account. Off = dry run:
       the panel and notification only show what would be activated.
+  run_time:
+    name: Daily run time
+    description: >-
+      Every day at this time (HH:MM, local time) the add-on fetches new receipts, activates coupons and sends
+      a notification to notify.family.

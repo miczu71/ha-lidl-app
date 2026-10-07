@@ -27,14 +27,17 @@ from fastapi.templating import Jinja2Templates
 from lidl import __version__
 from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
+from lidl.coupons import CouponRunner
+from lidl.daily import DailyJob, at_time_loop
 from lidl.history import CANDIDATE_MIN_PURCHASES, History
 from lidl.receipt import parse_detail
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
+from lidl.text import count_text
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .products import MORE_STEP, count_text, coupon_rows, import_status, parse_limit, ranking_rows
+from .products import MORE_STEP, coupon_rows, import_status, parse_limit, ranking_rows
 
 log = logging.getLogger(__name__)
 
@@ -71,10 +74,15 @@ def create_app(settings: Settings) -> FastAPI:
             history = History(settings.data_dir / "history.db")
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             sync = HistorySync(service, history)
-            app.state.service, app.state.history, app.state.sync = service, history, sync
-            daily = asyncio.create_task(
-                sync.daily_loop(lambda: [a.slug for a in service.store.list() if a.connected])
+            job = DailyJob(
+                service.store,
+                sync,
+                CouponRunner(service, history),
+                session,
+                dry_run=not settings.auto_activate,
             )
+            app.state.service, app.state.history, app.state.sync = service, history, sync
+            daily = asyncio.create_task(at_time_loop(settings.run_time, job))
             try:
                 yield
             finally:
