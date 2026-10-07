@@ -137,4 +137,5 @@ tap → panel.
   sprawdzamy na żywo w E20.6 (add-on).
 - [x] E20.3 dane: klient API (`lotteries`, `coupon_plus`, 404 → None), `rewards.py`, testy — 2026-10-08 (0942bfc).
 - [x] E20.4 powiadomienia: linia poranna, job 18:00 (`EVENING`, tag `lidl-zdrapki`) — 2026-10-08.
-- [ ] E20.5 panel „Nagrody”.
+- [x] E20.5 panel „Nagrody” (zdrapki, Kupon Plus graficznie, odczyt przy starcie) — 2026-10-08.
+- [ ] E20.6 wydanie 0.7.0.
