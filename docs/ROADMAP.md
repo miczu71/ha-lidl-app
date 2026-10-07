@@ -30,16 +30,16 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - **Stirling-PDF nie wnosi nic ponad `pdftotext`** (sprawdzone na gazetce: ten sam rozsypany układ kafelków,
   OCR niepotrzebny, a instancja ma tylko język angielski). Do gazetek: `pdftotext -bbox-layout` → kafelki → model.
 - Kupony dopasowujemy po kodzie artykułu (bez AI); AI służy głównie gazetkom i skróconym nazwom z paragonów.
-- Nie wiadomo, czy `yearOffset=5` zawiera całą starszą historię, czy jest limitem API — E2 to sprawdza
-  (porównanie liczby i dat paragonów).
+- `yearOffset=5` wystarcza: pierwsze konto ma paragony od 2019-05-10, 327 unikalnych (lista z paczek rocznych ma
+  7 duplikatów na styku lat, dedup po id). Wyczerpanie historii poznajemy po HTTP 400 przy offsecie > 0.
 
 ## Stan i otwarte sprawy (2026-10-07)
 
 - [x] E0 rozpoznanie, E1 add-on 0.1.0 (release `v0.1.0`), CI (testy, ruff, mypy, budowa arm64/amd64), D1 nowy styl (0.2.0).
-- [x] E2.1–E2.2 kod: parser, baza, import, ekran Produkty z wykresem (0.3.0). [ ] E2.3: wydanie i pierwszy import na żywo (wnioski o `yearOffset` po imporcie).
+- [x] E2 zakończone (2026-10-07, wydania 0.3.0 i 0.3.1, import na żywo zweryfikowany): 327 paragonów, 327 szczegółów, 0 pominiętych, 0 nierozpoznanych; wydatki w czasie od 2019 (suma 58 942 zł po rabatach, bez kaucji — zgodna z sumą paragonów ~58 958 zł z kaucjami); oszczędności z rabatów na pozycjach: 6 183,79 zł (kupony Lidl Plus 4 056,06 zł, promocje 2 127,73 zł).
 - [x] Konto pierwszej osoby połączone w panelu (add-on 0.2.0 na żywo).
 - [ ] Zalogować w panelu konto drugiej osoby.
-- [ ] **0.3.1 (po weryfikacji E2.3):** luka — przycisk „Pobierz historię” jest tylko w stanie pustym, a dzienny import i „Wznów teraz” pomijają konta bez paragonów, więc drugiego konta nie da się zaimportować z panelu. Poprawka: w stanie „ok” wiersz każdego połączonego konta bez historii z przyciskiem + test.
+- [x] **0.3.1 (wydane):** luka — przycisk „Pobierz historię” jest tylko w stanie pustym, a dzienny import i „Wznów teraz” pomijają konta bez paragonów, więc drugiego konta nie da się zaimportować z panelu. Poprawka: w stanie „ok” wiersz każdego połączonego konta bez historii z przyciskiem + test.
 - [ ] Włączyć „Show in sidebar” dla add-onu (domyślnie wyłączone).
 - [ ] Test rotacji tokenu: ponowne pobranie danych po >1 h od logowania (potwierdza zapis nowego refresh tokenu).
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
@@ -79,6 +79,13 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   zanim add-on cokolwiek zmienił”, do porównania w KPI. Plan i decyzje (2026-10-07): `docs/PLAN_E2_historia.md`
   — ranking i KPI dla całego domu, pierwszy import ręcznie potem codziennie, grupowanie po kodzie artykułu.
   Podetapy: E2.1 dane (parser, SQLite, sync), E2.2 UI „Produkty”, E2.3 wydanie 0.3.0 i import na żywo.
+- **Wnioski z E2 (ważne dla E3–E8):** (1) Paragony mają dwa formaty: HTML (od 2026-03-27) i NATIVE (`itemsLine`, 2019–03.2026);
+  kody produktów się nie pokrywają (NATIVE: EAN/PLU, HTML: numer artykułu = kody kuponów), więc produkty łączymy
+  po jednoznacznej nazwie (28 połączonych na próbce), reszta zostaje pod kluczem `n:<EAN>`. (2) Pole `savings` z listy
+  paragonów jest wypełnione tylko dla 6 najnowszych paragonów i zaniża oszczędności ~30×; liczymy z rabatów pozycji
+  (opis „Lidl Plus kupon/voucher” = kupon, reszta = promocja). (3) Wersja 0.3.0 cicho pomijała starsze paragony —
+  dlatego 0.3.1 liczy i pokazuje paragony nierozpoznane. (4) Dla E7: ceny jednostkowe z obu formatów są w bazie
+  (`items.unit_price`, ważone w kg); dla produktów tylko ze starego formatu jest tylko klucz `n:<EAN>`.
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
