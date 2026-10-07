@@ -136,4 +136,5 @@ tap → panel.
   (`len=0`) → obecność na liście = niezdrapana, `status` niepotrzebny. Spike nie ma tokenów osoby 2 — jej konto
   sprawdzamy na żywo w E20.6 (add-on).
 - [x] E20.3 dane: klient API (`lotteries`, `coupon_plus`, 404 → None), `rewards.py`, testy — 2026-10-08 (0942bfc).
-- [ ] E20.4 powiadomienia: linia poranna, job 18:00.
+- [x] E20.4 powiadomienia: linia poranna, job 18:00 (`EVENING`, tag `lidl-zdrapki`) — 2026-10-08.
+- [ ] E20.5 panel „Nagrody”.
