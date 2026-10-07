@@ -40,7 +40,7 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - [x] Konto pierwszej osoby połączone w panelu (add-on 0.2.0 na żywo).
 - [x] Konto drugiej osoby połączone i zaimportowane (2026-10-07: 197 paragonów, 0 nierozpoznanych).
 - [x] **0.3.1 (wydane):** luka — przycisk „Pobierz historię” jest tylko w stanie pustym, a dzienny import i „Wznów teraz” pomijają konta bez paragonów, więc drugiego konta nie da się zaimportować z panelu. Poprawka: w stanie „ok” wiersz każdego połączonego konta bez historii z przyciskiem + test.
-- [ ] Włączyć „Show in sidebar” dla add-onu (domyślnie wyłączone).
+- [x] „Show in sidebar” włączone (potwierdzone 2026-10-07).
 - [ ] Test rotacji tokenu: ponowne pobranie danych po >1 h od logowania (potwierdza zapis nowego refresh tokenu).
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
 
@@ -102,7 +102,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   domyślnie włączony (zapisujemy tylko odznaczenia); produkty z samym kluczem `n:<EAN>` bez kodu kuponu.
   E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs ✅, E11.1 dane ✅, E11.2 ekran „Kupony”
   (`/kupony`) ✅, E11.3 wydanie 0.4.0 ✅ (2026-10-07, na żywo: 206 kandydatów, 187 z auto-aktywacją, 19 bez kodu
-  kuponu; odznaczenie przetrwa przeładowanie). Lista jest długa — filtr tekstowy do decyzji przy E3.
+  kuponu; odznaczenie przetrwa przeładowanie). Próg 3 zostaje (decyzja 2026-10-07), bez filtra.
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
