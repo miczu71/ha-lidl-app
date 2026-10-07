@@ -39,6 +39,7 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - [x] E2.1–E2.2 kod: parser, baza, import, ekran Produkty z wykresem (0.3.0). [ ] E2.3: wydanie i pierwszy import na żywo (wnioski o `yearOffset` po imporcie).
 - [x] Konto pierwszej osoby połączone w panelu (add-on 0.2.0 na żywo).
 - [ ] Zalogować w panelu konto drugiej osoby.
+- [ ] **0.3.1 (po weryfikacji E2.3):** luka — przycisk „Pobierz historię” jest tylko w stanie pustym, a dzienny import i „Wznów teraz” pomijają konta bez paragonów, więc drugiego konta nie da się zaimportować z panelu. Poprawka: w stanie „ok” wiersz każdego połączonego konta bez historii z przyciskiem + test.
 - [ ] Włączyć „Show in sidebar” dla add-onu (domyślnie wyłączone).
 - [ ] Test rotacji tokenu: ponowne pobranie danych po >1 h od logowania (potwierdza zapis nowego refresh tokenu).
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
