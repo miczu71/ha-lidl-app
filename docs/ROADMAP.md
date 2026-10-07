@@ -58,7 +58,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
      https://claude.ai/artifact/7Dc5dqGHZaj5dCmRHyxu1u; 7 komponentów, okładka; bez zrzutów, tylko tokeny i opis): paleta, typografia, kształty,
      komponenty (przyciski, chipy, kafelki kuponów, listy), ruch; kontrast ≥ 4,5:1 (żółć na bieli zwykle nie
      przechodzi — osobne warianty tekstowe); wolne od licencji fonty i ikony SVG o podobnym charakterze.
-  3. *Makiety* (Artifact typu *Design*): ekrany konta, logowania, a później kupony, ranking produktów, gazetki,
+  3. *Makiety* (Artifact typu *Design*; **v1 2026-10-07: konta i logowanie, telefon i komputer**, prywatny:
+     https://claude.ai/artifact/QZrsn5Vf3MXYcoDxQnGCvS; kolejne ekrany dochodzą z etapami E2–E5): ekrany konta, logowania, a później kupony, ranking produktów, gazetki,
      lista zakupów — desktop i telefon; iteracje z użytkownikiem w przeglądarce.
   4. *Akceptacja:* zestawienie obok siebie (referencja ↔ makieta), decyzja użytkownika.
   5. *Wdrożenie w add-onie:* tokeny i zasady z zaakceptowanego systemu do repo (`docs/DESIGN.md` + `app.css`),
