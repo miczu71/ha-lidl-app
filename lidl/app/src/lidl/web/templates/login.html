@@ -1,38 +1,49 @@
 {% extends "base.html" %}
 {% block title %}Logowanie — {{ account.label }} — Lidl Plus{% endblock %}
+{% block bar %}<a class="back" href="{{ base }}/" aria-label="Wróć do kont"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Logowanie</span>{% endblock %}
 {% block main %}
-<h1>Logowanie: {{ account.label }}</h1>
-<p class="lead">Zaloguj się na stronie Lidla w przeglądarce na komputerze, a potem wklej tu adres, na który Lidl Cię odeśle. Adres jest ważny kilka minut i działa tylko raz.</p>
+<div>
+  <h1 class="t">Logowanie: {{ account.label }}</h1>
+  <p class="lead">Zaloguj się na stronie Lidla w przeglądarce na komputerze, a potem wklej tu adres, na który Lidl Cię odeśle. Adres jest ważny kilka minut i działa tylko raz.</p>
+</div>
 
-{% if error %}<p class="notice err" role="alert"><span>{{ error }}</span></p>{% endif %}
+{% if error %}
+<p class="notice notice--err" role="alert">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v6M12 17h.01"/></svg></span>
+  <span>{{ error }}</span>
+</p>
+{% endif %}
 
-<section class="panel">
+<section class="card">
   <ol class="steps">
     <li>
-      Otwórz okno prywatne przeglądarki i narzędzia deweloperskie (<kbd>F12</kbd>), zakładka <strong>Network</strong>, zaznacz <strong>Preserve log</strong>.
+      <span class="num">1</span>
+      <div class="st"><span>Otwórz okno prywatne przeglądarki i narzędzia deweloperskie (<kbd>F12</kbd>), zakładka <strong>Network</strong>, zaznacz <strong>Preserve log</strong>.</span></div>
     </li>
     <li>
-      <div class="stack">
-        <div>Wejdź na stronę logowania Lidl i zaloguj się kontem „{{ account.label }}” (captcha i kod MFA też tam).</div>
-        <a class="btn sec" href="{{ auth_url }}" target="_blank" rel="noopener noreferrer">Otwórz logowanie Lidl</a>
-        <div>
+      <span class="num">2</span>
+      <div class="st">
+        <span>Wejdź na stronę logowania Lidl i zaloguj się kontem „{{ account.label }}” (captcha i kod MFA też tam).</span>
+        <a class="ds-btn ds-btn--secondary" href="{{ auth_url }}" target="_blank" rel="noopener noreferrer">Otwórz logowanie Lidl</a>
+        <div style="width: 100%">
           <label for="url">Adres logowania do skopiowania</label>
-          <input id="url" type="text" readonly value="{{ auth_url }}">
+          <input class="field" id="url" type="text" readonly value="{{ auth_url }}">
         </div>
       </div>
     </li>
     <li>
-      Po zalogowaniu strona zostanie na ekranie logowania — to normalne. W Network znajdź odpowiedź <strong>302</strong> z żądania <code>callback</code> i skopiuj nagłówek <strong>Location</strong> (zaczyna się od <code>com.lidlplus.app://callback?code=</code>).
+      <span class="num">3</span>
+      <div class="st"><span>Po zalogowaniu strona zostanie na ekranie logowania, to normalne. W Network znajdź odpowiedź <strong>302</strong> z żądania <strong>callback</strong> i skopiuj nagłówek <strong>Location</strong> (zaczyna się od <code>com.lidlplus.app://callback?code=</code>).</span></div>
     </li>
   </ol>
 
   <form method="post" action="{{ base }}/accounts/{{ account.slug }}/login">
     <label for="pasted">Wklejony adres (Location)</label>
-    <textarea id="pasted" name="pasted" required autocomplete="off" spellcheck="false" placeholder="com.lidlplus.app://callback?code=…"></textarea>
+    <textarea class="field" id="pasted" name="pasted" required autocomplete="off" spellcheck="false" placeholder="com.lidlplus.app://callback?code=…"></textarea>
     <p class="hint">Adres nie jest nigdzie zapisywany ani logowany; po wymianie na token jest bezużyteczny.</p>
-    <div class="acts" style="margin-top:16px">
-      <button class="btn" type="submit">Połącz konto</button>
-      <a class="btn quiet" href="{{ base }}/">Anuluj</a>
+    <div class="row2" style="margin-top: var(--space-4)">
+      <button class="ds-btn" type="submit">Połącz konto</button>
+      <a class="ds-btn ds-btn--link" href="{{ base }}/">Anuluj</a>
     </div>
   </form>
 </section>

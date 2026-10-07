@@ -1,50 +1,55 @@
 {% extends "base.html" %}
 {% block main %}
-<h1>Konta Lidl Plus</h1>
-<p class="lead">Dodaj konto każdej osoby, która robi zakupy w Lidlu. Hasło wpisujesz tylko na stronie Lidla — add-on dostaje wyłącznie token sesji.</p>
+<div>
+  <h1 class="t">Konta</h1>
+  <p class="lead">Dodaj konto każdej osoby, która robi zakupy w Lidlu. Hasło wpisujesz tylko na stronie Lidla, add-on dostaje wyłącznie token sesji.</p>
+</div>
 
-{% if msg %}<p class="notice {{ msg.kind }}" role="status"><span>{{ msg.text }}</span></p>{% endif %}
+{% if msg %}
+<p class="notice {% if msg.kind == 'err' %}notice--err{% endif %}" role="{% if msg.kind == 'err' %}alert{% else %}status{% endif %}">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true">{% if msg.kind == 'err' %}<path d="M12 7v6M12 17h.01"/>{% else %}<path d="M20 6 9 17l-5-5"/>{% endif %}</svg></span>
+  <span>{{ msg.text }}</span>
+</p>
+{% endif %}
 
-<section class="panel" aria-label="Konta Lidl Plus">
-  {% if accounts %}
-  <ul class="rows">
-    {% for a in accounts %}
-    <li class="row">
-      <div class="who">
-        <span class="name">{{ a.label }}</span>
-        {% if a.connected %}<span class="chip on">Połączone</span>{% else %}<span class="chip">Nie zalogowano</span>{% endif %}
+<section class="card card--flush" aria-label="Konta Lidl Plus">
+  {% for a in accounts %}
+  <div class="acc">
+    <div class="acc__who">
+      <span class="avatar" aria-hidden="true">{{ (a.label.split()|map('first')|join)[:2]|upper }}</span>
+      <div>
+        <div class="name">{{ a.label }}{% if a.connected %}<span class="status status--on">Połączone</span>{% else %}<span class="status">Nie zalogowano</span>{% endif %}</div>
         <div class="meta">{% if a.connected %}Sesja odnawia się automatycznie.{% else %}Zaloguj konto, żeby pobierać paragony i kupony.{% endif %}</div>
       </div>
-      <div class="acts">
-        {% if a.connected %}
-        <form method="post" action="{{ base }}/accounts/{{ a.slug }}/check"><button class="btn sec" type="submit">Sprawdź połączenie</button></form>
-        <a class="btn quiet" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj ponownie</a>
-        {% else %}
-        <a class="btn" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj</a>
-        {% endif %}
-        <details class="del">
-          <summary>Usuń</summary>
-          <form method="post" action="{{ base }}/accounts/{{ a.slug }}/delete">
-            <button class="btn danger" type="submit">Usuń konto „{{ a.label }}” i jego token</button>
-          </form>
-        </details>
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
+    </div>
+    <div class="acts">
+      {% if a.connected %}
+      <form method="post" action="{{ base }}/accounts/{{ a.slug }}/check"><button class="ds-btn ds-btn--secondary" type="submit">Sprawdź połączenie</button></form>
+      <a class="ds-btn ds-btn--link" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj ponownie</a>
+      {% else %}
+      <a class="ds-btn" href="{{ base }}/accounts/{{ a.slug }}/login">Zaloguj</a>
+      {% endif %}
+      <details class="del">
+        <summary>Usuń</summary>
+        <form method="post" action="{{ base }}/accounts/{{ a.slug }}/delete">
+          <button class="ds-btn ds-btn--danger" type="submit">Usuń konto „{{ a.label }}” i jego token</button>
+        </form>
+      </details>
+    </div>
+  </div>
   {% else %}
-  <p class="lead" style="margin:0">Brak kont. Dodaj pierwsze poniżej.</p>
-  {% endif %}
+  <p class="lead" style="margin: 0; padding: var(--space-4) 0">Brak kont. Dodaj pierwsze poniżej.</p>
+  {% endfor %}
 </section>
 
-<section class="panel" aria-labelledby="dodaj">
-  <h2 id="dodaj">Dodaj konto</h2>
+<section class="card" aria-labelledby="dodaj">
+  <h2 class="s" id="dodaj">Dodaj konto</h2>
   <form class="add" method="post" action="{{ base }}/accounts">
     <div class="f">
       <label for="label">Nazwa konta</label>
-      <input id="label" name="label" type="text" maxlength="40" required autocomplete="off" placeholder="np. imię osoby">
+      <input class="field" id="label" name="label" type="text" maxlength="40" required autocomplete="off" placeholder="np. imię osoby">
     </div>
-    <button class="btn" type="submit">Dodaj konto</button>
+    <button class="ds-btn" type="submit">Dodaj konto</button>
   </form>
 </section>
 {% endblock %}

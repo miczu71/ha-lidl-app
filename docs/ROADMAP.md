@@ -62,7 +62,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
      https://claude.ai/artifact/QZrsn5Vf3MXYcoDxQnGCvS; kolejne ekrany dochodzą z etapami E2–E5): ekrany konta, logowania, a później kupony, ranking produktów, gazetki,
      lista zakupów — desktop i telefon; iteracje z użytkownikiem w przeglądarce.
   4. *Akceptacja:* zestawienie obok siebie (referencja ↔ makieta), decyzja użytkownika.
-  5. *Wdrożenie w add-onie:* tokeny i zasady z zaakceptowanego systemu do repo (`docs/DESIGN.md` + `app.css`),
+  5. *Wdrożenie w add-onie* (✅ 0.2.0, 2026-10-07; `docs/DESIGN.md`, Figtree lokalnie): tokeny i zasady z zaakceptowanego systemu do repo (`docs/DESIGN.md` + `app.css`),
      podmiana szablonów, weryfikacja w przeglądarce (desktop i telefon), cache-busting, wydanie skillem
      `release`. Do implementacji skill `impeccable` (`init` → `PRODUCT.md`, potem `document`).
   Ograniczenia: naśladujemy **styl** (paleta, kształt, charakter), bez logo, znaków towarowych i zastrzeżonych

@@ -30,5 +30,5 @@ SOFTWARE.
 
 ## Fonts
 
-Inter (SIL OFL 1.1) and Source Serif 4 (SIL OFL 1.1), self-hosted in
-`lidl/app/src/lidl/web/static/fonts/` with their license files.
+Figtree (SIL OFL 1.1, Copyright 2022 The Figtree Project Authors), self-hosted in
+`lidl/app/src/lidl/web/static/fonts/` with its license file (`Figtree-OFL.txt`).
