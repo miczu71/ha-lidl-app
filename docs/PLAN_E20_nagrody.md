@@ -132,4 +132,7 @@ tap → panel.
 - [x] E20.0 rozpoznanie APK — 2026-10-08: wykonalne, endpointy i pola wyżej. Katalogi `apk/` i `tools/` usunięte.
 - [x] E20.1 próbny GET z tokenem jednego konta — 2026-10-08: zdrapki i Coupon Plus działają, pieczątki 404 (brak akcji).
 - [x] Wywiad i projekt E20.2–E20.6 — 2026-10-08.
-- [ ] E20.2 weryfikacja po zdrapaniu.
+- [x] E20.2 weryfikacja po zdrapaniu — 2026-10-08: po zdrapaniu w aplikacji lista `lotteries` osoby 1 pusta
+  (`len=0`) → obecność na liście = niezdrapana, `status` niepotrzebny. Spike nie ma tokenów osoby 2 — jej konto
+  sprawdzamy na żywo w E20.6 (add-on).
+- [ ] E20.3 dane: klient API, `rewards.py`, testy.
