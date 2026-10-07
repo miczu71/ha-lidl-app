@@ -114,6 +114,13 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   poprawka wyszukiwania (top 200). Wydanie 0.6.0. Podetapy: E14.0 docs ✅, E14.1 wyszukiwanie ✅, E14.2 logika ✅,
   E14.3 powiadomienie ✅, E14.4 wydanie ✅ (0.6.0, 2026-10-07; powiadomienie z rekomendacją karty dotarło na oba telefony, dotknięcie otwiera panel — potwierdzone). **E14.5** (prośba 2026-10-07): listy kuponów kont jako
   zakładki w jednym rzędzie, na starcie zwinięte; znacznik „wspólny” / „tylko <osoba>” przy kuponie ✅ (0.6.1 na żywo).
+- **E15 Obserwowane produkty** (zlecone 2026-10-07): z listy kupowanych produktów wybieram produkt (wyszukiwanie
+  na żywo jak na Produktach) i włączam śledzenie; gdy produkt pojawi się w kuponach albo promocjach, przychodzi
+  powiadomienie. Kupony: dopasowanie po kodzie artykułu (`articleIds`), dla produktów z samym `n:<EAN>` po nazwie.
+  Promocje: wymagają danych z gazetek (E4), tam tylko po nazwie. Do ustalenia w wywiadzie: lista wspólna czy per
+  osoba i komu powiadomienie, osobne powiadomienie czy sekcja w porannym (E3/E14), dopasowanie nazw (dokładne/fuzzy/AI),
+  jak nie powiadamiać dwa razy o tym samym kuponie/promocji, relacja do auto-aktywacji (E11) — czy kupon na
+  obserwowany produkt też aktywować.
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
