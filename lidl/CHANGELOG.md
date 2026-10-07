@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- **Nagrody na górze zakładki Kupony:** niezdrapane **zdrapki** każdego konta z datą ważności (w ostatnim dniu na
+  czerwono) i **Kupon Plus** jako pasek z progami jak w aplikacji — wydana kwota, ile brakuje do następnego progu,
+  nagroda za niego i dni do końca akcji.
+- **Zdrapki w powiadomieniach:** linia „Zdrapki” w porannym powiadomieniu (przychodzi także bez kuponów) i osobne
+  przypomnienie o 18:00, gdy zdrapka wygasa tego dnia — nie zastępuje porannego.
+- Nagrody odczytują się przy starcie add-onu i z „Sprawdź teraz”; add-on tylko czyta, niczego nie zdrapuje.
+
 ## 0.6.1
 
 - **Kupony kont jako zakładki:** listy kuponów każdej osoby są zakładkami w jednym rzędzie (na starcie zwinięte),

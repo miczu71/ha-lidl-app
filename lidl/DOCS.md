@@ -64,6 +64,19 @@ aktywuje — panel i powiadomienie pokazują tylko, co zostałoby aktywowane.
 Produkt oznaczony „bez kodu kuponu” znamy tylko ze starszych paragonów, bez numeru artykułu, którym posługują się
 kupony — do niego kuponu nie dopasujemy.
 
+## Nagrody: zdrapki i Kupon Plus (zakładka Kupony)
+
+Na górze zakładki, osobno dla każdego konta:
+
+- **Zdrapki** do zdrapania (Lidl daje je po zakupach, ważne zwykle ok. 3 dni) z datą ważności; w ostatnim dniu na
+  czerwono. Zdrapuje się w aplikacji Lidl Plus — zdrapana znika z listy.
+- **Kupon Plus** (akcja „wydaj X zł → kupon”): pasek z progami jak w aplikacji, wydana kwota, ile brakuje do
+  następnego progu, nagroda za niego i ile dni zostało do końca akcji.
+
+Zdrapki są też w porannym powiadomieniu (linia „Zdrapki”; powiadomienie przychodzi także bez kuponów), a o 18:00
+add-on wysyła osobne przypomnienie, gdy któraś zdrapka wygasa tego dnia. Add-on niczego nie zdrapuje ani nie
+uruchamia — tylko odczytuje.
+
 ## Opcje
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
