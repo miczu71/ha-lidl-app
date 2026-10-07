@@ -111,8 +111,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E14 Którą kartę wziąć** (zgłoszone 2026-10-07 po pierwszej aktywacji; plan: `docs/PLAN_E14_karta.md`): kupony
   różnią się między kontami, a na zakupach skanuje się jedną kartę — poranne powiadomienie poleca kartę (aktywne
   kupony na nasze produkty × częstotliwość zakupów), czytelniejszy format, z grupy kuponów SSC najniższy rabat,
-  poprawka wyszukiwania (top 200). Wydanie 0.6.0. Podetapy: E14.0 docs, E14.1 wyszukiwanie, E14.2 logika,
-  E14.3 powiadomienie, E14.4 wydanie.
+  poprawka wyszukiwania (top 200). Wydanie 0.6.0. Podetapy: E14.0 docs ✅, E14.1 wyszukiwanie ✅, E14.2 logika ✅,
+  E14.3 powiadomienie ✅, E14.4 wydanie.
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores

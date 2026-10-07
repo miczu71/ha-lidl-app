@@ -42,12 +42,19 @@ dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz 
 Codziennie o godzinie dziennego przebiegu (domyślnie 7:00) add-on pobiera kupony Lidl Plus każdego konta
 (sekcje „wszystkie sklepy” i „Twój sklep”) i aktywuje:
 
-- **kupony ogólne** (np. rabat od kwoty zakupów),
+- **kupony ogólne** (np. rabat od kwoty zakupów); z kuponów „Twój sklep” różniących się tylko kwotą (np. 10/20/30 zł
+  na zakupy od 100 zł) Lidl pozwala aktywować jeden — add-on bierze ten z najniższą kwotą,
 - **kupony na produkty kupowane regularnie** — co najmniej 3 razy w ostatnich 12 miesiącach, na wszystkich kontach
   razem (lista „Kupowane regularnie”; domyślnie zaznaczone są wszystkie, odznacz to, czego nie chcesz).
 
-Kupony, które jeszcze nie obowiązują, aktywuje w dniu ich startu; kuponów już aktywnych nie rusza. Potem wysyła
-jedno powiadomienie na `notify.family` z nowymi kuponami i datami ważności (bez nowych — nic). Zakładka pokazuje
+Kupony, które jeszcze nie obowiązują, aktywuje w dniu ich startu; kuponów już aktywnych nie rusza.
+
+**Którą kartę wziąć:** kupony różnią się między kontami, a przy kasie skanuje się jedną kartę. Rano add-on wysyła
+na `notify.family` jedno powiadomienie (gdy któraś karta ma aktywne kupony na Wasze produkty): w tytule karta z lepszą
+oceną (aktywne kupony na produkty z listy, ważone tym, jak często je kupujecie), w treści kupony każdej karty w skrócie,
+wspólne w linii „Obie:” i te, które kończą się dziś. Dotknięcie otwiera panel; nowe powiadomienie zastępuje poprzednie.
+
+Zakładka pokazuje
 kupony tego tygodnia na każdym koncie ze statusem; resztę aktywujesz przyciskiem **Aktywuj**, a **Sprawdź teraz**
 uruchamia sprawdzenie od razu. Pole **Szukaj** filtruje kupony i listę produktów w trakcie pisania.
 

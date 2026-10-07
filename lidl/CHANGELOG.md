@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- **Którą kartę wziąć:** poranne powiadomienie poleca kartę z lepszymi kuponami na Wasze produkty (aktywne kupony
+  na produkty z listy „Kupowane regularnie”, ważone tym, jak często je kupujecie) — kupony różnią się między kontami,
+  a przy kasie skanuje się jedną kartę.
+- **Czytelniejsze powiadomienie:** kupony każdej karty w skrócie, wspólne w linii „Obie:”, osobno „Koniec dziś”;
+  dotknięcie otwiera panel, nowe powiadomienie zastępuje poprzednie. Przychodzi codziennie rano, gdy jest co polecić.
+- **Kupony „Twój sklep” do wyboru** (np. 10/20/30 zł na zakupy od 100 zł, można aktywować jeden): add-on bierze
+  najniższą kwotę i nie próbuje pozostałych.
+- Poprawka: wyszukiwanie na Produktach znajduje każdy produkt z zakresu dat (wcześniej tylko z pierwszych 200).
+
 ## 0.5.0
 
 - **Automatyczna aktywacja kuponów (na start w trybie próbnym).** Codziennie o 7:00 add-on pobiera kupony każdego
