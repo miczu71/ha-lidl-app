@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- **Kupony kont jako zakładki:** listy kuponów każdej osoby są zakładkami w jednym rzędzie (na starcie zwinięte),
+  z podsumowaniem „aktywne N z M · tylko tu: K”; łatwo przejść od jednej karty do drugiej.
+- Przy każdym kuponie znacznik **„wspólny”** (jest na obu kontach) albo **„tylko <osoba>”**.
+- Na telefonie znacznik, status i „Aktywuj” są pod nazwą kuponu (nic nie nachodzi na tekst).
+
 ## 0.6.0
 
 - **Którą kartę wziąć:** poranne powiadomienie poleca kartę z lepszymi kuponami na Wasze produkty (aktywne kupony
