@@ -65,7 +65,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
      `release`. Do implementacji skill `impeccable` (`init` → `PRODUCT.md`, potem `document`).
   Ograniczenia: naśladujemy **styl** (paleta, kształt, charakter), bez logo, znaków towarowych i zastrzeżonych
   fontów Lidl; zastrzeżenie „nieoficjalny, niepowiązany z Lidl” zostaje widoczne w UI i README.
-  Do ustalenia przed startem: czy naśladować bardziej stronę, czy aplikację (różnią się), oraz jasny/ciemny motyw.
+  Decyzje (2026-10-07): wzorzec = **aplikacja** (strona i aplikacja są do siebie podobne; przy różnicach wygrywa
+  aplikacja); zgoda użytkownika na wgranie referencji do prywatnego artefaktu Claude Design. Do ustalenia przed
+  startem: jasny/ciemny motyw, kolejność względem E2, sposób dostarczenia zrzutów z aplikacji.
 - **E2 Historia paragonów:** import całej historii wszystkich kont (powoli, z przerwami), deduplikacja pozycji,
   normalizacja produktów, ranking „najczęściej kupowane” (częstość, cena, ostatni zakup). Na początek **punkt
   odniesienia oszczędności**: lista paragonów ma pola `savings` i `couponsUsedCount` — suma „ile oszczędzaliśmy
