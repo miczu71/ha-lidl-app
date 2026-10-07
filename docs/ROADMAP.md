@@ -38,7 +38,7 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - [x] E0 rozpoznanie, E1 add-on 0.1.0 (release `v0.1.0`), CI (testy, ruff, mypy, budowa arm64/amd64), D1 nowy styl (0.2.0).
 - [x] E2 zakończone (2026-10-07, wydania 0.3.0 i 0.3.1, import na żywo zweryfikowany): 327 paragonów, 327 szczegółów, 0 pominiętych, 0 nierozpoznanych; wydatki w czasie od 2019 (suma 58 942 zł po rabatach, bez kaucji — zgodna z sumą paragonów ~58 958 zł z kaucjami); oszczędności z rabatów na pozycjach: 6 183,79 zł (kupony Lidl Plus 4 056,06 zł, promocje 2 127,73 zł).
 - [x] Konto pierwszej osoby połączone w panelu (add-on 0.2.0 na żywo).
-- [ ] Zalogować w panelu konto drugiej osoby.
+- [x] Konto drugiej osoby połączone i zaimportowane (2026-10-07: 197 paragonów, 0 nierozpoznanych).
 - [x] **0.3.1 (wydane):** luka — przycisk „Pobierz historię” jest tylko w stanie pustym, a dzienny import i „Wznów teraz” pomijają konta bez paragonów, więc drugiego konta nie da się zaimportować z panelu. Poprawka: w stanie „ok” wiersz każdego połączonego konta bez historii z przyciskiem + test.
 - [ ] Włączyć „Show in sidebar” dla add-onu (domyślnie wyłączone).
 - [ ] Test rotacji tokenu: ponowne pobranie danych po >1 h od logowania (potwierdza zapis nowego refresh tokenu).
@@ -96,6 +96,12 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   (`PARSER_VERSION`), bez pytania Lidla. Dane czekają na ekrany: heatmapa dzień × godzina i ranking sklepów (dane już są;
   mapa wymaga współrzędnych sklepów — geokodowanie w zewnętrznej usłudze albo ręcznie, decyzja otwarta), analiza kuponów (E3),
   ceny w czasie (E7), przeglądarka paragonów (E8).
+- **Kolejność (2026-10-07): E11 → E3.**
+- **E11 Lista „produkty kuponowe” — reguły dla E3** (zatwierdzone 2026-10-07; plan: `docs/PLAN_E11_kupony.md`):
+  produkty kupione ≥3 razy w ostatnich 12 miesiącach, lista wspólna dla domu, przełącznik „auto-aktywuj”
+  domyślnie włączony (zapisujemy tylko odznaczenia); produkty z samym kluczem `n:<EAN>` bez kodu kuponu.
+  E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs, E11.1 dane, E11.2 ekran „Kupony”,
+  E11.3 wydanie 0.4.0.
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
@@ -126,7 +132,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     konta 13 sklepów, jeden z ~216 wizytami z 327. **Mapa sklepów** wymaga współrzędnych, których paragon nie ma: geokodowanie adresów
     w zewnętrznej usłudze (publiczne adresy sklepów, ale wysyłka na zewnątrz — zgoda użytkownika) albo ręczne wpisanie kilkunastu
     sklepów; decyzja otwarta. Dane: `tickets.store_*`.
-  - **E11 Analiza kuponów i promocji:** które kupony faktycznie wykorzystujemy i jak często (`ticket_coupons`: tytuł, opis, rabat),
+  - **Analiza kuponów i promocji** (pierwotny opis E11; zakres E11 zmieniony 2026-10-07 na listę produktów
+    kuponowych — poniższe zostaje jako opcjonalne rozszerzenie później): które kupony faktycznie wykorzystujemy i jak często (`ticket_coupons`: tytuł, opis, rabat),
     ile dają złotówek, jakie promocje cenowe łapiemy („Rabat grupowy”, „Taniej za 2”, opisy rabatów przy pozycjach `items.promo`),
     kupony z wielokrotnym użyciem. Wejście dla E3: wiemy, na czym oszczędzamy dziś, zanim add-on zacznie aktywować kupony.
   - **E12 Drobne usprawnienia ekranu Produkty:** (a) miara „Sztuki” mieszała kilogramy ze sztukami — rozdzielić po `items.is_weight`
