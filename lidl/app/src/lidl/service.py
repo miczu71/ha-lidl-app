@@ -93,6 +93,14 @@ class LidlService:
         async with self._lock(slug):
             return await (await self._api(slug)).promotions_list()
 
+    async def lotteries(self, slug: str) -> Any:
+        async with self._lock(slug):
+            return await (await self._api(slug)).lotteries()
+
+    async def coupon_plus(self, slug: str) -> Any:
+        async with self._lock(slug):
+            return await (await self._api(slug)).coupon_plus()
+
     async def activate(self, slug: str, coupon_id: str) -> None:
         async with self._lock(slug):
             await (await self._api(slug)).activate_promotion(coupon_id)

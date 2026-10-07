@@ -17,7 +17,9 @@ from .const import (
     APP_PACKAGE,
     APP_VERSION,
     COUNTRIES_URL,
+    COUPON_PLUS_BASE,
     COUPONS_BASE,
+    LOTTERY_BASE,
     OPERATING_SYSTEM,
     OS_VERSION,
     PROFILE_BASE,
@@ -321,18 +323,43 @@ class LidlPlusApi:
         return _as_segment_ids(result)
 
     async def promotions_list(self, store_id: str | None = None) -> dict[str, Any]:
-        headers = {"Country": self.country}
+        headers = {"Country": self.country, **await self._segment_headers()}
         if store_id:
             headers["Store-Id"] = store_id
-        segments = await self.user_segments()
-        if segments:
-            headers["Segment-Ids"] = ",".join(segments)
         result = await self.request(
             "GET",
             f"{COUPONS_BASE}/v4/promotionslist",
             headers=headers,
         )
         return result if isinstance(result, dict) else {"sections": result or []}
+
+    async def lotteries(self) -> Any:
+        """Niezdrapane zdrapki konta (zdrapana znika z listy); `userId` = `sub` z tokenu (przed pierwszym
+        odświeżeniem token bywa pusty, stąd `ensure_fresh_token`)."""
+        await self.ensure_fresh_token()
+        user_id = jwt_payload(self._access_token).get("sub", "")
+        return await self._get_or_none(
+            f"{LOTTERY_BASE}/v2/{self.country}/lotteries", params={"userId": user_id}
+        )
+
+    async def coupon_plus(self) -> Any:
+        """Bieżąca akcja Kupon Plus (progi „wydaj X → kupon”)."""
+        return await self._get_or_none(
+            f"{COUPON_PLUS_BASE}/v4/{self.country}/user/promotions", headers=await self._segment_headers()
+        )
+
+    async def _segment_headers(self) -> dict[str, str]:
+        segments = await self.user_segments()
+        return {"Segment-Ids": ",".join(segments)} if segments else {}
+
+    async def _get_or_none(self, url: str, **kwargs: Any) -> Any:
+        """GET; None, gdy zasobu nie ma (404 — np. konto bez zdrapek albo bez akcji)."""
+        try:
+            return await self.request("GET", url, **kwargs)
+        except LidlPlusError as err:
+            if err.status == 404:
+                return None
+            raise
 
     async def activate_promotion(self, promotion_id: str) -> Any:
         return await self.request(
