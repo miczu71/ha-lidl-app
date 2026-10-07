@@ -112,15 +112,17 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   różnią się między kontami, a na zakupach skanuje się jedną kartę — poranne powiadomienie poleca kartę (aktywne
   kupony na nasze produkty × częstotliwość zakupów), czytelniejszy format, z grupy kuponów SSC najniższy rabat,
   poprawka wyszukiwania (top 200). Wydanie 0.6.0. Podetapy: E14.0 docs ✅, E14.1 wyszukiwanie ✅, E14.2 logika ✅,
-  E14.3 powiadomienie ✅, E14.4 wydanie ✅ (0.6.0, 2026-10-07). **E14.5** (prośba 2026-10-07): listy kuponów kont jako
-  zakładki w jednym rzędzie, na starcie zwinięte; znacznik „wspólny” / „tylko <osoba>” przy kuponie (wydanie 0.6.1).
+  E14.3 powiadomienie ✅, E14.4 wydanie ✅ (0.6.0, 2026-10-07; powiadomienie z rekomendacją karty dotarło na oba telefony, dotknięcie otwiera panel — potwierdzone). **E14.5** (prośba 2026-10-07): listy kuponów kont jako
+  zakładki w jednym rzędzie, na starcie zwinięte; znacznik „wspólny” / „tylko <osoba>” przy kuponie ✅ (0.6.1 na żywo).
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
   i ręczną aktywacją; start w trybie próbnym (`auto_activate` wyłączone). Podetapy: E3.0 docs ✅, E3.1 test
-  aktywacji ✅, E3.2 dane i logika ✅, E3.3 harmonogram i powiadomienie ✅, E3.4 panel ✅, E3.5 wydanie 0.5.0.
+  aktywacji ✅, E3.2 dane i logika ✅, E3.3 harmonogram i powiadomienie ✅, E3.4 panel ✅, E3.5 wydanie 0.5.0 ✅ (2026-10-07: 0.5.0 na żywo, `auto_activate`
+  włączone, pierwsza aktywacja 17:09 — kupony aktywne w aplikacji, potwierdzone). Do obserwacji: pierwszy samodzielny
+  poranny przebieg 2026-10-08 07:00.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
   sprawdzić, czy któryś model z puli (freellmapi) czyta obrazy stron; jeśli nie, zostaje tekst z PDF.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
