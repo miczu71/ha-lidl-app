@@ -74,7 +74,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E2 Historia paragonów:** import całej historii wszystkich kont (powoli, z przerwami), deduplikacja pozycji,
   normalizacja produktów, ranking „najczęściej kupowane” (częstość, cena, ostatni zakup). Na początek **punkt
   odniesienia oszczędności**: lista paragonów ma pola `savings` i `couponsUsedCount` — suma „ile oszczędzaliśmy
-  zanim add-on cokolwiek zmienił”, do porównania w KPI.
+  zanim add-on cokolwiek zmienił”, do porównania w KPI. Plan i decyzje (2026-10-07): `docs/PLAN_E2_historia.md`
+  — ranking i KPI dla całego domu, pierwszy import ręcznie potem codziennie, grupowanie po kodzie artykułu.
+  Podetapy: E2.1 dane (parser, SQLite, sync), E2.2 UI „Produkty”, E2.3 wydanie 0.3.0 i import na żywo.
 - **E3 Kupony:** lista per konto, dopasowanie po kodzie artykułu, auto-aktywacja pasujących, ręczna reszta,
   powiadomienia przez aliasy `notify.*`.
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
