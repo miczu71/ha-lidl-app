@@ -92,6 +92,15 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   cena półkowa czy po rabatach (paragon ma obie), produkty ważone (cena za kg), kody, które zmieniły się w
   czasie (grupujemy po kodzie — zob. E2), minimalna liczba zakupów i okres do porównania, inflacja koszyka
   jako całości.
+- **E8 Moduł paragonów — przeglądarka historii** (zlecone 2026-10-07; w E2 świadomie pominięta, teraz dochodzi jako
+  osobny moduł/zakładka obok Produktów i Kont): lista wszystkich paragonów wraz ze szczegółami do przeglądania.
+  Dane już są w bazie (`tickets` + `items`: data, sklep, konto, kwota, pozycje z ilością i ceną, rabaty z podziałem
+  na kupony i promocje, kaucja), więc to głównie widok. Zakres wg zlecenia: przegląd listy paragonów, widok
+  szczegółów paragonu (pozycje, rabaty, suma), **wyszukiwanie produktu: kiedy był kupowany i na jakich paragonach**
+  (z cenami), „itp.” — do dopracowania w wywiadzie przed startem: filtry (zakres dat, sklep, konto, kwota),
+  sortowanie i paginacja (setki paragonów), przejścia z rankingu Produktów i wykresu do paragonów danego produktu
+  (i odwrotnie), pokazanie paragonów nierozpoznanych (dziś tylko licznik), czy pokazywać oryginalny wygląd
+  paragonu czy własny układ. Niezależny od E3–E7, korzysta z danych E2; kolejność do ustalenia.
 
 ## Ryzyka
 
