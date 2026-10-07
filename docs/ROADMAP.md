@@ -103,6 +103,13 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   E3 czyta zbiór kodów z `auto_activate_codes()`. Podetapy: E11.0 docs ✅, E11.1 dane ✅, E11.2 ekran „Kupony”
   (`/kupony`) ✅, E11.3 wydanie 0.4.0 ✅ (2026-10-07, na żywo: 206 kandydatów, 187 z auto-aktywacją, 19 bez kodu
   kuponu; odznaczenie przetrwa przeładowanie). Próg 3 zostaje (decyzja 2026-10-07), bez filtra.
+- **E13 Wyszukiwanie i zmiany na żywo, spójny okres rankingu** (zgłoszone 2026-10-07; plan:
+  `docs/PLAN_E13_na_zywo.md`): ranking liczony z zakresu dat wykresu (naprawa pustego „Wykres” dla produktów
+  niekupowanych od roku), wyszukiwanie na żywo (htmx jak w Budżecie) na Produktach i Kuponach, kontrolki,
+  przełączniki i aktywacja bez przeładowania. Wydanie razem z E3 (0.5.0). Podetapy: E13.0 docs, E13.1 ranking,
+  E13.2 Produkty, E13.3 Kupony.
+- **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
+  dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
