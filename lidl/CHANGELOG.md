@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2
+
+- **Rabaty od kwoty zakupów w różnych sekcjach:** kupon „min. 200 zł” Lidl pokazuje wśród zwykłych kuponów, nie
+  w rabatach od zakupów, a i tak pozwala na jeden taki rabat naraz. Add-on traktuje wszystkie kupony ogólne (bez
+  konkretnych produktów) jako jedną grupę — koniec codziennych nieudanych prób.
+
 ## 0.7.1
 
 - **Kupony ogólne (rabat od zakupów):** add-on traktuje je jako jedną grupę — Lidl pozwala na jeden aktywny naraz,
