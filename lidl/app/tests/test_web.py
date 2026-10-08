@@ -812,7 +812,8 @@ def test_prices_shows_basket_top_changes_and_list(client: TestClient) -> None:
     assert up < text.index("Masło", up) < down < text.index("Cukier", down)
     assert "6,00 zł → 6,60 zł" in text and "+10,0%" in text and "−10,0%" in text
     assert 'href="/ceny/produkt/111"' in text and "7 zł rocznie" in text
-    assert "Banany" not in text  # bez zakupu rok temu nie ma porównania
+    assert "Pierwszy zakup w ostatnim roku, np.: Banany." in text
+    assert "Banany" not in text[text.index('id="ceny-wyniki"') :]  # bez zakupu rok temu nie ma porównania
 
 
 def test_prices_live_search_and_order_return_only_the_list(client: TestClient) -> None:
@@ -850,3 +851,14 @@ def test_product_prices_page_shows_facts_chart_and_link_to_spending(client: Test
 def test_unknown_product_prices_page_is_404(client: TestClient) -> None:
     r = client.get("/ceny/produkt/999")
     assert r.status_code == 404 and "Nie ma takiego produktu" in r.text
+
+
+def test_prices_split_shows_old_receipt_codes_and_examples(client: TestClient) -> None:
+    _seed_prices(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    day = date.today() - timedelta(days=200)
+    history.upsert_tickets("osoba-1", [{"id": "nat", "date": f"{day}T10:00:00+00:00"}])
+    history.save_detail("nat", "S", ParsedReceipt(items=[ReceiptItem("n:5901", "Ser zolty", 1, 9.0, 9.0)]))
+    text = client.get("/ceny").text
+    assert "w tym ze starych paragonów: 9,00 zł · 1 produkt" in text
+    assert "Ze starych paragonów, niekupowane od 3 miesięcy, np.: Ser zolty." in text

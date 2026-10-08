@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any
 
-from lidl.history import PriceChange, PriceOverview, ProductPrices
+from lidl.history import PriceChange, PriceOverview, ProductPrices, SpendGroup
 from lidl.text import count_text, fmt_date
 
 from .chart import LineChart, build_line, fmt_month_year_genitive, fmt_pln, fmt_qty
@@ -76,21 +76,23 @@ def basket_view(overview: PriceOverview) -> dict[str, Any] | None:
         "coverage": f"{round(basket.coverage * 100)}%",
         "chart": chart,
         "split": _split_rows(overview.split),
+        "old_unbought": overview.split["no_recent"].legacy_examples,
+        "new_codes": overview.split["no_history"].examples,
     }
 
 
-def _split_rows(split: dict[str, tuple[float, int]]) -> list[dict[str, str]]:
-    total = sum(spend for spend, _ in split.values())
+def _split_rows(split: dict[str, SpendGroup]) -> list[dict[str, Any]]:
+    total = sum(g.spend for g in split.values())
+
+    def value(spend: float, n: int) -> str:
+        share = f" · {round(spend / total * 100)}%" if total else ""
+        return f"{fmt_pln(spend, 2)} · {count_text(n, 'produkt', 'produkty', 'produktów')}{share}"
+
     rows = []
     for group, label in _SPLIT.items():  # kolejność grup: tu
-        spend, n = split[group]
-        share = f" · {round(spend / total * 100)}%" if total else ""
-        rows.append(
-            {
-                "label": label,
-                "value": f"{fmt_pln(spend, 2)} · {count_text(n, 'produkt', 'produkty', 'produktów')}{share}",
-            }
-        )
+        g = split[group]
+        legacy = value(g.legacy_spend, g.legacy_products) if g.legacy_products else None
+        rows.append({"label": label, "value": value(g.spend, g.products), "legacy": legacy})
     return rows
 
 

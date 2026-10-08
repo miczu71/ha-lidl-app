@@ -22,8 +22,10 @@
   <details class="ef__more">
     <summary><span class="ef__sumtxt"><span>Co nie jest porównane</span><span class="meta">Wydatki z 12 miesięcy według tego, czemu produkt jest albo nie jest w porównaniu</span></span></summary>
     <ul class="cplist ef__list">
-      {% for r in basket.split %}<li class="cp"><div class="cp__txt"><span class="cp__name">{{ r.label }}</span><span class="cp__meta"><span>{{ r.value }}</span></span></div></li>{% endfor %}
+      {% for r in basket.split %}<li class="cp"><div class="cp__txt"><span class="cp__name">{{ r.label }}</span><span class="cp__meta"><span>{{ r.value }}</span></span>{% if r.legacy %}<span class="cp__meta"><span>w tym ze starych paragonów: {{ r.legacy }}</span></span>{% endif %}</div></li>{% endfor %}
     </ul>
+    {% if basket.old_unbought %}<p class="sum">Ze starych paragonów, niekupowane od 3 miesięcy, np.: {{ basket.old_unbought|join(", ") }}.</p>{% endif %}
+    {% if basket.new_codes %}<p class="sum">Pierwszy zakup w ostatnim roku, np.: {{ basket.new_codes|join(", ") }}.</p>{% endif %}
   </details>
 </section>
 

@@ -471,10 +471,16 @@ def test_price_overview_splits_spend_by_why_it_is_not_compared(tmp_path: Path) -
     _seed_prices(h)
     h.upsert_tickets("a", [_ticket("t6", "2026-03-01")])
     h.save_detail("t6", "S", _priced(("5", "Rzadki", 1, 7.0, 0.0)))
+    h.upsert_tickets("a", [_ticket("t7", "2026-02-01")])
+    h.save_detail(
+        "t7", "S", _priced(("n:590001", "Ser zolty plastry", 1, 9.0, 0.0), ("n:590002", "Kefir", 1, 2.0, 0.0))
+    )
     split = h.price_overview(date(2026, 10, 8)).split
-    assert split == {
-        "compared": (10.0, 2),  # Mleko i Chleb: zakupy w obu oknach
-        "no_recent": (7.0, 1),  # Rzadki: ostatnio w marcu
-        "no_old_window": (5.0, 1),  # Stary: kupowany od 2024, ale nie latem 2025
-        "no_history": (5.0, 1),  # Nowy: pierwszy zakup w ostatnim roku
+    assert {g: (s.spend, s.products, s.legacy_spend, s.legacy_products) for g, s in split.items()} == {
+        "compared": (10.0, 2, 0.0, 0),  # Mleko i Chleb: zakupy w obu oknach
+        "no_recent": (18.0, 3, 11.0, 2),  # Rzadki (marzec) i dwa stare kody n: (luty)
+        "no_old_window": (5.0, 1, 0.0, 0),  # Stary: kupowany od 2024, ale nie latem 2025
+        "no_history": (5.0, 1, 0.0, 0),  # Nowy: pierwszy zakup w ostatnim roku
     }
+    assert split["no_recent"].legacy_examples == ["Ser zolty plastry", "Kefir"]  # od największych wydatków
+    assert split["no_history"].examples == ["Nowy"]

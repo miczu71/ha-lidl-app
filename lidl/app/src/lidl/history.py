@@ -248,7 +248,20 @@ class PriceOverview:
     changes: list[PriceChange]
     basket: BasketInflation
     series: list[tuple[str, BasketInflation]]  # koszyk na koniec każdego miesiąca (bieżący: na dziś)
-    split: dict[str, tuple[float, int]]  # wydatki z 365 dni (zł, produkty) wg grup `_spend_split`
+    split: dict[str, SpendGroup]  # wydatki z 365 dni wg grup `_spend_split`
+
+
+SPLIT_EXAMPLES = 8
+
+
+@dataclass(frozen=True)
+class SpendGroup:
+    spend: float
+    products: int
+    legacy_spend: float  # z tego pod starymi kodami `n:<EAN>` (paragony NATIVE bez mostu po nazwie)
+    legacy_products: int
+    examples: list[str]  # nazwy z nowymi kodami, od największych wydatków (do `SPLIT_EXAMPLES`)
+    legacy_examples: list[str]  # nazwy ze starymi kodami `n:`
 
 
 @dataclass(frozen=True)
@@ -320,7 +333,7 @@ def _price_changes(rows: list[_PriceRow], days: list[date], today: date) -> tupl
     return changes, total
 
 
-def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict[str, tuple[float, int]]:
+def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict[str, SpendGroup]:
     """Wydatki z 365 dni wg tego, czemu produkt jest (nie)porównany: `compared`, `no_recent` (bez zakupu
     w ostatnich `PRICE_WINDOW_DAYS` dniach), `no_old_window` (kupowany ponad rok, ale nie w tych samych
     miesiącach rok temu), `no_history` (pierwszy zakup w ostatnim roku: nowy albo zmieniony kod/nazwa)."""
@@ -328,25 +341,38 @@ def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict
     first: dict[str, date] = {}
     recent: set[str] = set()
     spend: dict[str, float] = {}
-    for key, _name, day, _price, paid, _qty, _weight in rows:
+    names: dict[str, str] = {}
+    for key, name, day, _price, paid, _qty, _weight in rows:
         if day > today:
             break
         first.setdefault(key, day)
+        names[key] = name
         if day > new_from:
             recent.add(key)
         if day > year:
             spend[key] = spend.get(key, 0.0) + paid
-    groups = dict.fromkeys(("compared", "no_recent", "no_old_window", "no_history"), (0.0, 0))
-    for key, paid in spend.items():
+    members: dict[str, list[str]] = {g: [] for g in ("compared", "no_recent", "no_old_window", "no_history")}
+    for key in sorted(spend, key=lambda k: -spend[k]):
         if key in compared:
             group = "compared"
         elif key not in recent:
             group = "no_recent"
         else:
             group = "no_old_window" if first[key] <= year else "no_history"
-        total, products = groups[group]
-        groups[group] = (total + paid, products + 1)
-    return {g: (round(total, 2), products) for g, (total, products) in groups.items()}
+        members[group].append(key)
+    out = {}
+    for group, keys in members.items():
+        legacy = [k for k in keys if k.startswith("n:")]
+        current = [k for k in keys if not k.startswith("n:")]
+        out[group] = SpendGroup(
+            round(sum(spend[k] for k in keys), 2),
+            len(keys),
+            round(sum(spend[k] for k in legacy), 2),
+            len(legacy),
+            [names[k] for k in current[:SPLIT_EXAMPLES]],
+            [names[k] for k in legacy[:SPLIT_EXAMPLES]],
+        )
+    return out
 
 
 def _basket(changes: list[PriceChange], total: float) -> BasketInflation:

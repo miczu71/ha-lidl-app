@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2
+
+- **Ceny — „Co nie jest porównane”:** przy każdej grupie, ile wydatków jest pod kodami ze starych paragonów
+  (sprzed zmiany formatu), oraz przykładowe nazwy: stare produkty niekupowane od 3 miesięcy i produkty
+  z pierwszym zakupem w ostatnim roku. Pomaga ocenić, czy niskie pokrycie porównania wynika z niepołączonych kodów.
+
 ## 0.13.1
 
 - **Ceny — „Co nie jest porównane”:** w karcie „Nasz koszyk” zwinięte rozbicie wydatków z 12 miesięcy: porównane,
