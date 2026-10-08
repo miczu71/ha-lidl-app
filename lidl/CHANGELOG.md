@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.1
+
+- **Efekt kuponów bez mylącego porównania:** do 6 listopada okno „ostatnie 30 dni” obejmuje jeszcze dni sprzed
+  add-onu, więc paski i „X% mniej niż zwykle” są ukryte; zamiast nich informacja, od kiedy porównanie będzie
+  miarodajne. Kwota z kuponów, promocje i lista aktywowanych kuponów zostają.
+
 ## 0.12.0
 
 - **Gwiazdka także dla produktów spoza listy:** pole Szukaj w „Kupowane regularnie” pokazuje pod wynikami „Inne
