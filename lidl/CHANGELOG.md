@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.14.1
+
+- **Eksport do łączenia nazw (E21):** lista nowych kodów obejmuje teraz wszystkie produkty z nowych paragonów
+  (z oznaczeniem, czy mają już połączenie ze starymi), nie tylko te bez historii.
+
 ## 0.14.0
 
 - **Eksport do łączenia nazw (E21):** `produkty/laczenie/kandydaci.json` w panelu (tylko odczyt) — produkty ze

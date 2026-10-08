@@ -527,4 +527,4 @@ def test_merge_candidates_list_unbridged_old_codes_and_new_codes_without_history
             "last": "2026-01-10",
         }
     ]
-    assert [x["code"] for x in c["new"]] == ["222"]  # „111” ma już most po nazwie z „n:1”
+    assert [(x["code"], x["bridged"]) for x in c["new"]] == [("111", True), ("222", False)]  # wszystkie nowe

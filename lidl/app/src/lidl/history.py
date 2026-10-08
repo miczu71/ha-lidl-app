@@ -673,8 +673,9 @@ class History:
         return out
 
     def merge_candidates(self) -> dict[str, list[dict[str, Any]]]:
-        """E21: stare kody `n:` bez mostu po nazwie (`old`) i nowe kody, na które nie wskazuje żaden stary
-        (`new`) — do jednorazowego dopasowania; od najczęściej kupowanych. Cena = mediana ceny półkowej."""
+        """E21: stare kody `n:` bez mostu po nazwie (`old`) i wszystkie nowe kody (`new`; `bridged` = wskazuje
+        na nie któryś stary) — do jednorazowego dopasowania; od najczęściej kupowanych. Nazwy i ceny tylko
+        z pozycji pod danym kodem; cena = mediana ceny półkowej."""
         resolve = self._resolver()
         acc: dict[str, dict[str, Any]] = {}
         bridged: set[str] = set()
@@ -694,19 +695,19 @@ class History:
             p["weight"] = bool(weight)
         out: dict[str, list[dict[str, Any]]] = {"old": [], "new": []}
         for key, p in acc.items():
-            if key in bridged:
+            entry = {
+                "code": key,
+                "names": p["names"],
+                "weight": p["weight"],
+                "price": statistics.median(p["prices"]),
+                "purchases": len(p["days"]),
+                "first": min(p["days"]),
+                "last": max(p["days"]),
+            }
+            if key.startswith("n:"):
+                out["old"].append(entry)
                 continue
-            out["old" if key.startswith("n:") else "new"].append(
-                {
-                    "code": key,
-                    "names": p["names"],
-                    "weight": p["weight"],
-                    "price": statistics.median(p["prices"]),
-                    "purchases": len(p["days"]),
-                    "first": min(p["days"]),
-                    "last": max(p["days"]),
-                }
-            )
+            out["new"].append({**entry, "bridged": key in bridged})
         for side in out.values():
             side.sort(key=lambda c: (-c["purchases"], c["code"]))
         return out
