@@ -30,8 +30,8 @@ powiadomieniu 07:00, więc kilka naprawdę ważnych produktów w nim ginie. E15 
 
 ## Podetapy (każdy: dokładne kroki → „go” → checkpoint)
 - **E15.0 docs** ✅ (ten plan + ROADMAP).
-- **E15.1 dane, logika, powiadomienie** (history / notify / daily + testy).
-- **E15.2 panel** (gwiazdka, filtr; weryfikacja w przeglądarce: komputer i telefon, serwer dev `LIDL_DEV=1`).
+- **E15.1 dane, logika, powiadomienie** ✅ (history / notify / daily + testy; zamiast „pierwszego seen_at” tabela `watched_sent`, bo `save_coupons` nadpisuje `seen_at`).
+- **E15.2 panel** ✅ (gwiazdka; zamiast filtra obserwowane na górze listy — decyzja 2026-10-08; weryfikacja w przeglądarce: komputer i telefon, serwer dev `LIDL_DEV=1`).
 - **E15.3 wydanie 0.11.0** skillem `release` (opublikowany release, aktualizacja w Supervisorze, weryfikacja na żywo:
   gwiazdka na 1–2 produktach, „Sprawdź teraz”).
 

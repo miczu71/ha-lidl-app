@@ -333,6 +333,7 @@ def create_app(settings: Settings) -> FastAPI:
             regular_total=len(regular),
             min_purchases=CANDIDATE_MIN_PURCHASES,
             on=sum(r["on"] for r in regular),
+            watched=sum(r["watched"] for r in regular),
             no_code=sum(not r["matchable"] for r in regular),
         )
         live = target == "kupony-wyniki"  # wyszukiwanie na żywo: tylko wyniki
@@ -354,6 +355,11 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post("/kupony/produkt/{art_id}")
     async def toggle_coupon(request: Request, art_id: str, enabled: str = Form(...)) -> Response:
         request.app.state.history.set_auto_activate(art_id, enabled == "1")
+        return go(request, f"/kupony#p-{quote(art_id)}")
+
+    @app.post("/kupony/produkt/{art_id}/obserwuj")
+    async def toggle_watched(request: Request, art_id: str, on: str = Form(...)) -> Response:
+        request.app.state.history.set_watched(art_id, on == "1")
         return go(request, f"/kupony#p-{quote(art_id)}")
 
     @app.post("/accounts/{slug}/history")

@@ -193,6 +193,9 @@ select.field { appearance: auto; }
 .cp__meta span { white-space: nowrap; }
 .cp__meta span + span::before { content: "\00a0·\00a0"; }
 .cp__side { flex: none; width: 152px; }
+/* Kupowane regularnie: kolumna gwiazdki (44 px) + kolumna przełącznika; status „bez kodu kuponu” w drugiej. */
+.cp__side--ctl { width: auto; display: grid; grid-template-columns: 44px 152px; align-items: center; }
+.cp__side--ctl > .status { grid-column: 2; justify-self: start; }
 .cp form, .kt-run form { margin: 0; }
 .cp__side--stack { width: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
 .cp__side--stack .status { margin-left: 0; white-space: nowrap; }
@@ -226,11 +229,18 @@ select.field { appearance: auto; }
 .sw[aria-checked="true"] .sw__track::after { transform: translateX(18px); background: var(--on-blue) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%230050aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='3.5' d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center / 11px no-repeat; }
 .sw__txt { min-width: 76px; text-align: left; }
 .sw[aria-checked="false"] .sw__txt { color: var(--ink-muted); }
+/* Gwiazdka „obserwuj” (E15): pusty obrys albo bursztynowe wypełnienie; obrys tuszem trzyma kontrast ≥ 3:1. */
+.star { flex: none; display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--ink-muted); cursor: pointer; }
+.star:hover { background: var(--surface-inset); color: var(--ink); }
+.star .ic { fill: transparent; transition: fill 0.15s ease-out; }
+.star[aria-pressed="true"] { color: var(--ink); }
+.star[aria-pressed="true"] .ic { fill: var(--amber); }
 @media (max-width: 479px) {
   .cp__side { width: auto; }
+  .cp__side--ctl { grid-template-columns: 44px auto; }
   .sw__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
-@media (prefers-reduced-motion: reduce) { .sw__track, .sw__track::after { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .sw__track, .sw__track::after, .star .ic { transition: none; } }
 
 /* Wyszukiwanie na żywo (htmx) i wybrany produkt wykresu */
 .stack { display: flex; flex-direction: column; gap: var(--space-5); }

@@ -9,8 +9,14 @@
         <span class="cp__name">{{ r.name }}</span>
         <span class="cp__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}</span>
       </div>
-      <div class="cp__side">
+      <div class="cp__side cp__side--ctl">
       {% if r.matchable %}
+      <form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}/obserwuj" hx-post="{{ base }}/kupony/produkt/{{ r.id }}/obserwuj" hx-target="#p-{{ r.id }}" hx-select="#p-{{ r.id }}" hx-select-oob="#cp-facts" hx-swap="outerHTML">
+        <input type="hidden" name="on" value="{{ '0' if r.watched else '1' }}">
+        <button class="star" type="submit" aria-pressed="{{ 'true' if r.watched else 'false' }}" aria-label="Obserwuj: {{ r.name }}" title="{{ 'Obserwowany' if r.watched else 'Obserwuj' }}">
+          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"/></svg>
+        </button>
+      </form>
       <form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}" hx-post="{{ base }}/kupony/produkt/{{ r.id }}" hx-target="#p-{{ r.id }}" hx-select="#p-{{ r.id }}" hx-select-oob="#cp-facts" hx-swap="outerHTML">
         <input type="hidden" name="enabled" value="{{ '0' if r.on else '1' }}">
         <button class="sw" type="submit" role="switch" aria-checked="{{ 'true' if r.on else 'false' }}" aria-label="Auto-aktywacja kuponów: {{ r.name }}">

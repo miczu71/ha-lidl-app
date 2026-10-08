@@ -6,12 +6,13 @@ from fastapi.testclient import TestClient
 
 from lidl import __version__
 from lidl.client.exceptions import LidlPlusAuthError
+from lidl.history import CouponCandidate
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.web.app import create_app
-from lidl.web.products import effect_view, reward_cards
+from lidl.web.products import coupon_rows, effect_view, reward_cards
 
 
 def test_index_empty_and_no_store(client: TestClient) -> None:
@@ -299,6 +300,30 @@ def test_coupons_toggle_off_and_on(client: TestClient) -> None:
     assert 'aria-checked="false"' in client.get("/kupony").text
     client.post("/kupony/produkt/111", data={"enabled": "1"})
     assert {c.art_id for c in history.coupon_candidates() if c.enabled} == {"111"}
+
+
+def test_star_watches_product_turns_auto_activation_on_and_survives_reload(client: TestClient) -> None:
+    _seed_regular(client)
+    client.post("/kupony/produkt/111", data={"enabled": "0"})
+    text = client.get("/kupony").text
+    assert 'aria-pressed="false" aria-label="Obserwuj: Produkt A"' in text
+    assert "<dt>Obserwowane</dt><dd>0</dd>" in text
+    assert 'action="/kupony/produkt/n:9/obserwuj"' not in text  # bez kodu kuponu nie ma gwiazdki
+    r = client.post("/kupony/produkt/111/obserwuj", data={"on": "1"})
+    assert r.status_code == 303 and r.headers["location"] == "/kupony#p-111"
+    text = client.get("/kupony").text
+    assert 'aria-pressed="true" aria-label="Obserwuj: Produkt A"' in text and 'aria-checked="true"' in text
+    assert "<dt>Obserwowane</dt><dd>1</dd>" in text
+    client.post("/kupony/produkt/111/obserwuj", data={"on": "0"})
+    assert client.app.state.history.watched_codes() == set()  # type: ignore[attr-defined]
+
+
+def test_watched_products_come_first_in_their_ranking_order() -> None:
+    def cand(art_id: str, watched: bool) -> CouponCandidate:
+        return CouponCandidate(art_id, art_id, 3, "2026-10-01", 0, 0.0, 0.0, True, True, watched)
+
+    rows = coupon_rows([cand("a", False), cand("b", True), cand("c", False), cand("d", True)])
+    assert [r["id"] for r in rows] == ["b", "d", "a", "c"]
 
 
 def test_coupons_without_regular_products_says_why(client: TestClient) -> None:
