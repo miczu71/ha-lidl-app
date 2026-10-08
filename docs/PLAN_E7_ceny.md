@@ -86,3 +86,7 @@ okna dla rzadkich zakupów. Pierwsza dotyczy też rankingu Produktów i listy E1
 `PRICE_WINDOW_DAYS` 91 → 182: mediana z ostatnich 6 mies. vs te same 6 mies. rok wcześniej (zapisy wyżej o „3 mies.”
 dotyczą wersji 0.13.0–0.13.2). Więcej produktów w obu oknach, mniej szumu sezonowego; wolniejsza reakcja na świeże
 podwyżki. Niepołączone stare kody → osobny etap E21.
+**Na żywo 0.13.3 (2026-10-08 19:31):** koszyk −3,8% r/r, 166 produktów, **pokrycie 45%** (było 30%); niekupowane
+w 6 mies. 22% (z tego 20 pp. stare kody `n:`), nie w tych samych miesiącach rok temu 9%, pierwszy zakup w ostatnim
+roku 23% (212 produktów — po części nowe odpowiedniki niepołączonych starych kodów → E21). Top 5 nadal zdominowane
+przez sezonowe warzywa/owoce (melon, czereśnie, kukurydza) — ewentualny próg wydatków do decyzji przy zamknięciu E7.
