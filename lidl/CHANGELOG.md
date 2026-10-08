@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+- **Kupony ogólne (rabat od zakupów):** add-on traktuje je jako jedną grupę — Lidl pozwala na jeden aktywny naraz,
+  także przy różnych progach („min. 100 zł” i „min. 200 zł”). Koniec codziennych nieudanych prób i „Nie udało się”.
+- **Kupon Plus:** kwoty progów leżących blisko siebie (np. 50/300/500 zł) już na siebie nie nachodzą — podpis ma
+  zawsze najbliższy i ostatni próg; rabat nagrody bez gwiazdki.
+
 ## 0.7.0
 
 - **Nagrody na górze zakładki Kupony:** niezdrapane **zdrapki** każdego konta z datą ważności (w ostatnim dniu na
