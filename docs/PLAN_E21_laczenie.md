@@ -66,3 +66,11 @@ nie kupowano (np. napoje roślinne, cytrusy luz, przyprawy, mięso ważone) albo
 cena półkowa, nie do porównania r/r). Łączenie ich nie podniesie pokrycia Cen — luka 20 pp. to głównie zmiana
 koszyka, nie nazwy. Szacunek po E21.3: pokrycie ok. 45% → ~49%, poniżej progu sukcesu 50%.
 Pary z pierwszego przebiegu (88 poza tą grupą) dotyczą starszych zakupów — pomagają Produktom i liście E11, nie Cenom.
+
+## E21.3 ✅ 0.14.2 na żywo (2026-10-08 ~22:50) — wersja uproszczona
+Decyzja użytkownika po E21.2: bez karty „Do połączenia” i bez `merge_rejects`; tabela `merges(old, new)`, `_resolver`
+najpierw `merges`, `POST /produkty/laczenie/import` zastępuje wszystkie pary (`[]` cofa). Zaimportowano **87 pewnych
+par** (22 z drugiego przebiegu + 65 z pierwszego); 27 wątpliwych pominięte. Ceny przed → po: porównane 166 → 181
+produktów, pokrycie 45% → 47%, koszyk −3,8% → −3,9%; stare paragony niekupowane od 6 mies. 316 → 293 produkty (20% → 19%).
+Przykłady scalonej historii: mąka tortowa (od 2021), winogrono jasne 500 g (od 2020), zupa Vifon (od 2022).
+Próg sukcesu 50% nieosiągnięty i nieosiągalny łączeniem nazw — E21 zamknięte.
