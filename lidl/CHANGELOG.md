@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.0
+
+- **Paragony (E8):** nowa zakładka. „Szukaj produktu” przeszukuje całą historię, także stare nazwy ze
+  starszych paragonów, i prowadzi do listy wszystkich zakupów produktu (data, godzina, sklep, konto, ilość,
+  cena, rabaty, zapłacono) z podsumowaniem. Z każdego zakupu przejście do paragonu: pozycje z rabatami
+  (kupon / promocja), kaucje, użyte kupony i rozliczenie do kwoty zapłaconej; szukany produkt jest wyróżniony.
+  Lista wszystkich paragonów po miesiącach (liczba i suma miesiąca), filtry konto / sklep / daty na żywo,
+  paragony bez pozycji i nierozpoznane oznaczone.
+- Nazwa produktu w rankingu Produktów i przycisk na stronie ceny produktu prowadzą do jego zakupów.
+- Pięć zakładek mieści się w jednym rzędzie na telefonie.
+
 ## 0.14.3
 
 - **Ceny (E7):** „Najbardziej podrożały/potaniały” pokazują tylko produkty, na które wydajemy co najmniej
