@@ -1,4 +1,4 @@
-"""Dzienny przebieg o stałej godzinie (opcja `run_time`, czas lokalny): paragony, kupony, nagrody,
+"""Dzienny przebieg o stałej godzinie (opcja `run_time`, czas lokalny): paragony, promocje, kupony, nagrody,
 powiadomienie; wieczorem (18:00) przypomnienie o zdrapkach wygasających dziś."""
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ import aiohttp
 from . import notify
 from .accounts import AccountStore
 from .coupons import CouponRunner
+from .promotions import PromotionRunner
 from .rewards import Rewards, RewardsRunner
 from .sync import HistorySync
 
@@ -47,7 +48,7 @@ async def at_time_loop(
 
 
 class DailyJob:
-    """Nowe paragony, potem kupony i nagrody wszystkich połączonych kont i jedno powiadomienie."""
+    """Nowe paragony i promocje, potem kupony i nagrody wszystkich połączonych kont i jedno powiadomienie."""
 
     def __init__(
         self,
@@ -55,11 +56,13 @@ class DailyJob:
         sync: HistorySync,
         runner: CouponRunner,
         rewards: RewardsRunner,
+        promotions: PromotionRunner,
         session: aiohttp.ClientSession,
         *,
         dry_run: bool,
     ) -> None:
         self._store, self._sync, self._runner, self._rewards = store, sync, runner, rewards
+        self._promotions = promotions
         self._session = session
         self.dry_run = dry_run
         self.last_check: datetime | None = None
@@ -72,6 +75,7 @@ class DailyJob:
     async def __call__(self) -> None:
         accounts = self._accounts()
         await self._sync.run_daily([slug for slug, _ in accounts])
+        await self._promotions.refresh()
         await self._coupons(accounts)
 
     async def refresh_rewards(self) -> dict[str, Rewards]:
@@ -107,6 +111,7 @@ class DailyJob:
         finally:
             self.running = False
         self.last_check = datetime.now()
-        message = notify.compose(results, rewards, dry_run=self.dry_run)
+        promos = self._promotions.starting(date.today())
+        message = notify.compose(results, rewards, dry_run=self.dry_run, promos=promos)
         if message:
             await notify.send(self._session, message)

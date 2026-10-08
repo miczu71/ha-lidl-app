@@ -7,6 +7,7 @@ import pytest
 
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.notify import NOTIFY_URL, PANEL, compose, compose_expiring, send
+from lidl.promotions import Promotion
 from lidl.rewards import Rewards, ScratchCard
 
 TODAY = date(2026, 10, 7)
@@ -87,6 +88,32 @@ def test_scratch_card_alone_still_sends_morning_message() -> None:
         "Zdrapki: Osoba 1 do 9 paź",
     )
     assert compose({}, {"Osoba 1": _rewards()}, dry_run=False, today=TODAY) is None
+
+
+def _promo(title: str, discount: str, end: int) -> Promotion:
+    return Promotion("0000111", title, discount, TODAY, date(2026, 10, end))
+
+
+def test_promotions_line_before_scratch_cards() -> None:
+    report = AccountReport([], [_c("Banany", "-10%", 4)])
+    promos = [_promo("Produkt A", "-40%", 10), _promo("Produkt B", "-20% przy zakupie 2 szt.", 8)]
+    _, body = compose(
+        {"Osoba 1": report}, {"Osoba 1": _rewards(9)}, dry_run=False, today=TODAY, promos=promos
+    ) or (
+        "",
+        "",
+    )
+    assert body.splitlines()[-2:] == [
+        "Promocje od dziś: Produkt A −40% (do 10 paź) · Produkt B −20% przy 2 szt. (do jutra)",
+        "Zdrapki: Osoba 1 do 9 paź",
+    ]
+
+
+def test_promotions_alone_still_send_morning_message() -> None:
+    assert compose({}, dry_run=False, today=TODAY, promos=[_promo("Produkt A", "-40%", 10)]) == (
+        "Lidl: 1 promocja na Wasze produkty",
+        "Promocje od dziś: Produkt A −40% (do 10 paź)",
+    )
 
 
 def test_expiring_reminder_lists_only_cards_ending_today() -> None:

@@ -30,6 +30,7 @@ from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, Lid
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, DailyJob, at_time_loop
 from lidl.history import CANDIDATE_MIN_PURCHASES, History
+from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
 from lidl.rewards import RewardsRunner
 from lidl.service import LidlService
@@ -85,7 +86,10 @@ def create_app(settings: Settings) -> FastAPI:
             sync = HistorySync(service, history)
             runner = CouponRunner(service, history)
             rewards = RewardsRunner(service)
-            job = DailyJob(service.store, sync, runner, rewards, session, dry_run=not settings.auto_activate)
+            promotions = PromotionRunner(session, history)
+            job = DailyJob(
+                service.store, sync, runner, rewards, promotions, session, dry_run=not settings.auto_activate
+            )
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
 

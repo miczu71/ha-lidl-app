@@ -10,7 +10,9 @@ from lidl import notify
 from lidl.accounts import Account
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.daily import DailyJob, at_time_loop, seconds_until
+from lidl.promotions import Promotion
 from lidl.rewards import Rewards, ScratchCard
+from lidl.text import fmt_until
 
 
 @pytest.mark.parametrize(
@@ -79,10 +81,27 @@ class FakeRewards:
         return {"Osoba 1": Rewards(cards, None)}
 
 
+class FakePromotions:
+    def __init__(self, log: list[str]) -> None:
+        self.log = log
+
+    async def refresh(self) -> None:
+        self.log.append("promocje")
+
+    def starting(self, today: date) -> list[Promotion]:
+        return [Promotion("0000111", "Produkt B", "-40%", today, today + timedelta(days=2))]
+
+
 def _job(log: list[str], expires: datetime | None = None) -> DailyJob:
     return DailyJob(
-        FakeStore(), FakeSync(log), FakeRunner(log), FakeRewards(log, expires), None, dry_run=True
-    )  # type: ignore[arg-type]
+        FakeStore(),  # type: ignore[arg-type]
+        FakeSync(log),  # type: ignore[arg-type]
+        FakeRunner(log),  # type: ignore[arg-type]
+        FakeRewards(log, expires),  # type: ignore[arg-type]
+        FakePromotions(log),  # type: ignore[arg-type]
+        None,  # type: ignore[arg-type]
+        dry_run=True,
+    )
 
 
 async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
@@ -92,14 +111,19 @@ async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
 
     async def send(session: Any, message: tuple[str, str]) -> None:
         log.append(f"powiadomienie {message[0]}")
+        log.append(message[1].splitlines()[-1])
 
     monkeypatch.setattr(notify, "send", send)
     await _job(log)()
     assert log == [
         "paragony ['osoba-1']",
+        "promocje",
         "kupony [('osoba-1', 'Osoba 1')] próbnie=True",
         "nagrody [('osoba-1', 'Osoba 1')]",
         "powiadomienie Lidl (tryb próbny): dziś karta Osoba 1 (1 kupon na Wasze produkty)",
+        "Promocje od dziś: Produkt B −40% (do "
+        + fmt_until(date.today() + timedelta(days=2), date.today())
+        + ")",
     ]
 
 

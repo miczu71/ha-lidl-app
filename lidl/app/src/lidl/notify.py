@@ -1,5 +1,6 @@
 """Powiadomienia na `notify.family` (API Core przez Supervisora, `homeassistant_api`): poranne — którą kartę
-wziąć na zakupy, jakie kupony są na niej aktywne i jakie zdrapki czekają; wieczorne — zdrapki wygasające
+wziąć na zakupy, jakie kupony są na niej aktywne, jakie promocje na nasze produkty startują dziś i jakie
+zdrapki czekają; wieczorne — zdrapki wygasające
 dziś."""
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ from datetime import date
 import aiohttp
 
 from .coupons import AccountReport, ActiveCoupon
+from .promotions import Promotion
 from .rewards import Rewards
 from .text import count_text, fmt_until, plural
 
@@ -49,9 +51,10 @@ def compose(
     *,
     dry_run: bool,
     today: date | None = None,
+    promos: list[Promotion] | None = None,
 ) -> tuple[str, str] | None:
-    """Tytuł z rekomendacją karty i treść z kuponami per karta oraz zdrapkami; None, gdy żadna karta nie ma
-    aktywnych kuponów na nasze produkty ani zdrapek."""
+    """Tytuł z rekomendacją karty i treść z kuponami per karta, promocjami od dziś i zdrapkami; None, gdy
+    żadna karta nie ma aktywnych kuponów na nasze produkty, a nie ma też promocji ani zdrapek."""
     today = today or date.today()
     prefix = "Lidl (tryb próbny): " if dry_run else "Lidl: "
     cards = [
@@ -59,15 +62,25 @@ def compose(
         for label, r in (rewards or {}).items()
         for c in r.scratch_cards
     ]
-    scratch = "Zdrapki: " + " · ".join(cards)
+    promo = " · ".join(
+        f"{p.title} {_discount(p.discount)} (do {fmt_until(p.end, today)})" for p in promos or []
+    )
+    tail = ([f"Promocje od dziś: {promo}"] if promo else []) + (
+        [f"Zdrapki: {' · '.join(cards)}"] if cards else []
+    )
     shown = {
         label: sorted((c for c in r.active if c.weight or c.general), key=lambda c: (-c.weight, _name(c)))
         for label, r in results.items()
         if r.weighted_count
     }
     if not shown:
-        title = plural(len(cards), "zdrapka", "zdrapki", "zdrapek") + " do zdrapania"
-        return (prefix + title, scratch) if cards else None
+        if cards:
+            title = plural(len(cards), "zdrapka", "zdrapki", "zdrapek") + " do zdrapania"
+        elif promos:
+            title = count_text(len(promos), "promocja", "promocje", "promocji") + " na Wasze produkty"
+        else:
+            return None
+        return prefix + title, "\n".join(tail)
     labels = {label: [_label(c) for c in cs] for label, cs in shown.items()}
     common = set.intersection(*map(set, labels.values())) if len(labels) > 1 else set()
     lines = [f"{label}: " + " · ".join(x for x in ls if x not in common) for label, ls in labels.items()]
@@ -85,8 +98,7 @@ def compose(
     ]
     if failed:
         lines.append("Nie udało się: " + ", ".join(failed))
-    if cards:
-        lines.append(scratch)
+    lines += tail
     best = max(results, key=lambda label: results[label].score)
     count = count_text(results[best].weighted_count, "kupon", "kupony", "kuponów") + " na Wasze produkty"
     tie = sum(r.score == results[best].score for r in results.values()) > 1

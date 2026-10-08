@@ -443,6 +443,10 @@ class History:
         out.sort(key=lambda c: (-c.purchases, c.name))
         return out
 
+    def enabled_codes(self, today: date | None = None) -> set[str]:
+        """Kody produktów z listy „Kupowane regularnie” z włączonym przełącznikiem (kupony i promocje)."""
+        return {c.art_id for c in self.coupon_candidates(today) if c.enabled}
+
     def set_auto_activate(self, art_id: str, enabled: bool) -> None:
         with self._db:
             if enabled:
@@ -483,6 +487,15 @@ class History:
         cur = self._db.execute("SELECT * FROM coupons WHERE account = ? ORDER BY valid_to, title", (account,))
         names = [d[0] for d in cur.description]
         return [dict(zip(names, row, strict=True)) for row in cur]
+
+    def main_store(self, today: date | None = None) -> str | None:
+        """Sklep z największą liczbą paragonów w ostatnich 365 dniach (kod jak `PL0001`)."""
+        row = self._db.execute(
+            "SELECT store_code FROM tickets WHERE store_code IS NOT NULL AND day >= ?"
+            " GROUP BY store_code ORDER BY COUNT(*) DESC LIMIT 1",
+            (_year_ago(today).isoformat(),),
+        ).fetchone()
+        return row[0] if row else None
 
     def savings_kpi(self, today: date | None = None) -> SavingsKpi:
         """Oszczędności z rabatów na pozycjach (kupony Lidl Plus osobno od promocji); lista API ma to pole
