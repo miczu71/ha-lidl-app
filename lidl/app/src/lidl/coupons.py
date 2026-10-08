@@ -118,20 +118,17 @@ def _amount(discount: str) -> float:
     return float(match.group().replace(",", ".")) if match else float("inf")
 
 
-def _ssc_group(c: Coupon) -> tuple[str, datetime] | None:
-    """Kupony SSC o tym samym tytule i końcu ważności różnią się tylko kwotą; Lidl pozwala aktywować jeden."""
-    return (c.title, c.valid_to) if c.section == "SSC" else None
-
-
 def select(coupons: list[Coupon], codes: set[str], now: datetime) -> list[Coupon]:
-    """Kupony do aktywacji; z grupy SSC tylko ten z najniższą kwotą, a gdy któryś jest już aktywny — żaden."""
+    """Kupony do aktywacji; z SSC tylko ten z najniższą kwotą, a gdy któryś jest już aktywny — żaden.
+
+    Lidl pozwala na jeden aktywny kupon SSC naraz, także przy różnych progach zakupów (kolejne dostają 409).
+    """
     chosen = [c for c in coupons if should_activate(c, codes, now)]
-    keep: set[str] = set()
-    for group in {_ssc_group(c) for c in chosen} - {None}:
-        if not any(c.activated for c in coupons if _ssc_group(c) == group):
-            members = [c for c in chosen if _ssc_group(c) == group]
-            keep.add(min(members, key=lambda c: _amount(c.discount)).promotion_id)
-    return [c for c in chosen if _ssc_group(c) is None or c.promotion_id in keep]
+    ssc = [c for c in chosen if c.section == "SSC"]
+    keep = None
+    if ssc and not any(c.activated for c in coupons if c.section == "SSC"):
+        keep = min(ssc, key=lambda c: _amount(c.discount))
+    return [c for c in chosen if c.section != "SSC" or c is keep]
 
 
 def should_activate(coupon: Coupon, codes: set[str], now: datetime) -> bool:

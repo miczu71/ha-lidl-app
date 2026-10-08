@@ -233,8 +233,9 @@ async def test_ssc_group_activates_only_the_lowest_amount(tmp_path: Path) -> Non
     assert [(a.discount, a.status) for a in report.activations] == [("10 zł rabatu*", "activated")]
 
 
-async def test_ssc_group_is_skipped_when_one_is_already_active(tmp_path: Path) -> None:
-    source = FakeSource(_payload(SSC=[_promo("g10", "Ogólny", [], active=True), _promo("g20", "Ogólny", [])]))
+async def test_ssc_is_skipped_when_any_one_is_already_active(tmp_path: Path) -> None:
+    # Lidl pozwala na jeden aktywny SSC naraz, także przy innym progu zakupów (na żywo 409, 2026-10-08)
+    source = FakeSource(_payload(SSC=[_promo("g10", "Min. 100 zł", [], active=True), _promo("g20", "Min. 200 zł", [])]))
     report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
     assert source.activations == [] and report.activations == []
 
