@@ -139,3 +139,6 @@ tap → panel.
 - [x] E20.4 powiadomienia: linia poranna, job 18:00 (`EVENING`, tag `lidl-zdrapki`) — 2026-10-08.
 - [x] E20.5 panel „Nagrody” (zdrapki, Kupon Plus graficznie, odczyt przy starcie) — 2026-10-08.
 - [x] E20.6 wydanie 0.7.0 — 2026-10-08 ~01:10 na żywo (oba konta: Kupon Plus czytany, zdrapek brak; konsola i log czyste). Do obserwacji: poranne 07:00 i 18:00. Znane: etykiety progów nachodzą przy bliskich progach (50/300/500 zł na początku akcji) → 0.7.1.
+- [x] 0.7.1 (2026-10-08): podpis ma zawsze najbliższy i ostatni próg, pozostałe tylko przy ≥ 20% paska odstępu
+  (`LABEL_GAP`); rabat nagrody bez „*”. Na żywo 390 px: bez nachodzenia. Do obserwacji nadal: przypomnienie 18:00
+  (dziś bez zdrapek, więc nie wyśle się).

@@ -148,8 +148,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
   i ręczną aktywacją; start w trybie próbnym (`auto_activate` wyłączone). Podetapy: E3.0 docs ✅, E3.1 test
   aktywacji ✅, E3.2 dane i logika ✅, E3.3 harmonogram i powiadomienie ✅, E3.4 panel ✅, E3.5 wydanie 0.5.0 ✅ (2026-10-07: 0.5.0 na żywo, `auto_activate`
-  włączone, pierwsza aktywacja 17:09 — kupony aktywne w aplikacji, potwierdzone). Do obserwacji: pierwszy samodzielny
-  poranny przebieg 2026-10-08 07:00.
+  włączone, pierwsza aktywacja 17:09 — kupony aktywne w aplikacji, potwierdzone). **E3 i E14 ZAKOŃCZONE 2026-10-08:**
+  pierwszy samodzielny przebieg 07:00 zaimportował oba konta i aktywował nowe kupony; ujawnił codzienne 409 — Lidl
+  pozwala na jeden aktywny rabat od kwoty zakupów, także między sekcjami („min. 200 zł” leży w AllStores bez kodów
+  artykułów). Poprawka: kupony ogólne to jedna grupa, aktywujemy najniższy, gdy żaden nie jest aktywny (0.7.1 SSC,
+  0.7.2 wszystkie sekcje; „Sprawdź teraz” na 0.7.2 bez 409).
 - **E4 Gazetki:** pobieranie bieżących gazetek, ekstrakcja produktów i cen, dopasowanie do historii. Na wstępie
   sprawdzić, czy któryś model z puli (freellmapi) czyta obrazy stron; jeśli nie, zostaje tekst z PDF.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
