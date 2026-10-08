@@ -74,3 +74,8 @@ par** (22 z drugiego przebiegu + 65 z pierwszego); 27 wątpliwych pominięte. Ce
 produktów, pokrycie 45% → 47%, koszyk −3,8% → −3,9%; stare paragony niekupowane od 6 mies. 316 → 293 produkty (20% → 19%).
 Przykłady scalonej historii: mąka tortowa (od 2021), winogrono jasne 500 g (od 2020), zupa Vifon (od 2022).
 Próg sukcesu 50% nieosiągnięty i nieosiągalny łączeniem nazw — E21 zamknięte.
+
+## Przegląd wątpliwych par (2026-10-08, po E21)
+39 unikalnych par „stara → nowa nazwa” (oba przebiegi): użytkownik przyjął 18 (ta sama rzecz, inny skrót),
+odrzucił 21 (inna ilość/opakowanie, inny wariant lub smak, inny produkt). Import: 107 połączeń (87 + 20 kodów).
+Ceny: porównane 181 → 185 produktów, pokrycie 47% → 48%, koszyk −3,9% bez zmian.

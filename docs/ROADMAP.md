@@ -43,6 +43,8 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - [x] „Show in sidebar” włączone (potwierdzone 2026-10-07).
 - [x] Test rotacji tokenu (2026-10-08): oba konta działają ponad dobę po logowaniu i po kilkunastu restartach
   (każdy wczytuje refresh token z pliku); przebieg 07:00 i „Sprawdź połączenie” 16:57 bez błędu — nowy refresh token jest zapisywany.
+- [ ] Do sprawdzenia 2026-10-09: poranne 07:00 (jednorazowo wszystkie trwające promocje, w tym trafienia gazetki 8–10.10)
+  i przypomnienie o zdrapkach 18:00 (czeka na pierwszą zdrapkę).
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
 
 ## Etapy
@@ -155,7 +157,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   listy kuponowej E11 (zaniżone liczby zakupów) i porównania cen E7. **Wywiad 2026-10-08** (plan:
   `docs/PLAN_E21_laczenie.md`): pary stary `n:` ↔ nowy kod dopasowuje jednorazowo Claude z eksportu, pewne łączą się
   same, wątpliwe do potwierdzenia w Produktach. Podetapy: E21.0 docs ✅, E21.1 eksport (0.14.0, 0.14.1 wszystkie nowe kody) ✅, E21.2 dopasowanie ✅, E21.3 połączenia (uproszczone: import samych pewnych par, bez karty) ✅ 0.14.2.
-  **ZAKOŃCZONE 2026-10-08:** 87 połączeń, pokrycie Cen 45% → 47% — luka to głównie zmiana koszyka, nie nazwy.
+  **ZAKOŃCZONE 2026-10-08:** 87 połączeń, pokrycie Cen 45% → 47% — luka to głównie zmiana koszyka, nie nazwy. Przegląd wątpliwych par: 18 z 39 przyjętych → 107 połączeń, pokrycie 48%.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
@@ -189,7 +191,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   czasie (grupujemy po kodzie — zob. E2), minimalna liczba zakupów i okres do porównania, inflacja koszyka
   jako całości. **Wywiad 2026-10-08** (plan: `docs/PLAN_E7_ceny.md`): cena półkowa główna + zapłacona na wykresie,
   zmiana r/r (mediana 3 mies. vs te same 3 mies. rok wcześniej), koszyk ważony wydatkami 12 mies., nowa zakładka
-  „Ceny”, bez powiadomień. Podetapy: E7.0 rozpoznanie ✅, E7.1 obliczenia ✅, E7.2 zakładka ✅ (makieta zaakceptowana; wykresy z całej historii), E7.3 wydanie 0.13.0 ✅ (pokrycie r/r 30%), E7.4 diagnoza pokrycia ✅ (0.13.1: porównane 30%, niekupowane od 3 mies. 46%, nowe 14%), E7.5 udział starych kodów `n:` ✅ (0.13.2: 20 pp. wydatków to niepołączone stare kody, ~26 pp. rzadkie zakupy), E7.6 okna 6 mies. (0.13.3); łączenie nazw → E21.
+  „Ceny”, bez powiadomień. Podetapy: E7.0 rozpoznanie ✅, E7.1 obliczenia ✅, E7.2 zakładka ✅ (makieta zaakceptowana; wykresy z całej historii), E7.3 wydanie 0.13.0 ✅ (pokrycie r/r 30%), E7.4 diagnoza pokrycia ✅ (0.13.1: porównane 30%, niekupowane od 3 mies. 46%, nowe 14%), E7.5 udział starych kodów `n:` ✅ (0.13.2: 20 pp. wydatków to niepołączone stare kody, ~26 pp. rzadkie zakupy), E7.6 okna 6 mies. (0.13.3); łączenie nazw → E21; E7.7 próg top 5 ≥ 50 zł/rok ✅ (0.14.3). **E7 ZAKOŃCZONE 2026-10-08** (Kiwi: prawdziwe ceny, nie błąd).
 - **E8 Moduł paragonów — przeglądarka historii** (zlecone 2026-10-07; w E2 świadomie pominięta, teraz dochodzi jako
   osobny moduł/zakładka obok Produktów i Kont): lista wszystkich paragonów wraz ze szczegółami do przeglądania.
   Dane już są w bazie (`tickets` + `items`: data, sklep, konto, kwota, pozycje z ilością i ceną, rabaty z podziałem

@@ -90,3 +90,11 @@ podwyżki. Niepołączone stare kody → osobny etap E21.
 w 6 mies. 22% (z tego 20 pp. stare kody `n:`), nie w tych samych miesiącach rok temu 9%, pierwszy zakup w ostatnim
 roku 23% (212 produktów — po części nowe odpowiedniki niepołączonych starych kodów → E21). Top 5 nadal zdominowane
 przez sezonowe warzywa/owoce (melon, czereśnie, kukurydza) — ewentualny próg wydatków do decyzji przy zamknięciu E7.
+
+## E7.7 ✅ 0.14.3 na żywo (2026-10-08) — zamknięcie E7
+Top 5 („Najbardziej podrożały/potaniały”) pokazuje tylko produkty z wydatkami **≥ 50 zł w 12 mies.**
+(`TOP_MIN_SPEND` w `web/prices.py`, decyzja użytkownika); pełna lista i koszyk bez zmian. Na żywo: zamiast
+brzoskwiń (3 zł/rok) i melona (5 zł/rok) — chrupki, jabłka, skyr, tatar, piwo / czereśnie, borówka, mleko UHT.
+Kiwi „1,00 zł”: z wykresu półka ~1,09 zł do ok. 03.2025, potem 1,99 zł i 2,49 zł, zapłacono zwykle ~1,09 zł
+(cena z Lidl Plus) — prawdziwe ceny, nie błąd parsera (zmiana jeszcze w erze NATIVE, więc nie format paragonu).
+Pokrycie po przeglądzie wątpliwych par E21: 48%. **E7 ZAKOŃCZONE.**
