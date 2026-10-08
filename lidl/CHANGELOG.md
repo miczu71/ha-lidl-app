@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- **Obserwowane produkty:** gwiazdka przy produkcie na liście „Kupowane regularnie” (zakładka Kupony). Obserwowane
+  są na górze listy, a licznik „Obserwowane” pokazuje ich liczbę. Gwiazdka włącza też auto-aktywację kuponów
+  produktu; wyłączenie auto-aktywacji zdejmuje gwiazdkę.
+- **Osobne powiadomienie** (obok porannego, które się nie zmienia): po porannym sprawdzeniu i po „Sprawdź teraz”,
+  gdy na obserwowany produkt jest ważny kupon (z kontem) albo promocja startująca dziś. O każdym kuponie i każdej
+  promocji tylko raz.
+
 ## 0.10.1
 
 - **Nowy układ zakładki Kupony:** kupony w tym tygodniu (z zakładkami kont), Nagrody, Efekt kuponów, a na końcu
