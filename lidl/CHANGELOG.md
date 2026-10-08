@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+- **Promocje z gazetki:** add-on czyta cotygodniową gazetkę przez model językowy z obsługą obrazów (opcje
+  **Adres i klucz API modelu językowego**, **Modele wizyjne**; puste = wyłączone). Strony idą w paczkach po 5,
+  w tle; przy limicie modelu add-on przechodzi do następnego z listy. Promocje na produkty z zakładki Kupony
+  trafiają do linii „Promocje od dziś” w porannym powiadomieniu (bez kuponów Lidl Plus — te aktywuje add-on).
+- Każdy produkt w linii „Promocje od dziś” występuje raz, nawet gdy ofertę ma kilka źródeł.
+- Promocje odświeżają się też przy starcie add-onu, więc „Sprawdź teraz” po aktualizacji nie czeka do rana.
+
 ## 0.8.0
 
 - **Promocje od dziś w porannym powiadomieniu:** gdy w sklepie startuje promocja na produkt z listy „Kupowane
