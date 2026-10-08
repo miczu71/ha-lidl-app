@@ -46,6 +46,7 @@ from .products import (
     coupon_rows,
     effect_view,
     import_status,
+    other_rows,
     parse_limit,
     ranking_rows,
     reward_cards,
@@ -330,11 +331,13 @@ def create_app(settings: Settings) -> FastAPI:
         ctx.update(
             effect=effect_view(history, service(request).store.list(), date.today(), datetime.now(UTC)),
             rows=[r for r in regular if matches(r["name"], q)],
-            regular_total=len(regular),
+            regular_total=len(regular),  # wiersze listy, też obserwowane spoza progu
+            products=sum(r["regular"] for r in regular),
             min_purchases=CANDIDATE_MIN_PURCHASES,
-            on=sum(r["on"] for r in regular),
+            on=sum(r["on"] for r in regular if r["regular"]),
             watched=sum(r["watched"] for r in regular),
             no_code=sum(not r["matchable"] for r in regular),
+            others=other_rows(history.other_products(q, {r["id"] for r in regular})) if q else [],
         )
         live = target == "kupony-wyniki"  # wyszukiwanie na żywo: tylko wyniki
         return render(request, "_coupons_results.html" if live else "coupons.html", **ctx)

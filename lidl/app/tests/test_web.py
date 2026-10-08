@@ -730,3 +730,22 @@ def test_coupons_page_shows_the_effect_section(client: TestClient) -> None:
 def test_coupons_page_without_any_data_has_no_effect_section(client: TestClient) -> None:
     _connect(client)
     assert "Efekt kuponów" not in client.get("/kupony").text
+
+
+def test_search_offers_rare_products_and_star_moves_them_onto_the_list(client: TestClient) -> None:
+    _seed_regular(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "rare", "date": "2026-08-01T10:00:00+00:00"}])
+    history.save_detail(
+        "rare", "S", ParsedReceipt(items=[ReceiptItem("333", "Filet z indyka XXL", 1, 30, 30)])
+    )
+    assert "Inne kupowane produkty" not in client.get("/kupony").text  # tylko przy wyszukiwaniu
+    text = client.get("/kupony", params={"q": "indyk"}).text
+    assert "Inne kupowane produkty" in text and 'aria-label="Obserwuj: Filet z indyka XXL"' in text
+    client.post("/kupony/produkt/333/obserwuj", data={"on": "1"})
+    text = client.get("/kupony").text
+    assert "spoza listy" in text and "Inne kupowane produkty" not in text
+    assert 'aria-label="Auto-aktywacja kuponów: Filet z indyka XXL"' not in text  # bez przełącznika
+    assert "<dt>Produkty</dt><dd>2</dd>" in text and "<dt>Obserwowane</dt><dd>1</dd>" in text
+    client.post("/kupony/produkt/333/obserwuj", data={"on": "0"})
+    assert "Filet z indyka XXL" not in client.get("/kupony").text

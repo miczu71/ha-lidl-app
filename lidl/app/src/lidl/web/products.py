@@ -51,18 +51,24 @@ def ranking_rows(ranking: list[RankedProduct], limit: int, link: Callable[..., s
     return rows
 
 
+def _purchases_meta(purchases: int, last_date: str) -> list[str]:
+    return [
+        count_text(purchases, "zakup", "zakupy", "zakupów"),
+        "ostatnio " + fmt_recent(date.fromisoformat(last_date)),
+    ]
+
+
 def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
     """Wiersze „Kupowane regularnie”; obserwowane (E15) na górze, reszta w kolejności rankingu."""
     rows = []
     for c in sorted(candidates, key=lambda c: not c.watched):
-        meta = [
-            count_text(c.purchases, "zakup", "zakupy", "zakupów"),
-            "ostatnio " + fmt_recent(date.fromisoformat(c.last_date)),
-        ]
+        meta = _purchases_meta(c.purchases, c.last_date)
         if c.coupon_uses:
             meta.append(f"kupon {c.coupon_uses}×, {fmt_pln(c.coupon_saved, 2)}")
         if c.promo_saved > 0:
             meta.append(f"promocje {fmt_pln(c.promo_saved, 2)}")
+        if not c.regular:
+            meta.append("spoza listy")
         rows.append(
             {
                 "id": c.art_id,
@@ -71,9 +77,18 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
                 "matchable": c.matchable,
                 "on": c.enabled,
                 "watched": c.watched,
+                "regular": c.regular,
             }
         )
     return rows
+
+
+def other_rows(products: list[RankedProduct]) -> list[dict[str, Any]]:
+    """„Inne kupowane produkty” pod wynikami Szukaj: tylko gwiazdka (E15.4)."""
+    return [
+        {"id": p.art_id, "name": p.name, "meta": _purchases_meta(p.purchases, p.last_date), "watched": False}
+        for p in products
+    ]
 
 
 def coupon_cards(accounts: list[Account], history: History, now: datetime) -> list[dict[str, Any]]:

@@ -121,7 +121,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   `docs/PLAN_E15_obserwowane.md`): E3/E4 już powiadamiają o całej liście E11, więc E15 = **wyróżnienie** kilku
   ważnych produktów — gwiazdka na liście „Kupowane regularnie” (tylko kod artykułu, gwiazdka włącza auto-aktywację),
   lista wspólna, osobny push `notify.family` (tag `lidl-obserwowane`) tylko o nowych kuponach i promocjach od dziś,
-  poranne bez zmian. Podetapy: E15.0 docs ✅, E15.1 dane i powiadomienie ✅, E15.2 panel ✅ (gwiazdka, obserwowane na górze listy), E15.3 wydanie ✅ (0.11.0 na żywo 2026-10-08; test: gwiazdka na 2 produktach + 2× „Sprawdź teraz” → jeden push `lidl-obserwowane`, bez powtórki — potwierdzone na telefonach). **E15 ZAKOŃCZONE.**
+  poranne bez zmian. Podetapy: E15.0 docs ✅, E15.1 dane i powiadomienie ✅, E15.2 panel ✅ (gwiazdka, obserwowane na górze listy), E15.3 wydanie ✅ (0.11.0 na żywo 2026-10-08; test: gwiazdka na 2 produktach + 2× „Sprawdź teraz” → jeden push `lidl-obserwowane`, bez powtórki — potwierdzone na telefonach). **E15 ZAKOŃCZONE.** E15.4 (2026-10-08): gwiazdka także dla produktów spoza listy przez Szukaj w Kuponach („Inne kupowane produkty”), wydanie 0.12.0.
 - **Propozycje z przeglądu rynku** (zlecone 2026-10-07; każdy wymaga wywiadu przed startem, kolejność z użytkownikiem):
   - **E16 Skuteczność auto-aktywacji i licznik efektu** (wywiad 2026-10-08, plan: `docs/PLAN_E16_skutecznosc.md`;
     E16.1 archiwum kuponów zamiast kasowania ✅ 0.9.2 → E16.2 sekcja „Efekt kuponów” w Kuponach ✅ 0.10.0, 2026-10-08;

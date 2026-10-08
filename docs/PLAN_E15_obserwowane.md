@@ -34,6 +34,12 @@ powiadomieniu 07:00, więc kilka naprawdę ważnych produktów w nim ginie. E15 
 - **E15.2 panel** ✅ (gwiazdka; zamiast filtra obserwowane na górze listy — decyzja 2026-10-08; weryfikacja w przeglądarce: komputer i telefon, serwer dev `LIDL_DEV=1`).
 - **E15.3 wydanie 0.11.0** ✅ (2026-10-08, push potwierdzony na telefonach, bez powtórki) skillem `release` (opublikowany release, aktualizacja w Supervisorze, weryfikacja na żywo:
   gwiazdka na 1–2 produktach, „Sprawdź teraz”).
+- **E15.4 gwiazdka także spoza listy** (prośba 2026-10-08: „Filet z indyka XXL” kupiony 1×, poza progiem 3 zakupów/12 mies.):
+  Szukaj w „Kupowane regularnie” pokazuje pod spodem „Inne kupowane produkty” (kod artykułu, kupione kiedykolwiek, do 20);
+  gwiazdka przenosi produkt na górę listy z dopiskiem „spoza listy”, bez przełącznika (gwiazdka = auto-aktywacja).
+  Produkt z gwiazdką jest kandydatem w `coupon_candidates()` (`regular=False`, zakupy z całej historii), więc kupony
+  (E3), promocje (E4) i gazetka obejmują go bez wyjątków. Produkty z samym `n:<EAN>` i nigdy niekupione — poza zakresem.
+  Wydanie 0.12.0.
 
 ## Weryfikacja
 `pytest`, `ruff`, `mypy` lokalnie i zielone CI; dev: gwiazdka przeżywa przeładowanie, filtr działa; na żywo po 0.11.0:

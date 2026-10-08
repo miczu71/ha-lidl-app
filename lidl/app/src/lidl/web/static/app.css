@@ -196,6 +196,7 @@ select.field { appearance: auto; }
 /* Kupowane regularnie: kolumna gwiazdki (44 px) + kolumna przełącznika; status „bez kodu kuponu” w drugiej. */
 .cp__side--ctl { width: auto; display: grid; grid-template-columns: 44px 152px; align-items: center; }
 .cp__side--ctl > .status { grid-column: 2; justify-self: start; }
+h3.cp-others { margin: var(--space-5) 0 var(--space-1); font: 700 18px/24px var(--font-sans); }
 .cp form, .kt-run form { margin: 0; }
 .cp__side--stack { width: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
 .cp__side--stack .status { margin-left: 0; white-space: nowrap; }
@@ -237,7 +238,7 @@ select.field { appearance: auto; }
 .star[aria-pressed="true"] .ic { fill: var(--amber); }
 @media (max-width: 479px) {
   .cp__side { width: auto; }
-  .cp__side--ctl { grid-template-columns: 44px auto; }
+  .cp__side--ctl { grid-template-columns: 44px minmax(60px, auto); } /* 60 px = przełącznik bez podpisu; wiersze bez niego trzymają kolumnę gwiazdek */
   .sw__txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .sw__track, .sw__track::after, .star .ic { transition: none; } }

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
+from .text import matches
 
 if TYPE_CHECKING:
     from .coupons import Coupon
@@ -145,6 +146,7 @@ class CouponCandidate:
     matchable: bool  # kod z paragonu HTML = kod w `articleIds` kuponu; `n:<EAN>` się nie dopasuje
     enabled: bool  # do auto-aktywacji w E3 (domyślnie tak, chyba że odznaczony)
     watched: bool  # gwiazdka E15: osobne powiadomienie o kuponach i promocjach
+    regular: bool = True  # False: spoza progu, na liście tylko dzięki gwiazdce (zakupy z całej historii)
 
 
 @dataclass(frozen=True)
@@ -490,30 +492,48 @@ class History:
 
     def coupon_candidates(self, today: date | None = None) -> list[CouponCandidate]:
         """Produkty kupowane regularnie (≥ `CANDIDATE_MIN_PURCHASES` paragonów w ostatnich 365 dniach, cały
-        dom) — kandydaci do auto-aktywacji kuponów. Zapisujemy tylko odznaczenia, więc nowy jest włączony."""
+        dom) — kandydaci do auto-aktywacji kuponów. Zapisujemy tylko odznaczenia, więc nowy jest włączony.
+        Do tego produkty z gwiazdką spoza progu (E15.4, `regular=False`, zakupy z całej historii, zawsze
+        włączone) — kupony, promocje i gazetka obejmują je tak samo."""
         opted_out = {r[0] for r in self._db.execute("SELECT art_id FROM coupon_optout")}
         watched = self.watched_codes()
-        out = []
-        for key, p in self._products(_year_ago(today)).items():
-            if len(p["tickets"]) < CANDIDATE_MIN_PURCHASES:
-                continue
+
+        def candidate(key: str, p: dict[str, Any], regular: bool) -> CouponCandidate:
             matchable = not key.startswith("n:")
-            out.append(
-                CouponCandidate(
-                    key,
-                    p["name"],
-                    len(p["tickets"]),
-                    p["last"],
-                    p["uses"],
-                    round(-p["coupon"], 2),
-                    round(p["coupon"] - p["discount"], 2),
-                    matchable,
-                    matchable and key not in opted_out,
-                    matchable and key in watched,
-                )
+            return CouponCandidate(
+                key,
+                p["name"],
+                len(p["tickets"]),
+                p["last"],
+                p["uses"],
+                round(-p["coupon"], 2),
+                round(p["coupon"] - p["discount"], 2),
+                matchable,
+                matchable and key not in opted_out,  # gwiazdka kasuje odznaczenie (`set_watched`)
+                matchable and key in watched,
+                regular,
             )
+
+        out = [
+            candidate(key, p, True)
+            for key, p in self._products(_year_ago(today)).items()
+            if len(p["tickets"]) >= CANDIDATE_MIN_PURCHASES
+        ]
+        extra = watched - {c.art_id for c in out}
+        if extra:
+            out += [candidate(key, p, False) for key, p in self._products().items() if key in extra]
         out.sort(key=lambda c: (-c.purchases, c.name))
         return out
+
+    def other_products(self, query: str, listed: set[str], limit: int = 20) -> list[RankedProduct]:
+        """Kupione kiedykolwiek produkty z kodem artykułu spoza listy `listed` („Kupowane regularnie”)
+        pasujące do frazy — do nadania gwiazdki (E15.4)."""
+        found = [
+            r
+            for r in self.ranking()
+            if not r.art_id.startswith("n:") and r.art_id not in listed and matches(r.name, query)
+        ]
+        return found[:limit]
 
     def enabled_candidates(self, today: date | None = None) -> list[CouponCandidate]:
         """Lista „Kupowane regularnie” z włączonym przełącznikiem (kupony, promocje, gazetka)."""

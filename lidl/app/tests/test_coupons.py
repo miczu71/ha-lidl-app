@@ -359,3 +359,40 @@ def test_watched_sent_keys_are_remembered(tmp_path: Path) -> None:
     history.mark_watched_sent(["c:osoba-1:p1", "p:222:2026-10-07"], "t1")
     history.mark_watched_sent(["c:osoba-1:p1"], "t2")
     assert history.watched_sent_keys() == {"c:osoba-1:p1", "p:222:2026-10-07"}
+
+
+def _with_rare(h: History) -> History:
+    """Filet kupiony raz (kod HTML) i stary produkt bez kodu kuponu — oba poniżej progu listy."""
+    h.upsert_tickets("osoba-1", [{"id": "rare", "date": "2026-08-01T10:00:00+00:00"}])
+    h.save_detail(
+        "rare",
+        "S",
+        ParsedReceipt(
+            items=[
+                ReceiptItem("333", "Filet z indyka XXL", 1, 30, 30),
+                ReceiptItem("n:5", "Filet stary", 1, 9, 9),
+            ]
+        ),
+    )
+    return h
+
+
+def test_star_outside_the_list_makes_a_rare_product_a_candidate(tmp_path: Path) -> None:
+    history = _with_rare(_history(tmp_path))
+    assert "333" not in history.enabled_codes(NOW.date())
+    listed = {c.art_id for c in history.coupon_candidates(NOW.date())}
+    assert [p.art_id for p in history.other_products("filet", listed)] == ["333"]  # bez `n:` i bez listy
+    history.set_watched("333", True)
+    rare = next(c for c in history.coupon_candidates(NOW.date()) if c.art_id == "333")
+    assert (rare.regular, rare.enabled, rare.watched, rare.purchases) == (False, True, True, 1)
+    assert "333" in history.enabled_codes(NOW.date())
+    listed = {c.art_id for c in history.coupon_candidates(NOW.date())}
+    assert history.other_products("filet", listed) == []
+
+
+async def test_coupon_on_a_starred_rare_product_is_activated(tmp_path: Path) -> None:
+    history = _with_rare(_history(tmp_path))
+    history.set_watched("333", True)
+    source = FakeSource(_payload(AllStores=[_promo("p9", "Filet z indyka", ["333"])]))
+    await _runner(source, history).run("osoba-1", dry_run=False)
+    assert source.activations == ["p9"]
