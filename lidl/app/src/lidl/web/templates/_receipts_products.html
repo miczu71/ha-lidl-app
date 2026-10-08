@@ -1,0 +1,13 @@
+{% from "_macros.html" import no_match %}
+<div id="paragony-produkty" class="live">
+  {% if q %}
+  <p class="sum">{% if found > products|length %}Pierwsze {{ products|length }} z {{ found }}{% else %}{{ found }}{% endif %} · <a href="{{ clear_href }}">wyczyść</a></p>
+  <ul class="rklist" aria-label="Pasujące produkty">
+    {% for p in products %}
+    <li><a class="pr" href="{{ p.href }}"><span class="pr__name">{{ p.name }}</span><span class="pr__meta">{% for m in p.meta %}<span>{{ m }}</span>{% endfor %}</span></a></li>
+    {% else %}
+    {{ no_match(q, " na naszych paragonach") }}
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

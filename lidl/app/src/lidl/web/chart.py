@@ -102,6 +102,11 @@ def fmt_month_year_genitive(d: date) -> str:
     return f"{_GENITIVE[d.month - 1]} {d.year}"
 
 
+def fmt_month_year(d: date) -> str:
+    """„Październik 2026” (nagłówek miesiąca)."""
+    return f"{_FULL[d.month - 1].capitalize()} {d.year}"
+
+
 def _group(value: str) -> str:
     return value.replace(",", " ")
 

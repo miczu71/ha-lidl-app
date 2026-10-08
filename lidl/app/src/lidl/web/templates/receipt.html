@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ "Paragon " ~ receipt.when if receipt else "Paragon" }} — Lidl Plus{% endblock %}
+{% block bar %}<a class="back" href="{{ back }}" aria-label="{{ 'Wróć do zakupów produktu' if from_product else 'Wróć do paragonów' }}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Paragony</span>{% endblock %}
+{% block main %}
+{% if not receipt %}
+<h1 class="t">Nie ma takiego paragonu</h1>
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Tego paragonu nie ma w historii. Wróć do listy i wybierz go jeszcze raz.</span>
+</p>
+{% else %}
+<div>
+  <h1 class="t">{{ receipt.when }}</h1>
+  <p class="lead">{{ receipt.store }}</p>
+</div>
+<dl class="facts">
+  <div><dt>Zapłacono</dt><dd>{{ receipt.total }}</dd></div>
+  {% if receipt.savings %}<div><dt>Rabaty</dt><dd class="save">{{ receipt.savings }}</dd></div>{% endif %}
+  <div><dt>Konto</dt><dd>{{ receipt.account }}</dd></div>
+  {% if receipt.payment %}<div><dt>Płatność</dt><dd>{{ receipt.payment }}</dd></div>{% endif %}
+</dl>
+
+{% if receipt.status != 'ok' %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>{% if receipt.status == 'pending' %}Pozycje tego paragonu nie są jeszcze pobrane. Pobierają się razem z historią w zakładce Produkty.{% else %}Nie udało się odczytać pozycji tego paragonu. Znamy tylko datę, sklep i kwotę.{% endif %}</span>
+</p>
+{% endif %}
+
+{% if receipt.lines %}
+<section class="card" aria-labelledby="poz-h">
+  <div>
+    <h2 class="s" id="poz-h">Pozycje</h2>
+    <p class="sum">{{ receipt.positions }}{% if receipt.hits %} · szukany produkt jest wyróżniony{% endif %}</p>
+  </div>
+  <ul class="rl-list">
+    {% for x in receipt.lines %}
+    <li class="rl{% if x.hit %} rl--hit{% endif %}"{% if x.anchor %} id="szukany"{% endif %}>
+      <div class="rl__main">
+        <a class="rl__name" href="{{ x.href }}">{{ x.name }}</a>
+        {% if x.qty or x.hit %}<span class="rl__sub">{% if x.qty %}<span>{{ x.qty }}</span>{% endif %}{% if x.hit %}<span class="tag tag--own">Szukany produkt</span>{% endif %}</span>{% endif %}
+      </div>
+      <span class="rl__amt">{{ x.total }}</span>
+      {% for d in x.discounts %}<span class="rl__disc"><span>{{ d.label }}</span><span>{{ d.amount }}</span></span>{% endfor %}
+    </li>
+    {% endfor %}
+  </ul>
+  <dl class="bill">
+    {% for s in receipt.summary %}<div><dt>{{ s.label }}</dt><dd>{{ s.value }}</dd></div>{% endfor %}
+    <div class="bill__total"><dt>Zapłacono</dt><dd>{{ receipt.total }}</dd></div>
+  </dl>
+</section>
+{% endif %}
+
+{% if receipt.coupons %}
+<section class="card" aria-labelledby="kup-h">
+  <h2 class="s" id="kup-h">Użyte kupony</h2>
+  <ul class="cplist">
+    {% for c in receipt.coupons %}<li class="cp"><div class="cp__txt"><span class="cp__name">{{ c.coupon_title or c.title }}</span>{% if c.description %}<span class="cp__meta"><span>{{ c.description }}</span></span>{% endif %}</div>{% if c.discount %}<span class="pr__amt">{{ c.discount }}</span>{% endif %}</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

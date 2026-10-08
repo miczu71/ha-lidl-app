@@ -17,3 +17,8 @@
 {% macro price_row(r, spend=false) %}
 <li><a class="pr" href="{{ r.href }}"><span class="pr__name">{{ r.name }}</span><span class="pr__meta"><span>{{ r.prices }}</span>{% if spend %}<span>{{ r.spend }}</span>{% endif %}</span>{% set d = r.delta %}{% include "_delta.html" %}</a></li>
 {% endmacro %}
+
+{# Wiersz paragonu albo zakupu (E8): cały wiersz prowadzi do paragonu; kwota po prawej. `r.discounts` tylko przy zakupie produktu #}
+{% macro ticket_row(r) %}
+<li><a class="pr pr--amt" href="{{ r.href }}"><span class="pr__name">{{ r.when }}</span><span class="pr__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}{% if r.savings %}<span class="pr__save">{{ r.savings }}</span>{% endif %}{% for d in r.discounts or [] %}<span class="pr__save">{{ d.label }} {{ d.amount }}</span>{% endfor %}{% if r.status %}<span><span class="tag">{{ r.status }}</span></span>{% endif %}</span><span class="pr__amt">{{ r.total or r.paid }}</span></a></li>
+{% endmacro %}

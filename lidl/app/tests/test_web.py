@@ -891,3 +891,102 @@ def test_merge_import_replaces_pairs_and_empty_list_undoes(client: TestClient) -
     r = client.post("/produkty/laczenie/import", json=[{"old": "n:9", "new": "0000009"}])
     assert r.status_code == 200 and r.json() == {"merges": 1}
     assert client.post("/produkty/laczenie/import", json=[]).json() == {"merges": 0}
+
+
+def _seed_receipts(client: TestClient) -> None:
+    """Paragon HTML z kuponem i kaucją, starszy NATIVE pod starą nazwą (`merges`), paragon bez pozycji."""
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets(
+        "osoba-1",
+        [
+            {"id": "t-new", "date": "2026-10-05T10:00:00+00:00", "totalAmount": 13.0, "storeCode": "PL0002"},
+            {"id": "t-old", "date": "2025-03-02T10:00:00+00:00", "totalAmount": 12.0, "storeCode": "PL0001"},
+            {"id": "t-wait", "date": "2026-10-06T10:00:00+00:00", "totalAmount": 7.0, "storeCode": "PL0002"},
+        ],
+    )
+    store = {"code": "PL0002", "name": "Miasto A Ulica B", "address": "", "postal": "", "locality": ""}
+    history.save_detail(
+        "t-new",
+        None,
+        ParsedReceipt(
+            items=[
+                ReceiptItem("555", "Filet z indyka XXL", 1, 11.0, 11.0, discount=-2.5, coupon=-2.0,
+                            promo="Lidl Plus kupon; Rabat grupowy"),
+                ReceiptItem("111", "Mleko UHT", 2, 2.0, 4.0),
+            ],
+            purchased_at="2026-10-05T19:39:20",
+            store=store,
+            payment="Karta",
+            deposit_charged=0.5,
+        ),
+    )  # fmt: skip
+    history.save_detail(
+        "t-old", None, ParsedReceipt(items=[ReceiptItem("n:5", "Fil.z ind.XXL", 1, 12.0, 12.0)])
+    )
+    history.set_merges([("n:5", "555")])
+
+
+def test_receipts_tab_lists_months_with_totals_and_statuses(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony")
+    assert r.status_code == 200 and 'aria-current="page">Paragony' in r.text
+    assert "Październik 2026" in r.text and "2 paragony · 20,00 zł" in r.text
+    assert "Marzec 2025" in r.text
+    assert "pon 5 paź, 19:39" in r.text
+    assert "Miasto A Ulica B" in r.text and "taniej o 2,50 zł" in r.text and "Bez pozycji" in r.text
+
+
+def test_receipts_filters_and_live_list(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony?sklep=PL0001", headers={"hx-target": "paragony-lista"})
+    assert 'id="paragony-lista"' in r.text and "<h1" not in r.text
+    assert "Marzec 2025" in r.text and "Październik 2026" not in r.text
+    bad = client.get("/paragony?od=2026-10-10&do=2026-10-01")
+    assert "późniejsza" in bad.text and "Październik 2026" not in bad.text
+    none = client.get("/paragony?od=2027-01-01")
+    assert "Żaden paragon nie pasuje" in none.text
+
+
+def test_receipts_more_link_after_limit(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony?limit=1")
+    assert "Pokaż więcej" in r.text and "limit=31" in r.text
+    assert "Marzec 2025" not in r.text
+
+
+def test_receipts_search_finds_old_names_and_links_purchases(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony?q=fil.z", headers={"hx-target": "paragony-produkty"})
+    assert 'id="paragony-produkty"' in r.text and "<h1" not in r.text
+    assert "Filet z indyka XXL" in r.text and "2 zakupy" in r.text
+    assert "/paragony/produkt/555?q=fil.z" in r.text
+    assert "Nic nie pasuje" in client.get("/paragony?q=chleb").text
+
+
+def test_receipt_detail_shows_lines_discounts_and_bill(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony/t-new?produkt=555")
+    assert r.status_code == 200
+    assert "pon 5 paź 2026, 19:39" in r.text and "Karta" in r.text
+    assert 'class="rl rl--hit" id="szukany"' in r.text and "Szukany produkt" in r.text
+    assert "Kupon Lidl Plus" in r.text and "Rabat grupowy" in r.text and "−0,50 zł" in r.text
+    assert "2 pozycje · szukany produkt" in r.text and "built-in" not in r.text
+    assert "2 × 2,00 zł" in r.text and "Kaucje pobrane" in r.text and "+0,50 zł" in r.text
+    assert "/paragony/produkt/555" in r.text  # powrót do zakupów produktu
+    assert "nie są jeszcze pobrane" in client.get("/paragony/t-wait").text
+    assert client.get("/paragony/brak").status_code == 404
+
+
+def test_product_purchases_page_summary_and_rows(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony/produkt/555?q=indyk")
+    assert r.status_code == 200
+    assert "Kupiony na 2 paragonach, ostatnio 5 paź 2026" in r.text and "Fil.z ind.XXL" in r.text
+    assert "2 szt." in r.text and "20,50 zł" in r.text and "11,00–12,00 zł" in r.text
+    assert "/paragony/t-new?produkt=555#szukany" in r.text and "/ceny/produkt/555" in r.text
+    assert "/paragony?q=indyk" in r.text
+    assert client.get("/paragony/produkt/999").status_code == 404
+
+
+def test_receipts_without_history_say_where_to_import(client: TestClient) -> None:
+    assert "Pobierz ją w zakładce Produkty" in client.get("/paragony").text

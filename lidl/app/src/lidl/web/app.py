@@ -52,12 +52,22 @@ from .products import (
     ranking_rows,
     reward_cards,
 )
+from .receipts import (
+    TICKETS_LIMIT,
+    detail_view,
+    month_groups,
+    parse_filter,
+    parse_tickets_limit,
+    product_rows,
+    purchases_view,
+)
 
 log = logging.getLogger(__name__)
 
 HERE = Path(__file__).parent
 INGRESS_PROXY = "172.30.32.2"
 PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
+RECEIPT_PARAMS = ("q", "konto", "sklep", "od", "do", "limit")
 
 LOGIN_ERRORS = {
     "token_rejected": "Lidl odrzucił kod: wygasł albo został już użyty. Zaloguj się od nowa.",
@@ -380,6 +390,90 @@ def create_app(settings: Settings) -> FastAPI:
             return render(request, "prices_product.html", product=None, status_code=404)
         spend = f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres"
         return render(request, "prices_product.html", product=product_view(prices, today), spend=spend)
+
+    def receipt_href(request: Request, ticket_id: str, product: str = "") -> str:
+        query = f"?{urlencode({'produkt': product})}#szukany" if product else ""
+        return f"{base(request)}/paragony/{quote(ticket_id, safe='')}{query}"
+
+    def purchases_href(request: Request, art_id: str, q: str = "") -> str:
+        query = f"?{urlencode({'q': q})}" if q else ""
+        return f"{base(request)}/paragony/produkt/{quote(art_id, safe=':')}{query}"
+
+    def account_labels(request: Request) -> dict[str, str]:
+        return {a.slug: a.label for a in service(request).store.list()}
+
+    @app.get("/paragony")
+    async def receipts(request: Request) -> Response:
+        history: History = request.app.state.history
+        params = dict(request.query_params)
+        labels = account_labels(request)
+        q = params.get("q", "").strip()
+
+        def link(**over: object) -> str:
+            return query_link(request, "/paragony", params, RECEIPT_PARAMS, **over)
+
+        found = history.ranking(query=q) if q else []
+        ctx: dict[str, Any] = {
+            "section": "paragony",
+            "q": q,
+            "found": len(found),
+            "products": product_rows(found, lambda a: purchases_href(request, a, q)),
+            "clear_href": link(q=""),
+        }
+        target = request.headers.get("hx-target")
+        if target == "paragony-produkty":  # wyszukiwanie na żywo: tylko wyniki
+            return render(request, "_receipts_products.html", **ctx)
+        f, bad = parse_filter(params, set(labels))
+        limit = parse_tickets_limit(params.get("limit"))
+        tickets, total = ([], 0) if bad else history.tickets(f, limit)
+        groups = month_groups(
+            tickets, {} if bad else history.ticket_months(f), labels, lambda t: receipt_href(request, t)
+        )
+        ctx.update(
+            f=f,
+            bad=bad,
+            od=params.get("od", ""),
+            do=params.get("do", ""),
+            accounts=labels,
+            stores=history.stores(),
+            groups=groups,
+            total=total,
+            filtered=any((f.account, f.store, f.start, f.end)),
+            has_history=history.ticket_count() > 0,
+            more_href=link(limit=limit + TICKETS_LIMIT) if total > len(tickets) else None,
+        )
+        if target == "paragony-lista":  # filtry na żywo: tylko lista
+            return render(request, "_receipts_list.html", **ctx)
+        return render(request, "receipts.html", **ctx)
+
+    @app.get("/paragony/produkt/{art_id}")
+    async def receipt_product(request: Request, art_id: str, q: str = "") -> Response:
+        history: History = request.app.state.history
+        back = f"{base(request)}/paragony" + (f"?{urlencode({'q': q})}" if q else "")
+        purchases = history.product_purchases(art_id)
+        if not purchases:
+            return render(request, "receipt_product.html", product=None, back=back, status_code=404)
+        priced = any(p.line.quantity > 0 and p.line.unit_price > 0 for p in purchases)
+        return render(
+            request,
+            "receipt_product.html",
+            product=purchases_view(
+                purchases, account_labels(request), lambda t: receipt_href(request, t, art_id)
+            ),
+            back=back,
+            prices_href=f"{base(request)}/ceny/produkt/{quote(art_id, safe=':')}" if priced else None,
+            spend_href=f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres",
+        )
+
+    @app.get("/paragony/{ticket_id}")
+    async def receipt(request: Request, ticket_id: str, produkt: str = "") -> Response:
+        history: History = request.app.state.history
+        back = purchases_href(request, produkt) if produkt else f"{base(request)}/paragony"
+        d = history.ticket(ticket_id)
+        if d is None:
+            return render(request, "receipt.html", receipt=None, back=back, status_code=404)
+        view = detail_view(d, account_labels(request), produkt or None, lambda a: purchases_href(request, a))
+        return render(request, "receipt.html", receipt=view, back=back, from_product=bool(produkt))
 
     @app.get("/kupony")
     async def coupons(request: Request) -> Response:

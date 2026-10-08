@@ -348,3 +348,37 @@ a.pr:hover .pr__name { color: var(--blue); text-decoration: underline; }
 .pr__meta span { white-space: nowrap; }
 .pr .pc { grid-area: pc; justify-self: end; }
 .pr::after { content: ""; grid-area: chev; width: 20px; height: 20px; background: var(--ink-muted); mask: var(--i-chev) center / contain no-repeat; -webkit-mask: var(--i-chev) center / contain no-repeat; }
+
+/* Paragony (E8): miesiące, wiersz z kwotą, pozycje paragonu z rabatami, rozliczenie do kwoty zapłaconej */
+.pr--amt { grid-template-areas: "name amt chev" "meta amt chev"; }
+.pr__amt { grid-area: amt; justify-self: end; font: 800 16px/22px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cp .pr__amt { flex: none; }
+.pr__save { color: var(--green-deep); }
+.mo { display: flex; flex-direction: column; gap: var(--space-1); }
+.mo__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--space-3); padding-bottom: var(--space-1); border-bottom: 1.5px solid var(--control-border); }
+.mo__head h3 { margin: 0; font: 700 18px/24px var(--font-sans); }
+.mo__head .meta { font-variant-numeric: tabular-nums; }
+.mo .pr:first-child, .mo li:first-child > .pr { border-top: 0; }
+.f--narrow { max-width: 420px; }
+.facts dd.save { color: var(--green-deep); }
+.rl-list { list-style: none; margin: 0; padding: 0; }
+.rl { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-3); row-gap: 2px; padding: var(--space-3) 0; border-top: 1.5px solid var(--line); scroll-margin-top: var(--space-5); }
+.rl:first-child { border-top: 0; }
+.rl--hit { margin: 0 calc(-1 * var(--space-3)); padding-left: var(--space-3); padding-right: var(--space-3); border-radius: var(--radius-sm); border-top-color: transparent; background: var(--blue-wash); }
+.rl--hit + .rl { border-top-color: transparent; }
+.rl__main { min-width: 0; display: flex; flex-direction: column; }
+.rl__name { align-self: flex-start; color: var(--ink); font: 700 16px/22px var(--font-sans); overflow-wrap: anywhere; text-decoration: none; }
+.rl__name:hover { color: var(--blue); text-decoration: underline; }
+.rl__sub { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); color: var(--ink-muted); font: 400 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.rl__amt { font: 700 16px/22px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rl__disc { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: var(--space-3); color: var(--green-deep); font: 600 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.rl__disc span:last-child { white-space: nowrap; }
+.bill { margin: 0; padding-top: var(--space-3); border-top: 1.5px solid var(--control-border); display: flex; flex-direction: column; gap: var(--space-1); }
+.bill div { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--ink-muted); font: 400 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.bill dd { margin: 0; white-space: nowrap; }
+.bill .bill__total { margin-top: var(--space-1); color: var(--ink); font: 800 18px/24px var(--font-sans); }
+/* Pięć zakładek w jednym rzędzie na telefonie (od 360 px) */
+@media (max-width: 479px) {
+  .nav { flex-wrap: nowrap; gap: var(--space-1); }
+  .nav .ds-chip { flex: 1 1 auto; justify-content: center; padding: 0 6px; }
+}

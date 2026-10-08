@@ -15,6 +15,7 @@
     {% if section %}<nav class="nav" aria-label="Sekcje">
       <a class="ds-chip{% if section == 'produkty' %} ds-chip--on{% endif %}" href="{{ base }}/produkty"{% if section == 'produkty' %} aria-current="page"{% endif %}>Produkty</a>
       <a class="ds-chip{% if section == 'ceny' %} ds-chip--on{% endif %}" href="{{ base }}/ceny"{% if section == 'ceny' %} aria-current="page"{% endif %}>Ceny</a>
+      <a class="ds-chip{% if section == 'paragony' %} ds-chip--on{% endif %}" href="{{ base }}/paragony"{% if section == 'paragony' %} aria-current="page"{% endif %}>Paragony</a>
       <a class="ds-chip{% if section == 'kupony' %} ds-chip--on{% endif %}" href="{{ base }}/kupony"{% if section == 'kupony' %} aria-current="page"{% endif %}>Kupony</a>
       <a class="ds-chip{% if section == 'konta' %} ds-chip--on{% endif %}" href="{{ base }}/"{% if section == 'konta' %} aria-current="page"{% endif %}>Konta</a>
     </nav>{% endif %}

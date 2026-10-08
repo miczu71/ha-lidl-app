@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name if product else "Produkt" }} — Paragony — Lidl Plus{% endblock %}
+{% from "_macros.html" import ticket_row %}
+{% block bar %}<a class="back" href="{{ back }}" aria-label="Wróć do paragonów"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Paragony</span>{% endblock %}
+{% block main %}
+{% if not product %}
+<h1 class="t">Nie ma takiego produktu</h1>
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Ten produkt nie występuje na naszych paragonach. Wróć do paragonów i wyszukaj go jeszcze raz.</span>
+</p>
+{% else %}
+<div>
+  <h1 class="t">{{ product.name }}</h1>
+  <p class="lead">Kupiony na {{ product.count }}, ostatnio {{ product.last }}.{% if product.other_names %} Na starszych paragonach także jako: {{ product.other_names|join(", ") }}.{% endif %}</p>
+</div>
+<dl class="facts">
+  <div><dt>Razem kupiliśmy</dt><dd>{{ product.quantity }}</dd></div>
+  <div><dt>Wydaliśmy</dt><dd>{{ product.spent }}</dd></div>
+  <div><dt>Cena na półce</dt><dd>{{ product.price }}</dd></div>
+</dl>
+<div class="acts">
+  {% if prices_href %}<a class="ds-btn ds-btn--secondary" href="{{ prices_href }}">Cena w czasie</a>{% endif %}
+  <a class="ds-btn ds-btn--secondary" href="{{ spend_href }}">Wydatki na ten produkt</a>
+</div>
+<section class="card" aria-labelledby="zak-h">
+  <div>
+    <h2 class="s" id="zak-h">Zakupy</h2>
+    <p class="sum">Od najnowszych · kwota po rabatach · dotknij, żeby zobaczyć paragon</p>
+  </div>
+  <ul class="rklist" aria-labelledby="zak-h">
+    {% for r in product.rows %}{{ ticket_row(r) }}{% endfor %}
+  </ul>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,19 @@
+{% from "_macros.html" import ticket_row %}
+<div id="paragony-lista" class="live stack">
+  {% if bad %}
+  <p class="err" id="blad-zakresu" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>Data „Od” jest późniejsza niż „Do”. Zamień je miejscami.</p>
+  {% elif not groups %}
+  <p class="meta">{% if filtered %}Żaden paragon nie pasuje do tych filtrów.{% else %}Brak paragonów.{% endif %}</p>
+  {% else %}
+  {% if filtered %}<p class="sum">Pasuje <strong>{{ total }}</strong> · <a href="{{ base }}/paragony">wyczyść filtry</a></p>{% endif %}
+  {% for g in groups %}
+  <section class="mo" aria-labelledby="m-{{ g.key }}">
+    <div class="mo__head"><h3 id="m-{{ g.key }}">{{ g.title }}</h3><span class="meta">{{ g.meta }}</span></div>
+    <ul class="rklist">
+      {% for r in g.rows %}{{ ticket_row(r) }}{% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+  {% if more_href %}<div><a class="ds-btn ds-btn--secondary" href="{{ more_href }}" hx-get="{{ more_href }}" hx-target="#paragony-lista" hx-select="#paragony-lista" hx-swap="outerHTML" hx-replace-url="true">Pokaż więcej</a></div>{% endif %}
+  {% endif %}
+</div>

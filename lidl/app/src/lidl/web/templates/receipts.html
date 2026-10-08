@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Paragony — Lidl Plus{% endblock %}
+{% from "_macros.html" import search_input %}
+{% block main %}
+<div>
+  <h1 class="t">Paragony</h1>
+  <p class="lead">Kiedy, gdzie i za ile kupiliśmy dany produkt. Wpisz nazwę, żeby zobaczyć wszystkie zakupy.</p>
+</div>
+
+{% if not has_history %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Brak historii zakupów. Pobierz ją w zakładce Produkty.</span>
+</p>
+{% else %}
+<section class="card" aria-labelledby="szukaj-h">
+  <div>
+    <h2 class="s" id="szukaj-h">Szukaj produktu</h2>
+    <p class="sum">W całej historii, także pod starymi nazwami ze starszych paragonów</p>
+  </div>
+  {# pole należy też do formularza filtrów: fraza zostaje w adresie przy zmianie filtrów i odwrotnie #}
+  {{ search_input(q, "Nazwa produktu", "np. filet z indyka, kawa", base ~ "/paragony", "paragony-produkty", form="filtry-paragonow") }}
+  {% include "_receipts_products.html" %}
+</section>
+
+<section class="card" aria-labelledby="lista-h">
+  <h2 class="s" id="lista-h">Wszystkie paragony</h2>
+  <form class="ctl" id="filtry-paragonow" method="get" action="{{ base }}/paragony" hx-get="{{ base }}/paragony" hx-trigger="change, submit" hx-target="#paragony-lista" hx-select="#paragony-lista" hx-swap="outerHTML" hx-indicator="#paragony-lista" hx-replace-url="true" hx-sync="this:replace">
+    {% if accounts|length > 1 %}
+    <fieldset>
+      <legend>Konto</legend>
+      <div class="seg seg--narrow">
+        <label><input type="radio" name="konto" value=""{% if not f.account %} checked{% endif %}><span>Wszystkie</span></label>
+        {% for slug, label in accounts.items() %}<label><input type="radio" name="konto" value="{{ slug }}"{% if f.account == slug %} checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+      </div>
+    </fieldset>
+    {% endif %}
+    <div class="f f--narrow">
+      <label for="sklep">Sklep</label>
+      <select class="field" id="sklep" name="sklep">
+        <option value="">Wszystkie sklepy</option>
+        {% for s in stores %}<option value="{{ s.code }}"{% if f.store == s.code %} selected{% endif %}>{{ s.name }} ({{ s.tickets }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="ctl__dates">
+      <div class="f">
+        <label for="od">Od</label>
+        <input class="field{% if bad %} field--err{% endif %}" id="od" name="od" type="date" value="{{ od }}"{% if bad %} aria-invalid="true" aria-describedby="blad-zakresu"{% endif %}>
+      </div>
+      <div class="f">
+        <label for="do">Do</label>
+        <input class="field{% if bad %} field--err{% endif %}" id="do" name="do" type="date" value="{{ do }}"{% if bad %} aria-invalid="true" aria-describedby="blad-zakresu"{% endif %}>
+      </div>
+    </div>
+    <noscript><div><button class="ds-btn" type="submit">Pokaż</button></div></noscript>
+  </form>
+  {% include "_receipts_list.html" %}
+</section>
+{% endif %}
+{% endblock %}
