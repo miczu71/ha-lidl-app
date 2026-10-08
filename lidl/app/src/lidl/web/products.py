@@ -190,7 +190,11 @@ def effect_view(
                 "status": status,
             }
         )
+    # do tego dnia okno 30 dni obejmuje jeszcze dni sprzed add-onu, więc porównanie byłoby artefaktem
+    ready_on = ADDON_START + timedelta(days=EFFECT_DAYS)
     return {
+        "ready": today >= ready_on,
+        "not_ready": f"Porównanie od {fmt_day_month(ready_on)} — wtedy 30 dni będzie w całości z add-onem",
         "since": f"{ADDON_START.day}.{ADDON_START.month}.{ADDON_START.year}",
         "now": fmt_pln(e.coupons, 2),
         "before": fmt_pln(e.coupons_before, 2),

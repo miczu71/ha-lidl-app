@@ -681,6 +681,24 @@ def test_effect_view_numbers_and_coupon_outcomes(client: TestClient) -> None:
     assert {r["who"] for r in v["rows"]} == {"Osoba 1"}
 
 
+def test_effect_view_hides_comparison_until_window_is_after_addon_start(client: TestClient) -> None:
+    now = datetime(2026, 11, 5, 12, 0, tzinfo=UTC)  # okno 30 dni wciąż zawiera 6.10
+    accounts = _seed_effect(client, now)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    v = effect_view(history, accounts, now.date(), now)
+    assert v["ready"] is False
+    assert v["not_ready"] == "Porównanie od 6 lis — wtedy 30 dni będzie w całości z add-onem"
+    assert effect_view(history, accounts, date(2026, 11, 6), now)["ready"] is True  # type: ignore[index]
+    from jinja2 import Environment, FileSystemLoader
+
+    from lidl.web.app import HERE
+
+    html = (
+        Environment(loader=FileSystemLoader(HERE / "templates")).get_template("_effect.html").render(effect=v)
+    )
+    assert "Średnio przed add-onem" not in html and "Porównanie od 6 lis" in html
+
+
 def test_effect_view_without_data_is_hidden(client: TestClient) -> None:
     _connect(client)
     now = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)

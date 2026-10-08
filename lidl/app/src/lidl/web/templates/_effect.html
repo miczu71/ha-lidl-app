@@ -4,6 +4,7 @@
 <section class="card ef" aria-labelledby="efekt-h">
   <h2 class="s" id="efekt-h">Efekt kuponów</h2>
   <div class="kpi"><span class="kpi__num">{{ effect.now }}</span><span class="kpi__cap">z kuponów w ostatnich 30 dni</span></div>
+  {% if effect.ready %}
   <div class="ef__bars" role="group" aria-label="Porównanie z okresem przed add-onem">
     <div class="ef__row"><span class="ef__lbl">Ostatnie 30 dni</span><span class="ef__val">{{ effect.now }}</span>
       <span class="ef__track"><span class="ef__fill" style="width: {{ effect.now_pct }}%"></span></span></div>
@@ -16,6 +17,10 @@
   </p>
   <p class="sum">Do tego promocje na paragonach: <strong>{{ effect.promotions }}</strong> w ostatnich 30 dni (średnio przed: {{ effect.promotions_before }}).
     Średnia z 12 miesięcy przed {{ effect.since }} jest orientacyjna — kupony zależą od sezonu.</p>
+  {% else %}
+  <p class="ef__delta ef__delta--flat"><span>{{ effect.not_ready }}</span></p>
+  <p class="sum">Do tego promocje na paragonach: <strong>{{ effect.promotions }}</strong> w ostatnich 30 dni.</p>
+  {% endif %}
   <details class="ef__more">
     <summary><span class="ef__sumtxt"><span>Aktywowane kupony</span><span class="meta">{{ effect.summary }}</span></span></summary>
     {% if effect.rows %}

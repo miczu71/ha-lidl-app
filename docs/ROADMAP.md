@@ -41,7 +41,8 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - [x] Konto drugiej osoby połączone i zaimportowane (2026-10-07: 197 paragonów, 0 nierozpoznanych).
 - [x] **0.3.1 (wydane):** luka — przycisk „Pobierz historię” jest tylko w stanie pustym, a dzienny import i „Wznów teraz” pomijają konta bez paragonów, więc drugiego konta nie da się zaimportować z panelu. Poprawka: w stanie „ok” wiersz każdego połączonego konta bez historii z przyciskiem + test.
 - [x] „Show in sidebar” włączone (potwierdzone 2026-10-07).
-- [ ] Test rotacji tokenu: ponowne pobranie danych po >1 h od logowania (potwierdza zapis nowego refresh tokenu).
+- [x] Test rotacji tokenu (2026-10-08): oba konta działają ponad dobę po logowaniu i po kilkunastu restartach
+  (każdy wczytuje refresh token z pliku); przebieg 07:00 i „Sprawdź połączenie” 16:57 bez błędu — nowy refresh token jest zapisywany.
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
 
 ## Etapy
@@ -125,6 +126,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **Propozycje z przeglądu rynku** (zlecone 2026-10-07; każdy wymaga wywiadu przed startem, kolejność z użytkownikiem):
   - **E16 Skuteczność auto-aktywacji i licznik efektu** (wywiad 2026-10-08, plan: `docs/PLAN_E16_skutecznosc.md`;
     E16.1 archiwum kuponów zamiast kasowania ✅ 0.9.2 → E16.2 sekcja „Efekt kuponów” w Kuponach ✅ 0.10.0, 2026-10-08;
+    0.12.1: porównanie z okresem sprzed add-onu ukryte do 6.11 (wcześniej okno 30 dni zawiera dni sprzed add-onu, „−40%” było artefaktem);
     wyniki kuponów aktywowanych przed 0.9.2 i kupony ogólne mają status „Brak danych” — dopasowanie ogólnych po
     `ticket_coupons` do rozpoznania na prawdziwych paragonach): ile aktywowanych kuponów faktycznie wykorzystaliśmy
     (`coupons` ↔ `ticket_coupons`), a ile przepadło; miesięczne oszczędności przed add-onem i po nim (punkt
