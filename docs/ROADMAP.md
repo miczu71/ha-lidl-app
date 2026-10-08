@@ -123,7 +123,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   obserwowany produkt też aktywować.
 - **Propozycje z przeglądu rynku** (zlecone 2026-10-07; każdy wymaga wywiadu przed startem, kolejność z użytkownikiem):
   - **E16 Skuteczność auto-aktywacji i licznik efektu** (wywiad 2026-10-08, plan: `docs/PLAN_E16_skutecznosc.md`;
-    E16.1 archiwum kuponów zamiast kasowania, 0.9.2 → E16.2 sekcja „Efekt” w Kuponach, 0.10.0): ile aktywowanych kuponów faktycznie wykorzystaliśmy
+    E16.1 archiwum kuponów zamiast kasowania ✅ 0.9.2 → E16.2 sekcja „Efekt kuponów” w Kuponach ✅ 0.10.0, 2026-10-08;
+    wyniki kuponów aktywowanych przed 0.9.2 i kupony ogólne mają status „Brak danych” — dopasowanie ogólnych po
+    `ticket_coupons` do rozpoznania na prawdziwych paragonach): ile aktywowanych kuponów faktycznie wykorzystaliśmy
     (`coupons` ↔ `ticket_coupons`), a ile przepadło; miesięczne oszczędności przed add-onem i po nim (punkt
     odniesienia z E2). Realizuje miarę sukcesu z nagłówka roadmapy. Dane już są.
   - **E17 Przypomnienie przy sklepie:** gdy telefon wejdzie w strefę HA wokół sklepu Lidl — którą kartę wziąć

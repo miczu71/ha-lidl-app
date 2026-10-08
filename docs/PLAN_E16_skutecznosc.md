@@ -47,7 +47,7 @@ release, aktualizacja przez Supervisora; restart add-onu = aktualizacja, robi j�
 Cofnięcie: wydanie 0.9.1 nie zna kolumn, ale je toleruje (SELECT *, INSERT z listą kolumn) — downgrade bezpieczny,
 archiwum by tylko rosło.
 
-## E16.2 — sekcja „Efekt” w Kuponach, wydanie 0.10.0 (projekt zatwierdzony 2026-10-08)
+## E16.2 — sekcja „Efekt” w Kuponach, wydanie 0.10.0 ✅ (2026-10-08; E16.1 ✅ 0.9.2)
 Decyzje z wywiadu: układ = duża kwota + pasek względem średniej, pod spodem zwinięte szczegóły; porównanie =
 **ostatnie 30 dni** vs średnia 30-dniowa z 12 miesięcy przed 2026-10-07 (suma ÷ 12,2), orientacyjnie (sezonowość),
 promocje osobno informacyjnie; lista = **wszystkie aktywowane** kupony (add-on i ręcznie) ze statusem.
@@ -73,3 +73,10 @@ E16.2c szablon i podpięcie → `simplify` → E16.2d wydanie 0.10.0 (skill `rel
   log add-onu bez błędów migracji, „Sprawdź teraz” w panelu działa, lista kuponów jak przed wydaniem;
   następnego dnia kupon wykorzystany/wygasły nadal w bazie (sprawdzenie przez endpoint/log — do ustalenia, bo
   bazy nie czytamy bezpośrednio z tego kontenera).
+
+## Stan po 0.10.0 (2026-10-08)
+- Na żywo wszystkie wiersze listy to „Brak danych”: kupony sprzed 0.9.2 nie mają `article_ids`; zapisują się przy
+  najbliższym sprawdzeniu (07:00 albo „Sprawdź teraz”). Pierwsze wyniki wykorzystany/przepadł ok. 10–11.10.
+- Do ok. 6.11.2026 okno „ostatnie 30 dni” nachodzi na okres sprzed add-onu, więc „mniej/więcej niż zwykle” jest
+  wtedy mało miarodajne (na żywo 8.10: −40% przy średniej 271 zł / 30 dni) — rozważyć komunikat „za wcześnie”.
+- Otwarte: dopasowanie kuponów ogólnych (po `ticket_coupons`), filtr konta na liście.
