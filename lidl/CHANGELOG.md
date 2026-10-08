@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0
+
+- **Gwiazdka także dla produktów spoza listy:** pole Szukaj w „Kupowane regularnie” pokazuje pod wynikami „Inne
+  kupowane produkty” — kupione rzadziej, niż wymaga lista (np. raz). Gwiazdka przenosi produkt na górę listy z dopiskiem
+  „spoza listy”; kupony na niego są aktywowane, a kupony i promocje trafiają do powiadomienia o obserwowanych.
+  Produkty znane tylko ze starych paragonów (bez numeru artykułu) nie mają gwiazdki.
+
 ## 0.11.0
 
 - **Obserwowane produkty:** gwiazdka przy produkcie na liście „Kupowane regularnie” (zakładka Kupony). Obserwowane
