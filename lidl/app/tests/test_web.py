@@ -1031,6 +1031,6 @@ def test_accounts_page_links_to_last_month_summary_in_first_week() -> None:
     from lidl.web.months import month_banner
 
     months = {"2026-09": (1, 20.0)}
-    assert month_banner(months, date(2026, 10, 7)) == "września 2026"
-    assert month_banner(months, date(2026, 10, 8)) is None
-    assert month_banner({}, date(2026, 10, 1)) is None
+    assert month_banner(lambda: months, date(2026, 10, 7)) == "września 2026"
+    assert month_banner(lambda: months, date(2026, 10, 8)) is None
+    assert month_banner(dict, date(2026, 10, 1)) is None

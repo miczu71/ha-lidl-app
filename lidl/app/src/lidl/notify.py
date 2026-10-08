@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import re
-from datetime import date
+from datetime import date, timedelta
 
 import aiohttp
 
@@ -16,7 +16,7 @@ from .coupons import AccountReport, ActiveCoupon
 from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
 from .rewards import Rewards
-from .text import count_text, fmt_in_month, fmt_until, plural
+from .text import count_text, fmt_in_month, fmt_pct, fmt_pln, fmt_until, month_bounds, plural
 
 log = logging.getLogger(__name__)
 
@@ -154,25 +154,19 @@ def compose_watched(
     return "Lidl: " + title, "\n".join(body)
 
 
-def _pln(value: float) -> str:
-    return f"{value:,.2f}".replace(",", " ").replace(".", ",") + " zł"
-
-
 def compose_month(s: MonthSummary) -> tuple[str, str]:
     """Podsumowanie miesiąca (E19): kwota z porównaniem, top produkt, oszczędności i miejsce w historii."""
-    start = date.fromisoformat(f"{s.month}-01")
-    spent = f"{fmt_in_month(start).capitalize()} wydaliśmy {_pln(s.totals.paid)} w " + count_text(
-        s.totals.tickets, "wizycie", "wizytach", "wizytach"
-    )
+    start, _ = month_bounds(s.month)
+    tickets = count_text(s.totals.tickets, "wizycie", "wizytach", "wizytach")
+    spent = f"{fmt_in_month(start).capitalize()} wydaliśmy {fmt_pln(s.totals.paid, 2)} w {tickets}"
     if s.prev_paid:
-        pct = (s.totals.paid - s.prev_paid) / s.prev_paid * 100
-        prev = date.fromordinal(start.toordinal() - 1)
-        spent += f" ({'+' if pct > 0 else '−' if pct < 0 else ''}{abs(pct):.0f}% niż {fmt_in_month(prev)})"
+        pct = fmt_pct((s.totals.paid - s.prev_paid) / s.prev_paid * 100)
+        spent += f" ({pct} niż {fmt_in_month(start - timedelta(days=1))})"
     lines = [spent]
     if s.top_spend:
-        lines.append(f"Najwięcej na: {s.top_spend[0].name} ({_pln(s.top_spend[0].value)})")
+        lines.append(f"Najwięcej na: {s.top_spend[0].name} ({fmt_pln(s.top_spend[0].value, 2)})")
     rank = "najdroższy miesiąc w historii" if s.rank == 1 else f"{s.rank}. najdroższy z {s.months} miesięcy"
-    lines.append(f"Zaoszczędziliśmy {_pln(s.savings)} · {rank}")
+    lines.append(f"Zaoszczędziliśmy {fmt_pln(s.savings, 2)} · {rank}")
     lines.append("Więcej w panelu, zakładka Miesiące")
     return "Lidl: podsumowanie miesiąca", "\n".join(lines)
 

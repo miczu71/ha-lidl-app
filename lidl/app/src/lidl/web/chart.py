@@ -10,6 +10,7 @@ from datetime import date, timedelta
 from lidl.history import SpendBucket
 from lidl.text import SHORT_MONTHS as _SHORT
 from lidl.text import fmt_day_month as fmt_day_month
+from lidl.text import fmt_pln as fmt_pln
 
 STEPS = ("week", "month", "quarter", "year")
 MAX_BUCKETS = 400
@@ -109,11 +110,6 @@ def fmt_month_year(d: date) -> str:
 
 def _group(value: str) -> str:
     return value.replace(",", " ")
-
-
-def fmt_pln(value: float, decimals: int = 0) -> str:
-    text = _group(f"{value:,.{decimals}f}")
-    return f"{text.replace('.', ',')} zł"
 
 
 def fmt_qty(value: float) -> str:

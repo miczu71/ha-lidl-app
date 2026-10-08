@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
-from .text import matches
+from .text import matches, month_bounds
 
 if TYPE_CHECKING:
     from .coupons import Coupon
@@ -344,9 +344,9 @@ class StoreCount:
 class MonthProduct:
     art_id: str
     name: str
-    value: float  # zapłacono po rabatach (top, nowości) albo rabat (największa oszczędność)
-    quantity: float
-    is_weight: bool
+    value: (
+        float  # zapłacono po rabatach (top, nowości), sztuki (top sztuk) albo rabat (największa oszczędność)
+    )
 
 
 @dataclass(frozen=True)
@@ -725,10 +725,15 @@ class History:
             self._db.executemany("INSERT INTO merges VALUES (?, ?)", rows.items())
         return len(rows)
 
-    def _products(self, start: date | None = None, end: date | None = None) -> dict[str, dict[str, Any]]:
+    def _products(
+        self,
+        start: date | None = None,
+        end: date | None = None,
+        resolve: Callable[[str, str], str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
         """Pozycje z paragonów z dni `start`–`end` (domknięty, bez zakresu: całość) zebrane per produkt
         (po moście nazw); nazwa i cena z ostatniego zakupu."""
-        resolve = self._resolver()
+        resolve = resolve or self._resolver()
         where = ""
         args: list[str] = []
         if start is not None:
@@ -749,7 +754,7 @@ class History:
                 resolve(art_id, name),
                 {
                     "tickets": set(), "days": set(), "names": set(), "qty": 0.0, "uses": 0,
-                    "discount": 0.0, "coupon": 0.0, "spend": 0.0, "first": day,
+                    "discount": 0.0, "coupon": 0.0, "spend": 0.0,
                 },
             )  # fmt: skip
             p["names"].add(name)
@@ -1278,18 +1283,27 @@ class History:
 
     def month_summary(self, month: str) -> MonthSummary | None:
         """Podsumowanie miesiąca `2026-09` (E19); None, gdy w miesiącu nie było paragonów."""
-        start = date.fromisoformat(f"{month}-01")
-        end = (start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
-        totals = self.purchase_totals(start, end)
-        if not totals.tickets:
+        start, end = month_bounds(month)
+        f = ReceiptFilter(start=start, end=end)
+        where, args = _receipt_where(f)
+        tickets = [
+            _summary(r)
+            for r in self._db.execute(f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where}", args)
+        ]
+        if not tickets:
             return None
-        where, args = _receipt_where(ReceiptFilter(start=start, end=end))
-        months = {m: paid for m, (_, paid) in self.ticket_months(ReceiptFilter(end=end)).items()}
-        products = self._products(start, end)
-        first = {k: p["first"] for k, p in self._products(None, end).items()}
+        by_month = self.ticket_months(ReceiptFilter(end=end))
+        paid = {m: total for m, (_, total) in by_month.items()}
+        resolve = self._resolver()
+        products = self._products(start, end, resolve)
+        earlier = {resolve(art, name) for art, name in self._db.execute(
+            "SELECT DISTINCT i.art_id, i.name FROM items i JOIN tickets t ON t.id = i.ticket_id"
+            " WHERE t.day < ?",
+            (start.isoformat(),),
+        )}  # fmt: skip
 
         def item(key: str, p: dict[str, Any], value: float) -> MonthProduct:
-            return MonthProduct(key, p["name"], round(value, 2), round(p["qty"], 3), p["weight"])
+            return MonthProduct(key, p["name"], round(value, 3))
 
         by_spend = sorted(products.items(), key=lambda kp: -kp[1]["spend"])
         pieces = sorted(
@@ -1297,57 +1311,42 @@ class History:
             key=lambda kp: (-kp[1]["qty"], -kp[1]["spend"]),
         )
         saver = min(products.items(), key=lambda kp: kp[1]["discount"], default=None)
-        biggest = self._db.execute(
-            f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where} ORDER BY t.total DESC, t.day LIMIT 1",
-            args,
-        ).fetchone()
-        days = Counter(date.fromisoformat(d).weekday() for (d,) in self._db.execute(
-            f"SELECT t.day FROM tickets t WHERE 1 = 1{where}", args
-        ))  # fmt: skip
-        hours = Counter(int(at[11:13]) for (at,) in self._db.execute(
-            f"SELECT t.purchased_at FROM tickets t WHERE length(t.purchased_at) >= 13{where}", args
-        ))  # fmt: skip
-        store = self._db.execute(
-            f"SELECT {_STORE_KEY}, COUNT(*), MAX(NULLIF(t.store_name, '')) FROM tickets t"
-            f" WHERE {_STORE_KEY} != ''{where} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 1",
-            args,
-        ).fetchone()
-        accounts = {a: (n, round(s, 2)) for a, n, s in self._db.execute(
-            f"SELECT t.account, COUNT(*), SUM(t.total) FROM tickets t WHERE 1 = 1{where} GROUP BY 1", args
-        )}  # fmt: skip
-        before = self._db.execute(
-            "SELECT COUNT(*) FROM tickets WHERE day < ?", (start.isoformat(),)
-        ).fetchone()[0]
+        hours = Counter(int(t.time[:2]) for t in tickets if t.time)
+        accounts: dict[str, tuple[int, float]] = {}
+        for t in tickets:
+            n, total = accounts.get(t.account, (0, 0.0))
+            accounts[t.account] = (n + 1, round(total + t.total, 2))
+        stores = self.stores(f)
         return MonthSummary(
             month=month,
-            totals=totals,
+            totals=self.purchase_totals(start, end),
             savings=round(-sum(p["discount"] for p in products.values()), 2),
             coupons=round(-sum(p["coupon"] for p in products.values()), 2),
-            prev_paid=months.get((start - timedelta(days=1)).strftime("%Y-%m")),
-            year_ago_paid=months.get(f"{start.year - 1}-{month[5:]}"),
+            prev_paid=paid.get((start - timedelta(days=1)).strftime("%Y-%m")),
+            year_ago_paid=paid.get(f"{start.year - 1}-{month[5:]}"),
             top_spend=[item(k, p, p["spend"]) for k, p in by_spend[:MONTH_TOP]],
-            top_quantity=[item(k, p, p["spend"]) for k, p in pieces[:MONTH_TOP]],
-            new_products=[item(k, p, p["spend"]) for k, p in by_spend if first[k] >= start.isoformat()][
-                :MONTH_TOP
-            ],
+            top_quantity=[item(k, p, p["qty"]) for k, p in pieces[:MONTH_TOP]],
+            new_products=[item(k, p, p["spend"]) for k, p in by_spend if k not in earlier][:MONTH_TOP],
             best_saving=item(*saver, -saver[1]["discount"]) if saver and saver[1]["discount"] < 0 else None,
-            biggest=_summary(biggest),
-            weekday=days.most_common(1)[0][0],
+            biggest=max(tickets, key=lambda t: (t.total, t.day)),
+            weekday=Counter(date.fromisoformat(t.day).weekday() for t in tickets).most_common(1)[0][0],
             hour=hours.most_common(1)[0][0] if hours else None,
-            store=StoreCount(store[0], store[2] or store[0], store[1]) if store else None,
+            store=stores[0] if stores else None,
             accounts=accounts,
-            all_time_paid=round(sum(months.values()), 2),
-            first_no=before + 1,
-            rank=1 + sum(paid > months[month] for paid in months.values()),
-            months=len(months),
+            all_time_paid=round(sum(paid.values()), 2),
+            first_no=1 + sum(n for m, (n, _) in by_month.items() if m < month),
+            rank=1 + sum(total > paid[month] for total in paid.values()),
+            months=len(paid),
         )
 
-    def stores(self) -> list[StoreCount]:
+    def stores(self, f: ReceiptFilter | None = None) -> list[StoreCount]:
         """Sklepy z paragonów (nazwa z najnowszego), od najczęstszych; bez kodu sklepu pomijane."""
         counts: dict[str, int] = {}
         names: dict[str, str] = {}
+        where, args = _receipt_where(f or ReceiptFilter())
         for code, name in self._db.execute(
-            f"SELECT {_STORE_KEY}, NULLIF(t.store_name, '') FROM tickets t ORDER BY t.day"
+            f"SELECT {_STORE_KEY}, NULLIF(t.store_name, '') FROM tickets t WHERE 1 = 1{where} ORDER BY t.day",
+            args,
         ):
             if code:
                 counts[code] = counts.get(code, 0) + 1

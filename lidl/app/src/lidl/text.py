@@ -36,6 +36,23 @@ def count_text(n: int, one: str, few: str, many: str) -> str:
     return f"{n} {plural(n, one, few, many)}"
 
 
+def month_bounds(month: str) -> tuple[date, date]:
+    """Pierwszy i ostatni dzień miesiąca `2026-09`."""
+    start = date.fromisoformat(f"{month}-01")
+    return start, (start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+
+
+def fmt_pln(value: float, decimals: int = 0) -> str:
+    """„1 234,56 zł” (twarda spacja tysięcy, przecinek dziesiętny)."""
+    return f"{value:,.{decimals}f}".replace(",", "\u00a0").replace(".", ",") + " zł"
+
+
+def fmt_pct(value: float, decimals: int = 1) -> str:
+    """„+4,2%”, „−3,0%” (minus typograficzny), „0,0%”."""
+    sign = "+" if value > 0 else "−" if value < 0 else ""
+    return f"{sign}{abs(value):.{decimals}f}%".replace(".", ",")
+
+
 def fmt_in_month(d: date, year: bool = False) -> str:
     """„we wrześniu”, z rokiem: „we wrześniu 2025”."""
     return f"{_IN_MONTH[d.month - 1]} {d.year}" if year else _IN_MONTH[d.month - 1]

@@ -735,7 +735,7 @@ def test_month_summary_products(tmp_path: Path) -> None:
         ("Ser", 10.0),
         ("Banany", 6.0),
     ]
-    assert [(p.name, p.quantity) for p in s.top_quantity] == [("Mleko", 5.0), ("Chleb", 3.0), ("Ser", 1.0)]
+    assert [(p.name, p.value) for p in s.top_quantity] == [("Mleko", 5.0), ("Chleb", 3.0), ("Ser", 1.0)]
     assert [p.name for p in s.new_products] == ["Chleb", "Ser", "Banany"]  # mleko kupione już w 2025
     assert s.best_saving is not None and (s.best_saving.name, s.best_saving.value) == ("Ser", 5.0)
 

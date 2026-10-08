@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from lidl.history import PriceChange, PriceOverview, ProductPrices, SpendGroup
-from lidl.text import count_text, fmt_date
+from lidl.text import count_text, fmt_date, fmt_pct
 
 from .chart import LineChart, build_line, fmt_month_year_genitive, fmt_pln, fmt_qty
 
@@ -21,11 +21,6 @@ _SPLIT = {
     "no_old_window": "Kupowane wcześniej, ale nie w tych samych miesiącach rok temu",
     "no_history": "Pierwszy zakup w ostatnim roku (nowy produkt albo zmieniony kod lub nazwa)",
 }
-
-
-def fmt_pct(value: float) -> str:
-    sign = "+" if value > 0 else "−" if value < 0 else ""
-    return f"{sign}{abs(value):.1f}%".replace(".", ",")
 
 
 def delta(pct: float) -> dict[str, str]:

@@ -374,13 +374,14 @@ a.pr:hover .pr__name { color: var(--blue); text-decoration: underline; }
 .bill div { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--ink-muted); font: 400 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
 .bill dd { margin: 0; white-space: nowrap; }
 .bill .bill__total { margin-top: var(--space-1); color: var(--ink); font: 800 18px/24px var(--font-sans); }
-/* Sześć zakładek na telefonie: dwa rzędy po trzy (jeden rząd nie mieści się od 360 px) */
+/* Zakładki na telefonie: po trzy w rzędzie, równej szerokości (dowolna liczba zakładek) */
 @media (max-width: 479px) {
-  .nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-1); }
-  .nav .ds-chip { justify-content: center; padding: 0 6px; }
+  .nav { gap: var(--space-1); }
+  .nav .ds-chip { flex: 1 1 30%; justify-content: center; padding: 0 6px; }
 }
-a.rk__name { color: var(--ink); text-decoration: underline 1px var(--control-border); }  /* nazwa → zakupy produktu (E8) */
-a.rk__name:hover { color: var(--blue); text-decoration-color: currentColor; }
+/* nazwa → zakupy produktu (E8, E19) */
+a.rk__name, .mw-bars a, .mw-new a, .mw-note a { color: var(--ink); text-decoration: underline 1px var(--control-border); }
+a.rk__name:hover, .mw-bars a:hover, .mw-new a:hover, .mw-note a:hover { color: var(--blue); text-decoration-color: currentColor; }
 
 /* Miesiące (E19): podsumowanie miesiąca — przełącznik miesięcy, zdanie z kwotą, paski produktów, podział kont */
 .mw-head { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: var(--space-2); }
@@ -402,8 +403,7 @@ h3.mw-h { margin: 0; font: 700 16px/22px var(--font-sans); }
 .mw-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); counter-reset: mw; }
 .mw-bars li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; column-gap: var(--space-2); row-gap: 6px; align-items: baseline; counter-increment: mw; }
 .mw-bars li::before { content: counter(mw); color: var(--ink-muted); font: 700 14px/20px var(--font-sans); }
-.mw-bars a, .mw-new a, .mw-note a { color: var(--ink); font-weight: 700; text-decoration: underline 1px var(--control-border); text-underline-offset: 0.2em; overflow-wrap: anywhere; }
-.mw-bars a:hover, .mw-new a:hover, .mw-note a:hover { color: var(--blue); text-decoration-color: currentColor; }
+.mw-bars a, .mw-new a, .mw-note a { font-weight: 700; overflow-wrap: anywhere; }
 .mw-amt { font: 700 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mw-track { grid-column: 2 / -1; height: 8px; border-radius: var(--radius-pill); background: var(--surface-inset); overflow: hidden; }
 .mw-track span { display: block; height: 100%; min-width: 8px; border-radius: var(--radius-pill); background: var(--blue); }

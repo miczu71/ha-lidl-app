@@ -7,20 +7,13 @@ from datetime import date, timedelta
 from typing import Any
 
 from lidl.history import MonthProduct, MonthSummary
-from lidl.text import count_text, fmt_date, fmt_in_month
+from lidl.text import count_text, fmt_date, fmt_in_month, month_bounds
 
 from .chart import fmt_month_year, fmt_month_year_genitive, fmt_pln, fmt_qty
 from .prices import delta
 
 _WEEKDAYS = ["poniedziałki", "wtorki", "środy", "czwartki", "piątki", "soboty", "niedziele"]
-
-
-def first_day(month: str) -> date:
-    return date.fromisoformat(f"{month}-01")
-
-
-def last_day(month: str) -> date:
-    return (first_day(month) + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+BANNER_DAYS = 7  # tyle dni od 1. strona główna (tu otwiera powiadomienie) prowadzi do podsumowania
 
 
 def default_month(months: Iterable[str], today: date) -> str | None:
@@ -37,11 +30,12 @@ def _compare(paid: float, other: float | None, label: str) -> dict[str, Any] | N
 
 
 def _products(
-    items: list[MonthProduct], href: Callable[[str], str], amount: Callable[[MonthProduct], str]
+    items: list[MonthProduct], href: Callable[[str], str], amount: Callable[[float], str]
 ) -> list[dict[str, Any]]:
+    """Wiersze produktów z paskiem względem pierwszego (listy są od największej wartości)."""
     top = max((p.value for p in items), default=0.0) or 1.0
     return [
-        {"name": p.name, "href": href(p.art_id), "amount": amount(p), "bar": round(p.value / top * 100)}
+        {"name": p.name, "href": href(p.art_id), "amount": amount(p.value), "bar": round(p.value / top * 100)}
         for p in items
     ]
 
@@ -55,7 +49,7 @@ def month_view(
     product_href: Callable[[str], str],
     receipt_href: Callable[[str], str],
 ) -> dict[str, Any]:
-    start = first_day(s.month)
+    start, _ = month_bounds(s.month)
     t = s.totals
     stats = [
         {"label": "Wizyty", "value": str(t.tickets)},
@@ -86,35 +80,24 @@ def month_view(
     ]
     last_no = s.first_no + t.tickets - 1
     in_progress = s.month == today.strftime("%Y-%m")  # porównania i miejsce dopiero po końcu miesiąca
+    compare = [
+        _compare(t.paid, s.prev_paid, "niż " + fmt_in_month(start - timedelta(days=1))),
+        _compare(t.paid, s.year_ago_paid, "niż " + fmt_in_month(start.replace(year=start.year - 1), True)),
+    ]
+
+    def money(value: float) -> str:
+        return fmt_pln(value, 2)
+
     return {
-        "title": fmt_month_year(start),
         "in_month": fmt_in_month(start),
         "in_progress": in_progress,
         "paid": fmt_pln(t.paid, 2),
-        "compare": [
-            c
-            for c in (
-                _compare(t.paid, s.prev_paid, "niż " + fmt_in_month(date.fromordinal(start.toordinal() - 1))),
-                _compare(
-                    t.paid, s.year_ago_paid, "niż " + fmt_in_month(start.replace(year=start.year - 1), True)
-                ),
-            )
-            if c and not in_progress
-        ],
+        "compare": [] if in_progress else [c for c in compare if c],
         "stats": stats,
-        "top_spend": _products(s.top_spend, product_href, lambda p: fmt_pln(p.value, 2)),
-        "top_quantity": _products(
-            [MonthProduct(p.art_id, p.name, p.quantity, p.quantity, False) for p in s.top_quantity],
-            product_href,
-            lambda p: f"{fmt_qty(p.quantity)} szt.",
-        ),
-        "new_products": _products(s.new_products, product_href, lambda p: fmt_pln(p.value, 2)),
-        "best_saving": s.best_saving
-        and {
-            "name": s.best_saving.name,
-            "href": product_href(s.best_saving.art_id),
-            "amount": fmt_pln(s.best_saving.value, 2),
-        },
+        "top_spend": _products(s.top_spend, product_href, money),
+        "top_quantity": _products(s.top_quantity, product_href, lambda q: f"{fmt_qty(q)} szt."),
+        "new_products": _products(s.new_products, product_href, money),
+        "best_saving": s.best_saving and _products([s.best_saving], product_href, money)[0],
         "biggest": {
             "amount": fmt_pln(b.total, 2),
             "when": fmt_date(date.fromisoformat(b.day)) + (f", {b.time}" if b.time else ""),
@@ -131,32 +114,31 @@ def month_view(
         },
         "accounts": shares if len(shares) > 1 else [],
         "all_time": fmt_pln(s.all_time_paid),
-        "since": fmt_month_year_genitive(first_day(first_month)),
+        "since": fmt_month_year_genitive(month_bounds(first_month)[0]),
         "tickets_range": f"{s.first_no}–{last_no}" if last_no > s.first_no else str(s.first_no),
         "rank": None if in_progress else s.rank,
         "months": s.months,
     }
 
 
-BANNER_DAYS = 7  # tyle dni od 1. strona główna (tu otwiera powiadomienie) prowadzi do podsumowania
-
-
-def month_banner(months: Mapping[str, Any], today: date) -> str | None:
-    """„września 2026”, gdy w pierwszym tygodniu miesiąca jest podsumowanie poprzedniego; inaczej None."""
+def month_banner(months: Callable[[], Mapping[str, Any]], today: date) -> str | None:
+    """„września 2026”, gdy w pierwszym tygodniu miesiąca jest podsumowanie poprzedniego; inaczej None
+    (`months` — miesiące z zakupami — czytane tylko w tym tygodniu)."""
     prev = today.replace(day=1) - timedelta(days=1)
-    if today.day > BANNER_DAYS or prev.strftime("%Y-%m") not in months:
+    if today.day > BANNER_DAYS or prev.strftime("%Y-%m") not in months():
         return None
     return fmt_month_year_genitive(prev)
 
 
 def month_nav(months: Iterable[str], current: str, href: Callable[[str], str]) -> dict[str, Any]:
-    """Poprzedni i następny miesiąc z zakupami oraz wszystkie do wyboru (od najnowszego)."""
+    """Poprzedni i następny miesiąc z zakupami oraz wszystkie do wyboru (od najnowszego, z bieżącym)."""
     known = sorted(months)
     i = known.index(current) if current in known else None
     return {
         "prev": href(known[i - 1]) if i else None,
         "next": href(known[i + 1]) if i is not None and i + 1 < len(known) else None,
         "options": [
-            {"value": m, "label": fmt_month_year(first_day(m)), "on": m == current} for m in reversed(known)
+            {"value": m, "label": fmt_month_year(month_bounds(m)[0]), "on": m == current}
+            for m in sorted({*known, current}, reverse=True)
         ],
     }

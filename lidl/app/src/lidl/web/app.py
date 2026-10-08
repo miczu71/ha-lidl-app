@@ -37,10 +37,10 @@ from lidl.rewards import RewardsRunner
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
+from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_bounds
 
 from .chart import build_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .months import default_month, first_day, last_day, month_banner, month_nav, month_view
+from .months import default_month, month_banner, month_nav, month_view
 from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_changes
 from .products import (
     MORE_STEP,
@@ -186,7 +186,7 @@ def create_app(settings: Settings) -> FastAPI:
             section="konta",
             accounts=svc.store.list(),
             msg=msg,
-            month=month_banner(history.ticket_months(ReceiptFilter()), date.today()),
+            month=month_banner(lambda: history.ticket_months(ReceiptFilter()), date.today()),
         )
 
     @app.post("/accounts")
@@ -461,11 +461,13 @@ def create_app(settings: Settings) -> FastAPI:
         known = history.ticket_months(ReceiptFilter())
         today = date.today()
         try:
-            month = first_day(m).strftime("%Y-%m")
+            start, end = month_bounds(m)
         except ValueError:
-            month = default_month(known, today) or ""
-        if not month:
-            return render(request, "months.html", section="miesiace", month=None)
+            m = default_month(known, today) or ""
+            if not m:
+                return render(request, "months.html", section="miesiace", month=None)
+            start, end = month_bounds(m)
+        month = start.strftime("%Y-%m")
 
         def href(key: str) -> str:
             return f"{base(request)}/miesiace?{urlencode({'m': key})}"
@@ -479,13 +481,13 @@ def create_app(settings: Settings) -> FastAPI:
             product_href=lambda a: purchases_href(request, a),
             receipt_href=lambda t: receipt_href(request, t),
         )
-        bounds = {"od": first_day(month).isoformat(), "do": last_day(month).isoformat()}
+        bounds = {"od": start.isoformat(), "do": end.isoformat()}
         return render(
             request,
             "months.html",
             section="miesiace",
             month=month,
-            title=fmt_month_year(first_day(month)),
+            title=fmt_month_year(start),
             view=view,
             nav=month_nav(known, month, href),
             receipts=f"{base(request)}/paragony?{urlencode(bounds)}",

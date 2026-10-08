@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}{{ title or "Miesiące" }} — Lidl Plus{% endblock %}
+{% macro bars(items) %}<ol class="mw-bars">
+  {% for p in items %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}
+</ol>{% endmacro %}
 {% block main %}
 {% if not month %}
 <div>
@@ -19,7 +22,6 @@
       <label class="vh" for="m">Wybierz miesiąc</label>
       <select class="field" id="m" name="m" onchange="this.form.submit()">
         {% for o in nav.options %}<option value="{{ o.value }}"{% if o.on %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
-        {% if not view %}<option value="{{ month }}" selected>{{ title }}</option>{% endif %}
       </select>
       <noscript><button class="ds-btn ds-btn--secondary" type="submit">Pokaż</button></noscript>
     </form>
@@ -52,15 +54,11 @@
   <div class="tops">
     <div class="mw-col">
       <h3 class="mw-h">Najwięcej wydaliśmy na</h3>
-      <ol class="mw-bars">
-        {% for p in v.top_spend %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}
-      </ol>
+      {{ bars(v.top_spend) }}
     </div>
     <div class="mw-col">
       <h3 class="mw-h">Najwięcej sztuk</h3>
-      {% if v.top_quantity %}<ol class="mw-bars">
-        {% for p in v.top_quantity %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}
-      </ol>{% else %}<p class="sum">Same produkty na wagę.</p>{% endif %}
+      {% if v.top_quantity %}{{ bars(v.top_quantity) }}{% else %}<p class="sum">Same produkty na wagę.</p>{% endif %}
     </div>
   </div>
   {% if v.best_saving %}<p class="mw-note"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><path d="M7.5 7.5h.01"/></svg><span>Najlepsza okazja: <a href="{{ v.best_saving.href }}">{{ v.best_saving.name }}</a>, taniej łącznie o <strong class="mw-save">{{ v.best_saving.amount }}</strong></span></p>{% endif %}
