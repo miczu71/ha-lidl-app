@@ -4,8 +4,9 @@
 - Strony idą do modelu paczkami po `BATCH` obrazów razem z listą „Kupowane regularnie” (włączone); model
   wypisuje oferty na te produkty. Darmowe limity liczą zapytania, nie obrazy (Gemini Flash: 20 na dzień
   i model), więc cała gazetka to ok. 20 zapytań.
-- Kolejka modeli (`llm_vision_models`): limit (429) albo odmowa modelu (4xx) → następny model; przeciążenie
-  (5xx), sieć albo zły klucz → ta sama paczka za `RETRY`. Postęp jest w bazie (restart nie marnuje limitów).
+- Kolejka modeli (`llm_vision_models`): limit albo odmowa (4xx) wyłącza model do wyczerpania wszystkich;
+  przeciążenie (5xx), sieć albo zły klucz → następny model, a gdy żaden nie odpowie — ta sama paczka
+  za `RETRY`. Postęp jest w bazie (restart nie marnuje limitów).
 - Kupony Lidl Plus z gazetki pomijamy — aktywuje je E3.
 """
 
@@ -142,7 +143,7 @@ class LeafletRunner:
     def __init__(self, session: aiohttp.ClientSession, history: History, settings: Settings) -> None:
         self._session, self._history = session, history
         self._url, self._key, self._models = settings.llm_url, settings.llm_key, settings.llm_vision_models
-        self._model = 0  # pierwszy model z kolejki, który nie odmówił (limity są per model, nie per paczka)
+        self._refused: set[str] = set()  # modele z wyczerpanym limitem (limity są per model, nie per paczka)
         self._checked: datetime | None = None
 
     async def run_forever(self) -> None:
@@ -186,28 +187,29 @@ class LeafletRunner:
         candidates = self._history.enabled_candidates(now.date())
         try:
             content = await self._content(candidates, pages)
-            for model in self._models[self._model :]:
-                try:
-                    payload = await self._ask(model, content)
-                    break
-                except ModelRefused as err:
-                    log.info("Gazetka %s/%d: model %s odmówił (%s), następny", fid, n, model, err)
-                    self._model += 1
-            else:  # limity wszystkich modeli wyczerpane — za kilka godzin znów od pierwszego
-                self._model = 0
-                later = now + EXHAUSTED
-                self._history.set_leaflet_batch(fid, n, "pending", batch["attempts"], later.isoformat())
-                log.info(
-                    "Gazetka %s/%d: wszystkie modele odmówiły, ponowię o %s", fid, n, later.strftime("%H:%M")
-                )
-                return
         except TryLater as err:
-            attempts = batch["attempts"] + 1
-            status = "failed" if attempts >= MAX_ATTEMPTS else "pending"
-            later = now + RETRY
-            self._history.set_leaflet_batch(fid, n, status, attempts, later.isoformat())
+            self._retry(batch, now, err)
+            return
+        overloaded: TryLater | None = None
+        for model in [m for m in self._models if m not in self._refused]:
+            try:
+                payload = await self._ask(model, content)
+                break
+            except ModelRefused as err:
+                log.info("Gazetka %s/%d: model %s odmówił (%s), następny", fid, n, model, err)
+                self._refused.add(model)
+            except TryLater as err:  # przeciążenie jednego modelu — inny może być wolny
+                log.info("Gazetka %s/%d: model %s: %s, następny", fid, n, model, err)
+                overloaded = err
+        else:
+            if overloaded:
+                self._retry(batch, now, overloaded)
+                return
+            self._refused.clear()  # limity wszystkich modeli wyczerpane — za kilka godzin znów od pierwszego
+            later = now + EXHAUSTED
+            self._history.set_leaflet_batch(fid, n, "pending", batch["attempts"], later.isoformat())
             log.info(
-                "Gazetka %s/%d: %s, ponowię o %s (próba %d)", fid, n, err, later.strftime("%H:%M"), attempts
+                "Gazetka %s/%d: wszystkie modele odmówiły, ponowię o %s", fid, n, later.strftime("%H:%M")
             )
             return
         start, end = date.fromisoformat(batch["start"]), date.fromisoformat(batch["end"])
@@ -215,6 +217,19 @@ class LeafletRunner:
         self._history.save_leaflet_matches(fid, promos)
         self._history.set_leaflet_batch(fid, n, "done", batch["attempts"], "")
         log.info("Gazetka %s/%d (%s): %d trafień", fid, n, model, len(promos))
+
+    def _retry(self, batch: dict[str, Any], now: datetime, err: TryLater) -> None:
+        """Ta sama paczka za `RETRY`; po `MAX_ATTEMPTS` próbach odpuszczamy."""
+        attempts = batch["attempts"] + 1
+        later = now + RETRY
+        status = "failed" if attempts >= MAX_ATTEMPTS else "pending"
+        self._history.set_leaflet_batch(
+            batch["flyer_id"], batch["batch"], status, attempts, later.isoformat()
+        )
+        log.info(
+            "Gazetka %s/%d: %s, ponowię o %s (próba %d)",
+            batch["flyer_id"], batch["batch"], err, later.strftime("%H:%M"), attempts,
+        )  # fmt: skip
 
     async def _content(self, candidates: list[Any], pages: list[list[Any]]) -> list[dict[str, Any]]:
         listing = PROMPT + "\n".join(f"{c.art_id}: {c.name}" for c in candidates)

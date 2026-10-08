@@ -158,21 +158,30 @@ async def test_all_models_refusing_postpones_the_batch_and_restarts_the_queue(tm
     runner = LeafletRunner(FakeSession([(429, ""), (400, "")]), h, _settings(tmp_path))  # type: ignore[arg-type]
     await runner.step(NOW)
     batch = h.next_leaflet_batch("2026-10-07T18:00:00")
-    assert batch is not None and batch["batch"] == 0 and runner._model == 0
+    assert batch is not None and batch["batch"] == 0 and runner._refused == set()
 
 
 async def test_bad_key_is_retried_not_treated_as_a_rate_limit(tmp_path: Path) -> None:
     h = _history(tmp_path)
-    session = FakeSession([(401, "")])
+    session = FakeSession([(401, ""), (401, "")])
     runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
     await runner.step(NOW)
-    assert session.models == ["model-a"] and runner._model == 0
+    assert session.models == ["model-a", "model-b"] and runner._refused == set()
     assert h.has_pending_leaflet()
+
+
+async def test_overloaded_model_falls_through_to_the_next_one(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    session = FakeSession([(503, ""), _answer()])
+    runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
+    await runner.step(NOW)
+    assert session.models == ["model-a", "model-b"] and runner._refused == set()  # model-a wraca w następnej
+    assert h.next_leaflet_batch(NOW.isoformat())["batch"] == 1  # type: ignore[index]
 
 
 async def test_runner_retries_the_same_batch_later_on_overload(tmp_path: Path) -> None:
     h = _history(tmp_path)
-    session = FakeSession([(503, "")])
+    session = FakeSession([(503, ""), (502, "")])
     runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
     await runner.step(NOW)
     assert h.next_leaflet_batch(NOW.isoformat()) is not None  # paczka 2 czeka od razu
