@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from .coupons import Coupon
     from .promotions import Promotion
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 CANDIDATE_MIN_PURCHASES = 3
 
 _SCHEMA = """
@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS coupons (
     activated INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT '',
     seen_at TEXT NOT NULL,
+    article_ids TEXT NOT NULL DEFAULT '',
+    gone_at TEXT,
     PRIMARY KEY (account, promotion_id)
 );
 CREATE TABLE IF NOT EXISTS ticket_raw (
@@ -208,6 +210,8 @@ class History:
             self._migrate_v1()
         if version < 3:
             self._migrate_v2()
+        if version < 4:
+            self._migrate_v3()
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
@@ -240,6 +244,14 @@ class History:
                 "ALTER TABLE items ADD COLUMN promo TEXT NOT NULL DEFAULT ''",
             ):
                 self._db.execute(sql)
+
+    def _migrate_v3(self) -> None:
+        """v3 → v4: archiwum kuponów — kody artykułów i znacznik zniknięcia z listy Lidla (E16)."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'coupons'").fetchone():
+            return
+        with self._db:
+            self._db.execute("ALTER TABLE coupons ADD COLUMN article_ids TEXT NOT NULL DEFAULT ''")
+            self._db.execute("ALTER TABLE coupons ADD COLUMN gone_at TEXT")
 
     def upsert_tickets(self, account: str, tickets: list[dict[str, Any]]) -> int:
         """Dodaje nowe paragony z listy API (zwraca ich liczbę); istniejącym odświeża tylko `articles`."""
@@ -479,21 +491,26 @@ class History:
                 self._db.execute("INSERT OR IGNORE INTO coupon_optout VALUES (?)", (art_id,))
 
     def save_coupons(self, account: str, coupons: Iterable[Coupon], seen_at: str) -> None:
-        """Bieżąca lista kuponów konta; status ostatniej decyzji zostaje, kupony spoza listy znikają."""
+        """Bieżąca lista kuponów konta; status ostatniej decyzji zostaje, kupony spoza listy trafiają
+        do archiwum (`gone_at`) zamiast znikać — z archiwum liczymy skuteczność (E16)."""
         with self._db:
             self._db.executemany(
                 "INSERT INTO coupons (account, promotion_id, coupon_id, title, discount, valid_from,"
-                " valid_to, activated, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " valid_to, activated, seen_at, article_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT (account, promotion_id) DO UPDATE SET coupon_id = excluded.coupon_id,"
                 " title = excluded.title, discount = excluded.discount, valid_from = excluded.valid_from,"
-                " valid_to = excluded.valid_to, activated = excluded.activated, seen_at = excluded.seen_at",
+                " valid_to = excluded.valid_to, activated = excluded.activated, seen_at = excluded.seen_at,"
+                " article_ids = excluded.article_ids, gone_at = NULL",
                 [
                     (account, c.promotion_id, c.coupon_id, c.title, c.discount, c.valid_from.isoformat(),
-                     c.valid_to.isoformat(), int(c.activated), seen_at)
+                     c.valid_to.isoformat(), int(c.activated), seen_at, ",".join(c.article_ids))
                     for c in coupons
                 ],
             )  # fmt: skip
-            self._db.execute("DELETE FROM coupons WHERE account = ? AND seen_at != ?", (account, seen_at))
+            self._db.execute(
+                "UPDATE coupons SET gone_at = ? WHERE account = ? AND seen_at != ? AND gone_at IS NULL",
+                (seen_at, account, seen_at),
+            )
 
     def set_coupon_statuses(self, account: str, rows: list[tuple[str, str, str | None]]) -> None:
         """Decyzje przebiegu: (`promotionId`, status, `id` po udanej aktywacji albo None)."""
@@ -508,7 +525,9 @@ class History:
             )
 
     def account_coupons(self, account: str) -> list[dict[str, Any]]:
-        cur = self._db.execute("SELECT * FROM coupons WHERE account = ? ORDER BY valid_to, title", (account,))
+        cur = self._db.execute(
+            "SELECT * FROM coupons WHERE account = ? AND gone_at IS NULL ORDER BY valid_to, title", (account,)
+        )
         names = [d[0] for d in cur.description]
         return [dict(zip(names, row, strict=True)) for row in cur]
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.2
+
+- **Archiwum kuponów:** kupon, który znika z listy Lidla, zostaje w bazie (z kodami artykułów i datą zniknięcia)
+  zamiast być kasowany. Panel i auto-aktywacja widzą tylko bieżące kupony — bez zmian; archiwum posłuży do
+  policzenia, które kupony wykorzystaliśmy, a które przepadły.
+
 ## 0.9.1
 
 - **Gazetka:** gdy model jest przeciążony po stronie dostawcy, add-on od razu próbuje następnego z listy

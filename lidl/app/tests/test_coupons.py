@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -279,3 +280,48 @@ async def test_dry_run_score_counts_coupons_that_would_be_activated(tmp_path: Pa
     source = FakeSource(_payload(AllStores=[_promo("p1", "Produkt A", ["111"])]))
     report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=True)
     assert source.activations == [] and report.score == 3
+
+
+def test_coupon_missing_from_list_is_archived_not_deleted(tmp_path: Path) -> None:
+    history = _history(tmp_path)
+    both = parse_coupons(_payload(AllStores=[_promo("p1", "A", ["111", "222"]), _promo("p2", "B", ["333"])]))
+    history.save_coupons("osoba-1", both, "t1")
+    history.save_coupons("osoba-1", both[1:], "t2")
+    assert [c["promotion_id"] for c in history.account_coupons("osoba-1")] == ["p2"]
+    gone = history._db.execute(
+        "SELECT article_ids, gone_at FROM coupons WHERE promotion_id = 'p1'"
+    ).fetchone()
+    assert gone == ("111,222", "t2")
+    history.save_coupons("osoba-1", both, "t3")
+    assert [c["promotion_id"] for c in history.account_coupons("osoba-1")] == ["p1", "p2"]
+    assert history._db.execute("SELECT gone_at FROM coupons WHERE promotion_id = 'p1'").fetchone() == (None,)
+
+
+def test_gone_coupon_keeps_its_first_gone_time(tmp_path: Path) -> None:
+    history = _history(tmp_path)
+    one = parse_coupons(_payload(AllStores=[_promo("p1", "A", ["111"])]))
+    history.save_coupons("osoba-1", one, "t1")
+    history.save_coupons("osoba-1", [], "t2")
+    history.save_coupons("osoba-1", [], "t3")
+    assert history._db.execute("SELECT gone_at FROM coupons").fetchone() == ("t2",)
+
+
+def test_v3_database_gets_archive_columns(tmp_path: Path) -> None:
+    path = tmp_path / "h.db"
+    db = sqlite3.connect(path)
+    db.executescript(
+        "CREATE TABLE tickets (id TEXT PRIMARY KEY, account TEXT NOT NULL, day TEXT NOT NULL,"
+        " total REAL NOT NULL, savings REAL NOT NULL, coupons_used INTEGER NOT NULL);"
+        "CREATE TABLE coupons (account TEXT NOT NULL, promotion_id TEXT NOT NULL, coupon_id TEXT NOT NULL,"
+        " title TEXT NOT NULL, discount TEXT NOT NULL, valid_from TEXT NOT NULL, valid_to TEXT NOT NULL,"
+        " activated INTEGER NOT NULL, status TEXT NOT NULL DEFAULT '', seen_at TEXT NOT NULL,"
+        " PRIMARY KEY (account, promotion_id));"
+        "INSERT INTO coupons VALUES ('osoba-1','p1','c1','A','-30%','x','y',1,'activated','t0');"
+        "PRAGMA user_version = 3;"
+    )
+    db.commit()
+    db.close()
+    history = History(path)
+    assert [
+        (c["promotion_id"], c["article_ids"], c["gone_at"]) for c in history.account_coupons("osoba-1")
+    ] == [("p1", "", None)]
