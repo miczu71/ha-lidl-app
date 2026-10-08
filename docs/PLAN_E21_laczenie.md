@@ -40,3 +40,8 @@ klucza nie ma, zostaje nazwa + sygnały pomocnicze (typ ważony/sztuki, cena, da
 
 Cofnięcie: E21.1 bez zmian w bazie; E21.3 — „Rozdziel” per para albo downgrade (tabele zostają, starsza wersja
 ich nie czyta).
+
+## E21.1 ✅ 0.14.0 na żywo (2026-10-08 19:43)
+Eksport: **3 150 starych kodów** bez mostu (od 2019; 630 z ostatnim zakupem od 04.2025, 741 kupionych ≥ 3 dni) i
+**188 nowych kodów** bez starszej historii. Wniosek do E21.2: dopasowujemy od strony nowych (188) — każdy nowy kod
+szuka swoich starych odpowiedników (może być kilka wariantów nazw); stare bez pary to produkty, których już nie kupujemy.
