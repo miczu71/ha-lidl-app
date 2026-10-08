@@ -152,7 +152,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   nazwa i kod (np. „Banany Premium luz” → „Banany luz”) — dziś most działa tylko przy identycznej nazwie. Diagnoza E7.5
   (2026-10-08): 316 produktów ze starych paragonów (20 pp. wydatków z 12 mies.) nie łączy się z nowymi kodami, bo stare
   paragony skracają nazwy inaczej („Winog.jas.bezp.500g” ↔ „Winogrono j.bezp.500”). Dotyczy też rankingu Produktów,
-  listy kuponowej E11 (zaniżone liczby zakupów) i porównania cen E7. Kierunek: propozycje par do potwierdzenia.
+  listy kuponowej E11 (zaniżone liczby zakupów) i porównania cen E7. **Wywiad 2026-10-08** (plan:
+  `docs/PLAN_E21_laczenie.md`): pary stary `n:` ↔ nowy kod dopasowuje jednorazowo Claude z eksportu, pewne łączą się
+  same, wątpliwe do potwierdzenia w Produktach. Podetapy: E21.0 docs ✅, E21.1 eksport, E21.2 dopasowanie, E21.3 połączenia.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
