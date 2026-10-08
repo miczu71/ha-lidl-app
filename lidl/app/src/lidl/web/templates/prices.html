@@ -32,9 +32,12 @@
 <div class="tops">
   {% for id, title, rows, empty in [("up-h", "Najbardziej podrożały", ups, "podrożał"), ("down-h", "Najbardziej potaniały", downs, "potaniał")] %}
   <section class="card" aria-labelledby="{{ id }}">
-    <h2 class="s" id="{{ id }}">{{ title }}</h2>
+    <div>
+      <h2 class="s" id="{{ id }}">{{ title }}</h2>
+      <p class="sum">Produkty, na które wydajemy co najmniej {{ top_min_spend }} zł rocznie</p>
+    </div>
     <ul class="rklist">
-      {% for r in rows %}{{ price_row(r) }}{% else %}<li class="meta">Żaden produkt nie {{ empty }} rok do roku.</li>{% endfor %}
+      {% for r in rows %}{{ price_row(r) }}{% else %}<li class="meta">Żaden z nich nie {{ empty }} rok do roku.</li>{% endfor %}
     </ul>
   </section>
   {% endfor %}

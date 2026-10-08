@@ -40,7 +40,7 @@ from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .prices import basket_view, price_rows, product_view, top_changes
+from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_changes
 from .products import (
     MORE_STEP,
     coupon_cards,
@@ -367,6 +367,7 @@ def create_app(settings: Settings) -> FastAPI:
             basket=basket_view(overview),
             ups=price_rows(ups, href),
             downs=price_rows(downs, href),
+            top_min_spend=TOP_MIN_SPEND,
         )
         return render(request, "prices.html", **ctx)
 

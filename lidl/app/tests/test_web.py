@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, time, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 from lidl import __version__
 from lidl.client.exceptions import LidlPlusAuthError
-from lidl.history import CouponCandidate
+from lidl.history import CouponCandidate, PriceChange
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
 from lidl.service import LidlService
 from lidl.settings import Settings
+from lidl.web import prices
 from lidl.web.app import create_app
+from lidl.web.prices import top_changes
 from lidl.web.products import coupon_rows, effect_view, reward_cards
 
 
@@ -800,7 +803,17 @@ def _seed_prices(client: TestClient) -> None:
     )
 
 
-def test_prices_shows_basket_top_changes_and_list(client: TestClient) -> None:
+def test_top_changes_skip_products_with_small_spend() -> None:
+    small = PriceChange("1", "Brzoskwinie", True, 7.99, 14.99, 87.6, 3.0)
+    big = PriceChange("2", "Masło", False, 6.0, 6.6, 10.0, 60.0)
+    cheaper = PriceChange("3", "Arbuz", True, 7.99, 3.49, -56.3, 49.99)
+    assert top_changes([small, big, cheaper]) == ([big], [])
+
+
+def test_prices_shows_basket_top_changes_and_list(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(prices, "TOP_MIN_SPEND", 0)  # dane testowe mają wydatki po kilka zł
     _seed_prices(client)
     text = client.get("/ceny").text
     assert 'aria-current="page">Ceny<' in text
@@ -808,6 +821,7 @@ def test_prices_shows_basket_top_changes_and_list(client: TestClient) -> None:
     assert "Porównanie dla <strong>2 produktów</strong>" in text and "<strong>50%</strong>" in text
     assert "Co nie jest porównane" in text and "Pierwszy zakup w ostatnim roku" in text
     assert "10,00 zł · 1 produkt · 50%" in text
+    assert "co najmniej 50 zł rocznie" in text
     up, down = text.index("Najbardziej podrożały"), text.index("Najbardziej potaniały")
     assert up < text.index("Masło", up) < down < text.index("Cukier", down)
     assert "6,00 zł → 6,60 zł" in text and "+10,0%" in text and "−10,0%" in text

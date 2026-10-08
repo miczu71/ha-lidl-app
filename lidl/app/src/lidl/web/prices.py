@@ -12,6 +12,7 @@ from lidl.text import count_text, fmt_date
 from .chart import LineChart, build_line, fmt_month_year_genitive, fmt_pln, fmt_qty
 
 TOP = 5
+TOP_MIN_SPEND = 50  # zł w 12 mies.; drobnica (sezonowe owoce za kilka zł rocznie) nie trafia do top
 DEAL = 0.9  # zapłacono najwyżej 90% ceny półkowej = zakup z rabatem
 _WORD = {"up": "drożej", "down": "taniej", "flat": "bez zmian"}
 _SPLIT = {
@@ -50,9 +51,10 @@ def price_rows(changes: list[PriceChange], href: Callable[[str], str]) -> list[d
 
 
 def top_changes(changes: list[PriceChange]) -> tuple[list[PriceChange], list[PriceChange]]:
-    """Największe podwyżki i obniżki (bez produktów bez zmiany)."""
-    ups = [c for c in changes if c.pct > 0][:TOP]
-    downs = sorted((c for c in changes if c.pct < 0), key=lambda c: (c.pct, c.name))[:TOP]
+    """Największe podwyżki i obniżki produktów z wydatkami od `TOP_MIN_SPEND` (bez produktów bez zmiany)."""
+    big = [c for c in changes if c.spend >= TOP_MIN_SPEND]
+    ups = [c for c in big if c.pct > 0][:TOP]
+    downs = sorted((c for c in big if c.pct < 0), key=lambda c: (c.pct, c.name))[:TOP]
     return ups, downs
 
 
