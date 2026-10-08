@@ -1,5 +1,5 @@
 name: "Lidl Plus"
-version: "0.12.1"
+version: "0.12.2"
 slug: lidl
 description: "Paragony, kupony i gazetki Lidl Plus dla kilku kont (nieoficjalny)"
 url: "https://github.com/miczu71/ha-lidl-app"

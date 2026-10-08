@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.2
+
+- **Promocje z lidl.pl znów działają:** lidl.pl odrzucał zapytanie add-onu (401) z powodu nagłówka `Accept`;
+  sporadyczne sukcesy brały się z 5-minutowej pamięci podręcznej po stronie Lidla.
+- **Spóźniona gazetka w porannym powiadomieniu:** linia „Nowe promocje” (dawniej „Promocje od dziś”) pokazuje
+  trwające promocje, których jeszcze nie zgłoszono — każdą raz. Trafienia z gazetki przetworzonej po 07:00 dnia
+  startu przychodzą następnego ranka, póki promocja trwa. Obserwowane produkty dostają te same promocje
+  („od 8 paź”, gdy zaczęła się wcześniej).
+
 ## 0.12.1
 
 - **Efekt kuponów bez mylącego porównania:** do 6 listopada okno „ostatnie 30 dni” obejmuje jeszcze dni sprzed
