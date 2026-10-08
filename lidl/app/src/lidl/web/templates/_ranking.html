@@ -5,7 +5,7 @@
     {% for r in rows %}
     <li class="rk">
       <span class="pos">{{ r.pos }}</span>
-      <span class="rk__name">{{ r.name }}</span>
+      <a class="rk__name" href="{{ r.purchases }}">{{ r.name }}</a>
       <span class="rk__meta"><span>{{ r.count }}</span><span>{{ r.last }}</span><span>{{ r.cycle }}</span></span>
       <a class="ds-btn ds-btn--link" href="{{ r.href }}" aria-label="{{ r.aria }}" hx-swap="outerHTML show:#wykres:top">Wykres</a>
     </li>

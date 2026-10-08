@@ -990,3 +990,9 @@ def test_product_purchases_page_summary_and_rows(client: TestClient) -> None:
 
 def test_receipts_without_history_say_where_to_import(client: TestClient) -> None:
     assert "Pobierz ją w zakładce Produkty" in client.get("/paragony").text
+
+
+def test_products_ranking_and_prices_link_to_product_purchases(client: TestClient) -> None:
+    _seed_receipts(client)
+    assert 'class="rk__name" href="/paragony/produkt/555"' in client.get("/produkty?zakres=all").text
+    assert 'href="/paragony/produkt/555">Zakupy tego produktu' in client.get("/ceny/produkt/555").text

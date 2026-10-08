@@ -382,3 +382,5 @@ a.pr:hover .pr__name { color: var(--blue); text-decoration: underline; }
   .nav { flex-wrap: nowrap; gap: var(--space-1); }
   .nav .ds-chip { flex: 1 1 auto; justify-content: center; padding: 0 6px; }
 }
+a.rk__name { color: var(--ink); text-decoration: underline 1.5px var(--line); }  /* nazwa → zakupy produktu (E8) */
+a.rk__name:hover { color: var(--blue); text-decoration-color: currentColor; }

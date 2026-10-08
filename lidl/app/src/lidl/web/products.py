@@ -28,7 +28,9 @@ def parse_limit(raw: str | None) -> int:
         return DEFAULT_LIMIT
 
 
-def ranking_rows(ranking: list[RankedProduct], limit: int, link: Callable[..., str]) -> list[dict[str, Any]]:
+def ranking_rows(
+    ranking: list[RankedProduct], limit: int, link: Callable[..., str], purchases: Callable[[str], str]
+) -> list[dict[str, Any]]:
     rows = []
     for pos, p in enumerate(ranking[:limit], start=1):
         if p.cycle_days is None:
@@ -46,6 +48,7 @@ def ranking_rows(ranking: list[RankedProduct], limit: int, link: Callable[..., s
                 "cycle": cycle,
                 "aria": f"Pokaż {p.name} na wykresie",
                 "href": link(produkt=p.art_id) + "#wykres",
+                "purchases": purchases(p.art_id),
             }
         )
     return rows

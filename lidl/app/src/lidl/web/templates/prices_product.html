@@ -27,6 +27,6 @@
   {% set line = product.chart %}{% include "_line.html" %}
   <p class="sum">Ostatni zakup {{ product.last_date }}. Z rabatem co najmniej 10%: <strong>{{ product.deals }} z {{ product.purchases }}</strong> zakupów (kupony i promocje). Najtaniej {{ product.best_date }}.{% if not product.delta %} Brak porównania rok do roku: produkt nie był kupowany w obu okresach.{% endif %}</p>
 </section>
-<div><a class="ds-btn ds-btn--secondary" href="{{ spend }}">Wydatki na ten produkt</a></div>
+<div class="acts"><a class="ds-btn ds-btn--secondary" href="{{ purchases }}">Zakupy tego produktu</a><a class="ds-btn ds-btn--secondary" href="{{ spend }}">Wydatki na ten produkt</a></div>
 {% endif %}
 {% endblock %}

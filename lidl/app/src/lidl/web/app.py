@@ -246,6 +246,17 @@ def create_app(settings: Settings) -> FastAPI:
             pass
         return go(request, "/?m=deleted")
 
+    def receipt_href(request: Request, ticket_id: str, product: str = "") -> str:
+        query = f"?{urlencode({'produkt': product})}#szukany" if product else ""
+        return f"{base(request)}/paragony/{quote(ticket_id, safe='')}{query}"
+
+    def purchases_href(request: Request, art_id: str, q: str = "") -> str:
+        query = f"?{urlencode({'q': q})}" if q else ""
+        return f"{base(request)}/paragony/produkt/{quote(art_id, safe=':')}{query}"
+
+    def account_labels(request: Request) -> dict[str, str]:
+        return {a.slug: a.label for a in service(request).store.list()}
+
     @app.get("/produkty")
     async def products(request: Request) -> Response:
         svc = service(request)
@@ -273,7 +284,7 @@ def create_app(settings: Settings) -> FastAPI:
                 found=len(found),
                 ranked=len(ranking),
                 clear_href=link(q=""),
-                rows=ranking_rows(found, limit, link),
+                rows=ranking_rows(found, limit, link, lambda a: purchases_href(request, a)),
                 more_href=link(limit=limit + MORE_STEP) if len(found) > limit else None,
             )
             if request.headers.get("hx-target") == "wyniki":  # wyszukiwanie na żywo: tylko wyniki rankingu
@@ -389,18 +400,13 @@ def create_app(settings: Settings) -> FastAPI:
         if prices is None:
             return render(request, "prices_product.html", product=None, status_code=404)
         spend = f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres"
-        return render(request, "prices_product.html", product=product_view(prices, today), spend=spend)
-
-    def receipt_href(request: Request, ticket_id: str, product: str = "") -> str:
-        query = f"?{urlencode({'produkt': product})}#szukany" if product else ""
-        return f"{base(request)}/paragony/{quote(ticket_id, safe='')}{query}"
-
-    def purchases_href(request: Request, art_id: str, q: str = "") -> str:
-        query = f"?{urlencode({'q': q})}" if q else ""
-        return f"{base(request)}/paragony/produkt/{quote(art_id, safe=':')}{query}"
-
-    def account_labels(request: Request) -> dict[str, str]:
-        return {a.slug: a.label for a in service(request).store.list()}
+        return render(
+            request,
+            "prices_product.html",
+            product=product_view(prices, today),
+            spend=spend,
+            purchases=purchases_href(request, art_id),
+        )
 
     @app.get("/paragony")
     async def receipts(request: Request) -> Response:
