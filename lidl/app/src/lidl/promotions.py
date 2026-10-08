@@ -6,7 +6,7 @@ Dwa publiczne źródła (bez logowania) z kodami artykułów — tymi samymi co 
 - oferty sklepu (`offers.lidlplus.com`, najczęstszy sklep z paragonów): promocje wielosztukowe
   („-20% przy zakupie 2 szt.”, „2 + 1 gratis”).
 Błąd źródła nie przerywa porannego przebiegu — wtedy po prostu nie ma linii z promocjami. Lista żyje w pamięci
-do następnego porannego przebiegu (jedyny czytelnik to powiadomienie; po restarcie pusta do rana).
+do następnego odświeżenia (rano i przy starcie add-onu). Promocje z gazetki (E4.3) są w bazie, `leaflet.py`.
 """
 
 from __future__ import annotations
@@ -95,11 +95,18 @@ class PromotionRunner:
         log.info("Promocje: %d pozycji", len(self.latest))
 
     def starting(self, today: date) -> list[Promotion]:
-        """Promocje zaczynające się dziś na produkty z listy „Kupowane regularnie” (włączone), bez powtórzeń
-        oferty obejmującej kilka naszych kodów."""
+        """Promocje zaczynające się dziś na produkty z listy „Kupowane regularnie” (włączone). Każdy produkt
+        raz, wygrywa pierwsze źródło (lidl.pl, oferty sklepu, gazetka); oferta na kilka kodów też raz."""
         codes = self._history.enabled_codes(today)
-        found = [p for p in self.latest if p.start == today and p.art_id in codes]
-        return list({(p.title, p.discount): p for p in found}.values())
+        leaflet = [
+            Promotion(a, t, d, date.fromisoformat(s), date.fromisoformat(e))
+            for a, t, d, s, e in self._history.leaflet_matches_starting(today)
+        ]
+        by_code: dict[str, Promotion] = {}
+        for p in self.latest + leaflet:
+            if p.start == today and p.art_id in codes:
+                by_code.setdefault(p.art_id, p)
+        return list({(p.title, p.discount): p for p in by_code.values()}.values())
 
     async def _get(
         self,

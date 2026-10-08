@@ -23,6 +23,7 @@ from .receipt_html import ParsedReceipt
 
 if TYPE_CHECKING:
     from .coupons import Coupon
+    from .promotions import Promotion
 
 SCHEMA_VERSION = 3
 CANDIDATE_MIN_PURCHASES = 3
@@ -91,6 +92,26 @@ CREATE TABLE IF NOT EXISTS coupons (
 CREATE TABLE IF NOT EXISTS ticket_raw (
     ticket_id TEXT PRIMARY KEY REFERENCES tickets(id) ON DELETE CASCADE,
     data BLOB NOT NULL
+);
+CREATE TABLE IF NOT EXISTS leaflet_batches (
+    flyer_id TEXT NOT NULL,
+    batch INTEGER NOT NULL,
+    pages TEXT NOT NULL,
+    start TEXT NOT NULL,
+    end TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_try TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (flyer_id, batch)
+);
+CREATE TABLE IF NOT EXISTS leaflet_matches (
+    flyer_id TEXT NOT NULL,
+    art_id TEXT NOT NULL,
+    start TEXT NOT NULL,
+    title TEXT NOT NULL,
+    discount TEXT NOT NULL,
+    end TEXT NOT NULL,
+    PRIMARY KEY (flyer_id, art_id, start)
 );
 """
 
@@ -443,9 +464,12 @@ class History:
         out.sort(key=lambda c: (-c.purchases, c.name))
         return out
 
+    def enabled_candidates(self, today: date | None = None) -> list[CouponCandidate]:
+        """Lista „Kupowane regularnie” z włączonym przełącznikiem (kupony, promocje, gazetka)."""
+        return [c for c in self.coupon_candidates(today) if c.enabled]
+
     def enabled_codes(self, today: date | None = None) -> set[str]:
-        """Kody produktów z listy „Kupowane regularnie” z włączonym przełącznikiem (kupony i promocje)."""
-        return {c.art_id for c in self.coupon_candidates(today) if c.enabled}
+        return {c.art_id for c in self.enabled_candidates(today)}
 
     def set_auto_activate(self, art_id: str, enabled: bool) -> None:
         with self._db:
@@ -496,6 +520,73 @@ class History:
             (_year_ago(today).isoformat(),),
         ).fetchone()
         return row[0] if row else None
+
+    def has_leaflet(self, flyer_id: str) -> bool:
+        return (
+            self._db.execute("SELECT 1 FROM leaflet_batches WHERE flyer_id = ?", (flyer_id,)).fetchone()
+            is not None
+        )
+
+    def add_leaflet(self, flyer_id: str, batches: list[list[Any]], start: date, end: date) -> None:
+        """Nowa gazetka: paczki stron (lista [numer, adres obrazu]) do przetworzenia; gazetki starsze niż
+        30 dni po końcu znikają razem z trafieniami."""
+        old = (date.today() - timedelta(days=30)).isoformat()
+        with self._db:
+            self._db.executemany(
+                "INSERT OR IGNORE INTO leaflet_batches (flyer_id, batch, pages, start, end)"
+                " VALUES (?, ?, ?, ?, ?)",
+                [
+                    (flyer_id, n, json.dumps(b), start.isoformat(), end.isoformat())
+                    for n, b in enumerate(batches)
+                ],
+            )
+            self._db.execute("DELETE FROM leaflet_batches WHERE end < ?", (old,))
+            self._db.execute("DELETE FROM leaflet_matches WHERE end < ?", (old,))
+
+    def next_leaflet_batch(self, now: str) -> dict[str, Any] | None:
+        cur = self._db.execute(
+            "SELECT * FROM leaflet_batches WHERE status = 'pending' AND next_try <= ?"
+            " ORDER BY start, flyer_id, batch LIMIT 1",
+            (now,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        out = dict(zip([c[0] for c in cur.description], row, strict=True))
+        out["pages"] = json.loads(out["pages"])
+        return out
+
+    def has_pending_leaflet(self) -> bool:
+        return (
+            self._db.execute("SELECT 1 FROM leaflet_batches WHERE status = 'pending'").fetchone() is not None
+        )
+
+    def set_leaflet_batch(self, flyer_id: str, batch: int, status: str, attempts: int, next_try: str) -> None:
+        with self._db:
+            self._db.execute(
+                "UPDATE leaflet_batches SET status = ?, attempts = ?, next_try = ?"
+                " WHERE flyer_id = ? AND batch = ?",
+                (status, attempts, next_try, flyer_id, batch),
+            )
+
+    def save_leaflet_matches(self, flyer_id: str, promos: Iterable[Promotion]) -> None:
+        with self._db:
+            self._db.executemany(
+                "INSERT OR REPLACE INTO leaflet_matches VALUES (?, ?, ?, ?, ?, ?)",
+                [
+                    (flyer_id, p.art_id, p.start.isoformat(), p.title, p.discount, p.end.isoformat())
+                    for p in promos
+                ],
+            )
+
+    def leaflet_matches_starting(self, today: date) -> list[tuple[str, str, str, str, str]]:
+        """Promocje z gazetki zaczynające się `today` w kolejności pól `Promotion` (kod, nazwa, rabat, start,
+        koniec; daty ISO)."""
+        cur = self._db.execute(
+            "SELECT art_id, title, discount, start, end FROM leaflet_matches WHERE start = ? ORDER BY title",
+            (today.isoformat(),),
+        )
+        return list(cur)
 
     def savings_kpi(self, today: date | None = None) -> SavingsKpi:
         """Oszczędności z rabatów na pozycjach (kupony Lidl Plus osobno od promocji); lista API ma to pole

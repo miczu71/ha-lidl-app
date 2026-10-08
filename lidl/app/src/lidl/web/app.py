@@ -30,6 +30,7 @@ from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, Lid
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, DailyJob, at_time_loop
 from lidl.history import CANDIDATE_MIN_PURCHASES, History
+from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
 from lidl.rewards import RewardsRunner
@@ -98,6 +99,11 @@ def create_app(settings: Settings) -> FastAPI:
                 asyncio.create_task(at_time_loop(EVENING, job.evening)),
                 asyncio.create_task(job.refresh_rewards()),
             ]
+            if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
+                # promocje od razu, żeby „Sprawdź teraz” po restarcie nie czekało do rana
+                loops.append(asyncio.create_task(promotions.refresh()))
+                if settings.leaflet_enabled:
+                    loops.append(asyncio.create_task(LeafletRunner(session, history, settings).run_forever()))
             try:
                 yield
             finally:

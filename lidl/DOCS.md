@@ -77,11 +77,24 @@ Zdrapki są też w porannym powiadomieniu (linia „Zdrapki”; powiadomienie pr
 add-on wysyła osobne przypomnienie, gdy któraś zdrapka wygasa tego dnia. Add-on niczego nie zdrapuje ani nie
 uruchamia — tylko odczytuje.
 
+## Promocje od dziś (poranne powiadomienie)
+
+Gdy w sklepie startuje promocja na produkt z zakładki Kupony (ten sam przełącznik), poranne powiadomienie dostaje
+linię „Promocje od dziś” z rabatem i datą końca. Źródła: promocje z lidl.pl, oferty sklepu, w którym robicie
+najwięcej zakupów, i — gdy ustawisz model językowy — cotygodniowa gazetka. Ceny kuponowe Lidl Plus pomijamy:
+te kupony add-on aktywuje sam.
+
+Gazetkę add-on czyta raz na wydanie: w tle, po 5 stron na zapytanie, wysyła do modelu obrazy stron (z serwera
+Lidla); całość trwa od kilkudziesięciu minut do kilku godzin, zależnie od limitów modelu. Do modelu trafiają
+obrazy publicznej gazetki i nazwy produktów z zakładki Kupony — bez kont, kwot i dat zakupów.
+
 ## Opcje
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
 - **Automatyczna aktywacja kuponów** — wyłączona = tryb próbny (patrz wyżej).
 - **Godzina dziennego przebiegu** — GG:MM, czas lokalny; paragony, kupony i powiadomienie.
+- **Adres i klucz API modelu językowego, modele** — odczyt promocji z cotygodniowej gazetki (niżej). Puste
+  adres albo klucz = gazetka wyłączona.
 
 Add-on ma uprawnienie do API Home Assistanta (`homeassistant_api`) wyłącznie po to, żeby wysłać powiadomienie
 przez `notify.family`.

@@ -12,3 +12,15 @@ configuration:
     description: >-
       Every day at this time (HH:MM, local time) the add-on fetches new receipts, activates coupons and sends
       a notification to notify.family.
+  llm_url:
+    name: Language model API URL
+    description: >-
+      OpenAI-compatible URL (e.g. http://192.168.0.10:3003/v1) for reading promotions from the weekly leaflet.
+      Empty = leaflet off (promotions from lidl.pl and store offers still work).
+  llm_key:
+    name: Language model API key
+    description: Key for the URL above (Bearer). Empty = leaflet off.
+  llm_vision_models:
+    name: Vision models (in order)
+    description: >-
+      Models that read leaflet page images (5 pages per request); on a rate limit the add-on tries the next.

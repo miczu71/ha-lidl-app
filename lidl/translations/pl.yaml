@@ -12,3 +12,15 @@ configuration:
     description: >-
       Codziennie o tej godzinie (GG:MM, czas lokalny) add-on pobiera nowe paragony, aktywuje kupony i wysyła
       powiadomienie na notify.family.
+  llm_url:
+    name: Adres API modelu językowego
+    description: >-
+      Adres zgodny z OpenAI (np. http://192.168.0.10:3003/v1) do odczytu promocji z gazetki. Puste = gazetka
+      wyłączona (promocje z lidl.pl i ofert sklepu działają dalej).
+  llm_key:
+    name: Klucz API modelu językowego
+    description: Klucz do adresu powyżej (Bearer). Puste = gazetka wyłączona.
+  llm_vision_models:
+    name: Modele wizyjne (kolejność)
+    description: >-
+      Modele czytające obrazy stron gazetki (po 5 stron na zapytanie); przy limicie add-on próbuje następnego.
