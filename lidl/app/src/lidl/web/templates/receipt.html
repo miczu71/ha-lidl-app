@@ -56,7 +56,7 @@
 <section class="card" aria-labelledby="kup-h">
   <h2 class="s" id="kup-h">Użyte kupony</h2>
   <ul class="cplist">
-    {% for c in receipt.coupons %}<li class="cp"><div class="cp__txt"><span class="cp__name">{{ c.coupon_title or c.title }}</span>{% if c.description %}<span class="cp__meta"><span>{{ c.description }}</span></span>{% endif %}</div>{% if c.discount %}<span class="pr__amt">{{ c.discount }}</span>{% endif %}</li>{% endfor %}
+    {% for c in receipt.coupons %}<li class="cp"><div class="cp__txt"><span class="cp__name">{{ c.coupon_title or c.title }}</span>{% if c.description %}<span class="cp__meta"><span>{{ c.description }}</span></span>{% endif %}</div>{% if c.discount %}<span class="rl__amt">{{ c.discount }}</span>{% endif %}</li>{% endfor %}
   </ul>
 </section>
 {% endif %}

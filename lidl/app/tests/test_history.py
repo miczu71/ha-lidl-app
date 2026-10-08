@@ -660,3 +660,16 @@ def test_ranking_query_matches_any_name_of_the_product(tmp_path: Path) -> None:
     ]
     assert [r.art_id for r in h.ranking(query="fil.z")] == ["555"]  # tylko stara nazwa pasuje
     assert h.ranking(query="chleb") == []
+
+
+def test_product_purchases_split_old_code_by_bridged_name(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a", [_ticket("o1", "2025-01-01"), _ticket("o2", "2025-02-01"), _ticket("n1", "2026-05-01")]
+    )
+    h.save_detail("o1", None, _receipt(("n:7", "Ser A", 1, 5.0)))
+    h.save_detail("o2", None, _receipt(("n:7", "Ser B", 1, 6.0)))
+    h.save_detail("n1", None, _receipt(("777", "Ser B", 1, 6.5)))  # „Ser B” łączy się po nazwie z 777
+    assert [p.ticket.id for p in h.product_purchases("777")] == ["n1", "o2"]
+    assert [(p.ticket.id, p.line.name) for p in h.product_purchases("n:7")] == [("o1", "Ser A")]
+    assert h.product_purchases("n:999") == []

@@ -309,6 +309,11 @@ class ReceiptLine:
     is_weight: bool
     promo: str
 
+    @property
+    def paid(self) -> float:
+        """Wartość po rabatach pozycji (bez kaucji)."""
+        return round(self.total + self.discount, 2)
+
 
 @dataclass(frozen=True)
 class Purchase:
@@ -339,6 +344,7 @@ _TICKET_COLS = (
     " (SELECT -COALESCE(SUM(discount), 0) FROM items WHERE ticket_id = t.id),"
     " (SELECT COUNT(*) FROM items WHERE ticket_id = t.id), t.detail_fetched, t.parsed"
 )
+_TICKET_N = 10  # liczba kolumn `_TICKET_COLS`; dalsze kolumny zapytania idą po nich
 _STORE_KEY = "COALESCE(NULLIF(t.store_code, ''), t.store, '')"
 
 
@@ -1265,23 +1271,36 @@ class History:
                 (ticket_id,),
             )
         ]
-        return TicketDetail(_summary(row[:10]), row[10], row[11], row[12], lines, self.coupons(ticket_id))
+        payment, charged, refunded = row[_TICKET_N:]
+        return TicketDetail(
+            _summary(row[:_TICKET_N]), payment, charged, refunded, lines, self.coupons(ticket_id)
+        )
 
     def product_purchases(self, art_id: str) -> list[Purchase]:
         """Każdy zakup produktu (po moście nazw) od najnowszych, z paragonem."""
         resolve = self._resolver()
+        # most zmienia tylko stare kody `n:`, więc najpierw ich (kod, nazwa) wskazujące na produkt, potem
+        # pozycje po indeksie `items_art`
+        names: dict[str, set[str] | None] = {} if art_id.startswith("n:") else {art_id: None}  # None = każda
+        for art, name in self._db.execute("SELECT DISTINCT art_id, name FROM items WHERE art_id LIKE 'n:%'"):
+            if resolve(art, name) == art_id:
+                known = names.setdefault(art, set())
+                if known is not None:
+                    known.add(name)
+        if not names:
+            return []
         rows = self._db.execute(
             f"SELECT {_TICKET_COLS}, i.art_id, i.name, i.quantity, i.unit_price, i.total, i.discount,"
             " i.coupon, i.is_weight, i.promo FROM items i JOIN tickets t ON t.id = i.ticket_id"
-            " WHERE i.art_id = ? OR i.art_id LIKE 'n:%'"  # most zmienia tylko stare kody `n:`
+            f" WHERE i.art_id IN ({','.join('?' * len(names))})"
             " ORDER BY t.day DESC, t.purchased_at DESC, t.id DESC, i.line",
-            (art_id,),
+            list(names),
         )
         out = []
         for r in rows:
-            art, name, qty, price, total, disc, coupon, weight, promo = r[10:]
-            key = resolve(art, name)
-            if key == art_id:
-                line = ReceiptLine(key, name, qty, price, total, disc, coupon, bool(weight), promo)
-                out.append(Purchase(_summary(r[:10]), line))
+            art, name, qty, price, total, disc, coupon, weight, promo = r[_TICKET_N:]
+            allowed = names[art]
+            if allowed is None or name in allowed:  # stary kod bywa pod kilkoma nazwami, nie każda się łączy
+                line = ReceiptLine(art_id, name, qty, price, total, disc, coupon, bool(weight), promo)
+                out.append(Purchase(_summary(r[:_TICKET_N]), line))
         return out

@@ -21,11 +21,11 @@ MAX_LIMIT = 200
 LABEL_GAP = 20  # % paska Kupon Plus między podpisami progów; mniej nachodzi na telefonie („1 000 zł”)
 
 
-def parse_limit(raw: str | None) -> int:
+def parse_limit(raw: str | None, default: int = DEFAULT_LIMIT, cap: int = MAX_LIMIT) -> int:
     try:
-        return min(max(int(raw or DEFAULT_LIMIT), 1), MAX_LIMIT)
+        return min(max(int(raw or default), 1), cap)
     except ValueError:
-        return DEFAULT_LIMIT
+        return default
 
 
 def ranking_rows(
@@ -54,7 +54,7 @@ def ranking_rows(
     return rows
 
 
-def _purchases_meta(purchases: int, last_date: str) -> list[str]:
+def purchases_meta(purchases: int, last_date: str) -> list[str]:
     return [
         count_text(purchases, "zakup", "zakupy", "zakupów"),
         "ostatnio " + fmt_recent(date.fromisoformat(last_date)),
@@ -65,7 +65,7 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
     """Wiersze „Kupowane regularnie”; obserwowane (E15) na górze, reszta w kolejności rankingu."""
     rows = []
     for c in sorted(candidates, key=lambda c: not c.watched):
-        meta = _purchases_meta(c.purchases, c.last_date)
+        meta = purchases_meta(c.purchases, c.last_date)
         if c.coupon_uses:
             meta.append(f"kupon {c.coupon_uses}×, {fmt_pln(c.coupon_saved, 2)}")
         if c.promo_saved > 0:
@@ -89,7 +89,7 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
 def other_rows(products: list[RankedProduct]) -> list[dict[str, Any]]:
     """„Inne kupowane produkty” pod wynikami Szukaj: tylko gwiazdka (E15.4)."""
     return [
-        {"id": p.art_id, "name": p.name, "meta": _purchases_meta(p.purchases, p.last_date), "watched": False}
+        {"id": p.art_id, "name": p.name, "meta": purchases_meta(p.purchases, p.last_date), "watched": False}
         for p in products
     ]
 

@@ -29,7 +29,7 @@ from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, DailyJob, at_time_loop
-from lidl.history import CANDIDATE_MIN_PURCHASES, History
+from lidl.history import CANDIDATE_MIN_PURCHASES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
@@ -52,15 +52,7 @@ from .products import (
     ranking_rows,
     reward_cards,
 )
-from .receipts import (
-    TICKETS_LIMIT,
-    detail_view,
-    month_groups,
-    parse_filter,
-    parse_tickets_limit,
-    product_rows,
-    purchases_view,
-)
+from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
 
 log = logging.getLogger(__name__)
 
@@ -254,6 +246,12 @@ def create_app(settings: Settings) -> FastAPI:
         query = f"?{urlencode({'q': q})}" if q else ""
         return f"{base(request)}/paragony/produkt/{quote(art_id, safe=':')}{query}"
 
+    def prices_href(request: Request, art_id: str) -> str:
+        return f"{base(request)}/ceny/produkt/{quote(art_id, safe=':')}"
+
+    def spend_href(request: Request, art_id: str) -> str:
+        return f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres"
+
     def account_labels(request: Request) -> dict[str, str]:
         return {a.slug: a.label for a in service(request).store.list()}
 
@@ -358,9 +356,6 @@ def create_app(settings: Settings) -> FastAPI:
         def link(**over: object) -> str:
             return query_link(request, "/ceny", params, ("q", "kolejnosc", "limit"), **over)
 
-        def href(art_id: str) -> str:
-            return f"{base(request)}/ceny/produkt/{quote(art_id, safe=':')}"
-
         overview = None
         if request.headers.get("hx-target") == "ceny-wyniki":  # wyszukiwanie i kolejność na żywo: sama lista
             changes = history.price_changes(today)
@@ -377,7 +372,7 @@ def create_app(settings: Settings) -> FastAPI:
             "found": len(found),
             "compared": len(changes),
             "clear_href": link(q=""),
-            "rows": price_rows(found[:limit], href),
+            "rows": price_rows(found[:limit], lambda a: prices_href(request, a)),
             "more_href": link(limit=limit + MORE_STEP) if len(found) > limit else None,
         }
         if overview is None:
@@ -386,8 +381,8 @@ def create_app(settings: Settings) -> FastAPI:
         ctx.update(
             has_history=history.ticket_count() > 0,
             basket=basket_view(overview),
-            ups=price_rows(ups, href),
-            downs=price_rows(downs, href),
+            ups=price_rows(ups, lambda a: prices_href(request, a)),
+            downs=price_rows(downs, lambda a: prices_href(request, a)),
             top_min_spend=TOP_MIN_SPEND,
         )
         return render(request, "prices.html", **ctx)
@@ -399,12 +394,11 @@ def create_app(settings: Settings) -> FastAPI:
         prices = history.product_prices(art_id, today)
         if prices is None:
             return render(request, "prices_product.html", product=None, status_code=404)
-        spend = f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres"
         return render(
             request,
             "prices_product.html",
             product=product_view(prices, today),
-            spend=spend,
+            spend=spend_href(request, art_id),
             purchases=purchases_href(request, art_id),
         )
 
@@ -418,19 +412,17 @@ def create_app(settings: Settings) -> FastAPI:
         def link(**over: object) -> str:
             return query_link(request, "/paragony", params, RECEIPT_PARAMS, **over)
 
-        found = history.ranking(query=q) if q else []
-        ctx: dict[str, Any] = {
-            "section": "paragony",
-            "q": q,
-            "found": len(found),
-            "products": product_rows(found, lambda a: purchases_href(request, a, q)),
-            "clear_href": link(q=""),
-        }
+        ctx: dict[str, Any] = {"section": "paragony", "q": q, "clear_href": link(q="")}
         target = request.headers.get("hx-target")
+        if target != "paragony-lista":  # filtry na żywo nie przeliczają wyników Szukaj
+            found = history.ranking(query=q) if q else []
+            ctx.update(
+                found=len(found), products=product_rows(found, lambda a: purchases_href(request, a, q))
+            )
         if target == "paragony-produkty":  # wyszukiwanie na żywo: tylko wyniki
             return render(request, "_receipts_products.html", **ctx)
         f, bad = parse_filter(params, set(labels))
-        limit = parse_tickets_limit(params.get("limit"))
+        limit = parse_limit(params.get("limit"), TICKETS_LIMIT, cap=TICKETS_LIMIT * 100)
         tickets, total = ([], 0) if bad else history.tickets(f, limit)
         groups = month_groups(
             tickets, {} if bad else history.ticket_months(f), labels, lambda t: receipt_href(request, t)
@@ -440,17 +432,18 @@ def create_app(settings: Settings) -> FastAPI:
             bad=bad,
             od=params.get("od", ""),
             do=params.get("do", ""),
-            accounts=labels,
-            stores=history.stores(),
             groups=groups,
             total=total,
-            filtered=any((f.account, f.store, f.start, f.end)),
-            has_history=history.ticket_count() > 0,
+            filtered=f != ReceiptFilter(),
             more_href=link(limit=limit + TICKETS_LIMIT) if total > len(tickets) else None,
         )
         if target == "paragony-lista":  # filtry na żywo: tylko lista
             return render(request, "_receipts_list.html", **ctx)
-        return render(request, "receipts.html", **ctx)
+        stores = history.stores()
+        has_history = history.ticket_count() > 0
+        return render(
+            request, "receipts.html", **ctx, accounts=labels, stores=stores, has_history=has_history
+        )
 
     @app.get("/paragony/produkt/{art_id}")
     async def receipt_product(request: Request, art_id: str, q: str = "") -> Response:
@@ -459,7 +452,9 @@ def create_app(settings: Settings) -> FastAPI:
         purchases = history.product_purchases(art_id)
         if not purchases:
             return render(request, "receipt_product.html", product=None, back=back, status_code=404)
-        priced = any(p.line.quantity > 0 and p.line.unit_price > 0 for p in purchases)
+        priced = any(
+            p.line.quantity > 0 and p.line.unit_price > 0 for p in purchases
+        )  # jak w `product_prices`
         return render(
             request,
             "receipt_product.html",
@@ -467,8 +462,8 @@ def create_app(settings: Settings) -> FastAPI:
                 purchases, account_labels(request), lambda t: receipt_href(request, t, art_id)
             ),
             back=back,
-            prices_href=f"{base(request)}/ceny/produkt/{quote(art_id, safe=':')}" if priced else None,
-            spend_href=f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres",
+            prices_href=prices_href(request, art_id) if priced else None,
+            spend_href=spend_href(request, art_id),
         )
 
     @app.get("/paragony/{ticket_id}")

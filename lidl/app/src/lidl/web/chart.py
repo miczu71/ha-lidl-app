@@ -56,7 +56,7 @@ class Chart:
     empty: bool
 
 
-def _date(value: str | None) -> date | None:
+def parse_date(value: str | None) -> date | None:
     try:
         return date.fromisoformat(value) if value else None
     except ValueError:
@@ -76,7 +76,7 @@ def parse_chart_query(params: Mapping[str, str], today: date, first_day: date | 
     step = step if step in STEPS else "month"
     metric = "qty" if params.get("miara") == "sztuki" else "spend"
     art_id = (params.get("produkt") or "").strip() or None
-    od, do = _date(params.get("od")), _date(params.get("do"))
+    od, do = parse_date(params.get("od")), parse_date(params.get("do"))
     zakres = params.get("zakres")
     default_start, default_end = _last_12_months(today)
     if zakres == "all":

@@ -7,9 +7,11 @@ from datetime import date
 from typing import Any
 
 from lidl.history import Purchase, RankedProduct, ReceiptFilter, ReceiptLine, TicketDetail, TicketSummary
-from lidl.text import count_text, fmt_date, fmt_day_month, fmt_recent
+from lidl.text import count_text, fmt_date, fmt_day_month
 
-from .chart import fmt_month_year, fmt_pln, fmt_qty
+from .chart import fmt_month_year, fmt_pln, fmt_qty, parse_date
+from .prices import fmt_price
+from .products import purchases_meta
 
 TICKETS_LIMIT = 30  # paragonów na start i na każde „Pokaż więcej”
 SEARCH_LIMIT = 20  # produktów w wynikach Szukaj
@@ -17,16 +19,9 @@ _WEEKDAYS = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
 _STATUS = {"pending": "Bez pozycji", "unparsed": "Nierozpoznany"}
 
 
-def _date(value: str | None) -> date | None:
-    try:
-        return date.fromisoformat(value) if value else None
-    except ValueError:
-        return None
-
-
 def parse_filter(params: Mapping[str, str], accounts: set[str]) -> tuple[ReceiptFilter, bool]:
     """Filtry z adresu; nieznane konto i błędne daty pomijamy. Drugi element: „Od” później niż „Do”."""
-    start, end = _date(params.get("od")), _date(params.get("do"))
+    start, end = parse_date(params.get("od")), parse_date(params.get("do"))
     account = params.get("konto") or None
     f = ReceiptFilter(
         account=account if account in accounts else None,
@@ -35,13 +30,6 @@ def parse_filter(params: Mapping[str, str], accounts: set[str]) -> tuple[Receipt
         end=end,
     )
     return f, bool(start and end and start > end)
-
-
-def parse_tickets_limit(raw: str | None) -> int:
-    try:
-        return max(int(raw or TICKETS_LIMIT), 1)
-    except ValueError:
-        return TICKETS_LIMIT
 
 
 def minus(value: float) -> str:
@@ -55,22 +43,8 @@ def _when(t: TicketSummary, year: bool = False) -> str:
     return f"{text}, {t.time}" if t.time else text
 
 
-def _ticket_meta(t: TicketSummary, labels: Mapping[str, str]) -> list[str]:
-    meta = [t.store or "Sklep nieznany", labels.get(t.account, t.account)]
-    if t.status == "ok":
-        meta.append(count_text(t.items, "pozycja", "pozycje", "pozycji"))
-    return meta
-
-
-def ticket_row(t: TicketSummary, labels: Mapping[str, str], href: str) -> dict[str, Any]:
-    return {
-        "when": _when(t),
-        "meta": _ticket_meta(t, labels),
-        "total": fmt_pln(t.total, 2),
-        "savings": f"taniej o {fmt_pln(t.savings, 2)}" if t.savings > 0 else None,
-        "status": _STATUS.get(t.status),
-        "href": href,
-    }
+def _where(t: TicketSummary, labels: Mapping[str, str]) -> list[str]:
+    return [t.store or "Sklep nieznany", labels.get(t.account, t.account)]
 
 
 def month_groups(
@@ -93,14 +67,26 @@ def month_groups(
                     "rows": [],
                 }
             )
-        groups[-1]["rows"].append(ticket_row(t, labels, href(t.id)))
+        meta = _where(t, labels)
+        if t.status == "ok":
+            meta.append(count_text(t.items, "pozycja", "pozycje", "pozycji"))
+        groups[-1]["rows"].append(
+            {
+                "when": _when(t),
+                "meta": meta,
+                "notes": [f"taniej o {fmt_pln(t.savings, 2)}"] if t.savings > 0 else [],
+                "status": _STATUS.get(t.status),
+                "total": fmt_pln(t.total, 2),
+                "href": href(t.id),
+            }
+        )
     return groups
 
 
 def _qty(line: ReceiptLine) -> str | None:
     """„2 × 3,49 zł”, „0,532 kg × 12,99 zł/kg”; przy jednej sztuce nic (cena = wartość)."""
     if line.is_weight:
-        return f"{fmt_qty(line.quantity)} kg × {fmt_pln(line.unit_price, 2)}/kg"
+        return f"{fmt_qty(line.quantity)} kg × {fmt_price(line.unit_price, True)}"
     if line.quantity == 1:
         return None
     return f"{fmt_qty(line.quantity)} × {fmt_pln(line.unit_price, 2)}"
@@ -123,7 +109,7 @@ def detail_view(
 ) -> dict[str, Any]:
     """Szczegół paragonu: pozycje z rabatami (szukany produkt wyróżniony) i rozliczenie do zapłaty."""
     t = d.ticket
-    lines, first_hit = [], True
+    lines: list[dict[str, Any]] = []
     for line in d.lines:
         hit = product is not None and line.product == product
         lines.append(
@@ -134,14 +120,12 @@ def detail_view(
                 "total": fmt_pln(line.total, 2),
                 "discounts": discounts(line),
                 "hit": hit,
-                "anchor": hit and first_hit,
+                "anchor": hit and not any(x["hit"] for x in lines),
             }
         )
-        first_hit = first_hit and not hit
-    gross = sum(x.total for x in d.lines)
     coupon = sum(x.coupon for x in d.lines)
     promo = sum(x.discount for x in d.lines) - coupon
-    summary = [{"label": "Suma pozycji", "value": fmt_pln(gross, 2)}]
+    summary = [{"label": "Suma pozycji", "value": fmt_pln(sum(x.total for x in d.lines), 2)}]
     if coupon < 0:
         summary.append({"label": "Kupony Lidl Plus", "value": minus(coupon)})
     if promo < -0.004:
@@ -150,17 +134,18 @@ def detail_view(
         summary.append({"label": "Kaucje pobrane", "value": "+" + fmt_pln(d.deposit_charged, 2)})
     if d.deposit_refunded:
         summary.append({"label": "Kaucje i opakowania zwrócone", "value": minus(d.deposit_refunded)})
+    store, account = _where(t, labels)
     return {
         "when": _when(t, year=True),
-        "store": t.store or "Sklep nieznany",
-        "account": labels.get(t.account, t.account),
+        "store": store,
+        "account": account,
         "payment": d.payment,
         "total": fmt_pln(t.total, 2),
         "savings": fmt_pln(t.savings, 2) if t.savings > 0 else None,
         "status": t.status,
         "positions": count_text(len(d.lines), "pozycja", "pozycje", "pozycji"),
         "lines": lines,
-        "hits": sum(x["hit"] for x in lines),
+        "hits": any(x["hit"] for x in lines),
         "summary": summary,
         "coupons": d.coupons,
     }
@@ -172,38 +157,29 @@ def purchases_view(
     """Zakupy produktu: podsumowanie i wiersze od najnowszych (zapłacono = wartość po rabatach pozycji)."""
     weight = any(p.line.is_weight for p in purchases)
     prices = [p.line.unit_price for p in purchases if p.line.unit_price > 0]
-    unit = "/kg" if weight else ""
-    spent = sum(p.line.total + p.line.discount for p in purchases)
-    qty = sum(p.line.quantity for p in purchases)
-    names = list(dict.fromkeys(p.line.name for p in purchases))
-    tickets = {p.ticket.id for p in purchases}
-    rows = []
-    for p in purchases:
-        price = fmt_pln(p.line.unit_price, 2) + unit
-        rows.append(
-            {
-                "when": _when(p.ticket, year=True),
-                "meta": [
-                    p.ticket.store or "Sklep nieznany",
-                    labels.get(p.ticket.account, p.ticket.account),
-                    _qty(p.line) or price,
-                ],
-                "discounts": discounts(p.line),
-                "paid": fmt_pln(p.line.total + p.line.discount, 2),
-                "href": ticket_href(p.ticket.id),
-            }
-        )
     low, high = (min(prices), max(prices)) if prices else (0.0, 0.0)
+    qty = fmt_qty(sum(p.line.quantity for p in purchases))
+    names = list(dict.fromkeys(p.line.name for p in purchases))
+    rows = [
+        {
+            "when": _when(p.ticket, year=True),
+            "meta": [*_where(p.ticket, labels), _qty(p.line) or fmt_price(p.line.unit_price, weight)],
+            "notes": [f"{x['label']} {x['amount']}" for x in discounts(p.line)],
+            "total": fmt_pln(p.line.paid, 2),
+            "href": ticket_href(p.ticket.id),
+        }
+        for p in purchases
+    ]
     return {
         "name": names[0],
         "other_names": names[1:],
-        "count": count_text(len(tickets), "paragonie", "paragonach", "paragonach"),
-        "quantity": f"{fmt_qty(qty)} kg" if weight else f"{fmt_qty(qty)} szt.",
-        "spent": fmt_pln(spent, 2),
+        "count": count_text(len({p.ticket.id for p in purchases}), "paragonie", "paragonach", "paragonach"),
+        "quantity": f"{qty} kg" if weight else f"{qty} szt.",
+        "spent": fmt_pln(sum(p.line.paid for p in purchases), 2),
         "price": (
-            f"{fmt_pln(low, 2)}{unit}"
+            fmt_price(low, weight)
             if low == high
-            else f"{fmt_pln(low, 2).removesuffix(' zł')}–{fmt_pln(high, 2)}{unit}"
+            else f"{fmt_pln(low, 2).removesuffix(' zł')}–{fmt_price(high, weight)}"
         ),
         "last": fmt_date(date.fromisoformat(purchases[0].ticket.day)),
         "rows": rows,
@@ -213,13 +189,6 @@ def purchases_view(
 def product_rows(found: list[RankedProduct], href: Callable[[str], str]) -> list[dict[str, Any]]:
     """Wyniki Szukaj: produkt → jego zakupy."""
     return [
-        {
-            "name": p.name,
-            "meta": [
-                count_text(p.purchases, "zakup", "zakupy", "zakupów"),
-                "ostatnio " + fmt_recent(date.fromisoformat(p.last_date)),
-            ],
-            "href": href(p.art_id),
-        }
+        {"name": p.name, "meta": purchases_meta(p.purchases, p.last_date), "href": href(p.art_id)}
         for p in found[:SEARCH_LIMIT]
     ]

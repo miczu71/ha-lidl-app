@@ -33,7 +33,7 @@ def delta(pct: float) -> dict[str, str]:
     return {"kind": kind, "text": fmt_pct(pct), "word": _WORD[kind]}
 
 
-def _price(value: float, weight: bool) -> str:
+def fmt_price(value: float, weight: bool) -> str:
     return fmt_pln(value, 2) + ("/kg" if weight else "")
 
 
@@ -42,7 +42,7 @@ def price_rows(changes: list[PriceChange], href: Callable[[str], str]) -> list[d
         {
             "name": c.name,
             "href": href(c.art_id),
-            "prices": f"{_price(c.old, c.is_weight)} → {_price(c.new, c.is_weight)}",
+            "prices": f"{fmt_price(c.old, c.is_weight)} → {fmt_price(c.new, c.is_weight)}",
             "spend": f"{fmt_pln(c.spend)} rocznie",
             "delta": delta(c.pct),
         }
@@ -110,19 +110,19 @@ def product_view(product: ProductPrices, today: date) -> dict[str, Any]:
     first, last = date.fromisoformat(points[0].day), date.fromisoformat(points[-1].day)
     aria = (
         f"Cena {name} od {fmt_date(first)} do {fmt_date(last)}: na półce od "
-        f"{_price(points[0].shelf, weight)} do {_price(points[-1].shelf, weight)}; "
-        f"zapłacono najmniej {_price(best.paid, weight)}"
+        f"{fmt_price(points[0].shelf, weight)} do {fmt_price(points[-1].shelf, weight)}; "
+        f"zapłacono najmniej {fmt_price(best.paid, weight)}"
     )
     return {
         "name": name,
         "lead": f"Cena {'za kg' if weight else 'za sztukę'} · "
         + count_text(len(points), "zakup", "zakupy", "zakupów")
         + f" od {fmt_month_year_genitive(first)}",
-        "last_shelf": _price(points[-1].shelf, weight),
+        "last_shelf": fmt_price(points[-1].shelf, weight),
         "last_date": fmt_date(last),
-        "year_ago": _price(change.old, weight) if change else None,
+        "year_ago": fmt_price(change.old, weight) if change else None,
         "delta": delta(change.pct) if change else None,
-        "best": _price(best.paid, weight),
+        "best": fmt_price(best.paid, weight),
         "best_date": fmt_date(date.fromisoformat(best.day)),
         "deals": sum(p.paid <= p.shelf * DEAL for p in points),
         "purchases": len(points),
