@@ -159,7 +159,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   gazetka (JSON/PDF) bez kodów żywności → AI (freellmapi, przypięty model). Podetapy: E4.1 źródła z kodami ✅ (0.8.0 na żywo
   2026-10-08; lista promocji w pamięci, bez tabeli; na lidl.pl większość „promocji” to ceny kuponowe Lidl Plus → pomijane,
   bo aktywuje je E3; dziś 4 zwykłe obniżki na lidl.pl + 16 ofert sklepu, 1 trafienie w nasze produkty),
-  E4.2 próba AI na gazetce, E4.3 AI w add-onie (0.9.0).
+  E4.2 próba AI ✅ (2026-10-08: tekst PDF niewystarczający, obrazy Gemini najlepsze; limity darmowe 20 zapytań/dzień
+  na model Gemini Flash), E4.3 AI w add-onie ✅ wydane (0.9.0 + 0.9.1, 2026-10-08: obrazy stron w paczkach po 5,
+  kolejka modeli, postęp w bazie) — czeka weryfikacja pełnego przebiegu gazetki i pierwszej porannej linii z gazetki.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
 - **E6 Integracja z Budżetem Domowym:** dopasowanie paragonu do transakcji kartą (data + kwota), podział na kategorie.
 - **E7 Śledzenie cen produktów w czasie** (zlecone 2026-10-07): z bazy historii (E2) bierzemy ceny jednostkowe

@@ -127,3 +127,12 @@ Projekt:
 - **Wynik:** trafienia (kod z listy E11, nazwa z gazetki, rabat, daty DD.MM → rok z gazetki, kupon LP) w tabeli;
   kupony Lidl Plus pomijamy (E3); linia „Promocje od dziś” łączy E4.1 i gazetkę bez powtórzeń.
 - **Opcje:** `llm_url`, `llm_key` (`password`), `llm_vision_models`. Puste adres/klucz = gazetka wyłączona.
+
+## Wynik E4.3 (2026-10-08)
+
+- 0.9.0 (`2b8b2a5`, wydanie `1485242`): `leaflet.py`, tabele `leaflet_batches`/`leaflet_matches`, opcje `llm_*`,
+  odświeżanie promocji przy starcie; CI znów zielone (`eb193aa`, mypy od 0.7.1).
+- 0.9.1: przeciążenie modelu (Google `503 high demand`, freellmapi `502`) → od razu następny model; modele z limitem
+  w zbiorze `_refused` (czyszczonym, gdy wszystkie odmówią).
+- Na żywo po restarcie z opcjami: gazetka 8.10 wykryta (97 stron, 20 paczek); `gemini-3.5-flash` i `3.6` z wyczerpanym
+  dziennym limitem po testach E4.2; `401` z lidl.pl przy pierwszym starcie było jednorazowe (drugi start: 200).
