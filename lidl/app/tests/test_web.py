@@ -804,8 +804,10 @@ def test_prices_shows_basket_top_changes_and_list(client: TestClient) -> None:
     _seed_prices(client)
     text = client.get("/ceny").text
     assert 'aria-current="page">Ceny<' in text
-    assert "Nasz koszyk" in text and "+2,9%" in text and "<strong>2 produktów</strong>" not in text
-    assert "<strong>2 produkty</strong>" in text and "<strong>50%</strong>" in text
+    assert "Nasz koszyk" in text and "+2,9%" in text
+    assert "Porównanie dla <strong>2 produktów</strong>" in text and "<strong>50%</strong>" in text
+    assert "Co nie jest porównane" in text and "Pierwszy zakup w ostatnim roku" in text
+    assert "10,00 zł · 1 produkt · 50%" in text
     up, down = text.index("Najbardziej podrożały"), text.index("Najbardziej potaniały")
     assert up < text.index("Masło", up) < down < text.index("Cukier", down)
     assert "6,00 zł → 6,60 zł" in text and "+10,0%" in text and "−10,0%" in text

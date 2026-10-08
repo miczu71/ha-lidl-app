@@ -248,6 +248,7 @@ class PriceOverview:
     changes: list[PriceChange]
     basket: BasketInflation
     series: list[tuple[str, BasketInflation]]  # koszyk na koniec każdego miesiąca (bieżący: na dziś)
+    split: dict[str, tuple[float, int]]  # wydatki z 365 dni (zł, produkty) wg grup `_spend_split`
 
 
 @dataclass(frozen=True)
@@ -284,12 +285,17 @@ def _year_ago(today: date | None) -> date:
 _PriceRow = tuple[str, str, date, float, float, float, bool]
 
 
+def _windows(today: date) -> tuple[date, date, date]:
+    """Granice r/r: (rok temu, początek okna bieżącego, początek okna sprzed roku) — okna (od, do]."""
+    year = today - timedelta(days=365)
+    return year, today - timedelta(days=PRICE_WINDOW_DAYS), year - timedelta(days=PRICE_WINDOW_DAYS)
+
+
 def _price_changes(rows: list[_PriceRow], days: list[date], today: date) -> tuple[list[PriceChange], float]:
     """Zmiany r/r produktów kupionych w obu oknach (od największej podwyżki) i wydatki z 365 dni do dziś.
     `rows` posortowane po dniu, `days` to ich dni; liczymy tylko wycinek z okien (seria koszyka woła to dla
     każdego miesiąca)."""
-    year = today - timedelta(days=365)
-    new_from, old_from = today - timedelta(days=PRICE_WINDOW_DAYS), year - timedelta(days=PRICE_WINDOW_DAYS)
+    year, new_from, old_from = _windows(today)
     acc: dict[str, dict[str, Any]] = {}
     total = 0.0
     window = rows[bisect_right(days, old_from) : bisect_right(days, today)]
@@ -312,6 +318,35 @@ def _price_changes(rows: list[_PriceRow], days: list[date], today: date) -> tupl
         changes.append(PriceChange(key, p["name"], p["weight"], old, new, pct, round(p["spend"], 2)))
     changes.sort(key=lambda c: (-c.pct, c.name))
     return changes, total
+
+
+def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict[str, tuple[float, int]]:
+    """Wydatki z 365 dni wg tego, czemu produkt jest (nie)porównany: `compared`, `no_recent` (bez zakupu
+    w ostatnich `PRICE_WINDOW_DAYS` dniach), `no_old_window` (kupowany ponad rok, ale nie w tych samych
+    miesiącach rok temu), `no_history` (pierwszy zakup w ostatnim roku: nowy albo zmieniony kod/nazwa)."""
+    year, new_from, _ = _windows(today)
+    first: dict[str, date] = {}
+    recent: set[str] = set()
+    spend: dict[str, float] = {}
+    for key, _name, day, _price, paid, _qty, _weight in rows:
+        if day > today:
+            break
+        first.setdefault(key, day)
+        if day > new_from:
+            recent.add(key)
+        if day > year:
+            spend[key] = spend.get(key, 0.0) + paid
+    groups = dict.fromkeys(("compared", "no_recent", "no_old_window", "no_history"), (0.0, 0))
+    for key, paid in spend.items():
+        if key in compared:
+            group = "compared"
+        elif key not in recent:
+            group = "no_recent"
+        else:
+            group = "no_old_window" if first[key] <= year else "no_history"
+        total, products = groups[group]
+        groups[group] = (total + paid, products + 1)
+    return {g: (round(total, 2), products) for g, (total, products) in groups.items()}
 
 
 def _basket(changes: list[PriceChange], total: float) -> BasketInflation:
@@ -983,7 +1018,8 @@ class History:
             if basket.products:
                 series.append((month.isoformat(), basket))
             month = following
-        return PriceOverview(changes, _basket(changes, total), series)
+        split = _spend_split(rows, today, {c.art_id for c in changes})
+        return PriceOverview(changes, _basket(changes, total), series, split)
 
     def product_prices(self, art_id: str, today: date | None = None) -> ProductPrices | None:
         """Każdy zakup produktu (cena półkowa i zapłacona za jednostkę po rabatach) i jego zmiana r/r."""

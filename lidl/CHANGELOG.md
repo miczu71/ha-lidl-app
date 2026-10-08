@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.1
+
+- **Ceny — „Co nie jest porównane”:** w karcie „Nasz koszyk” zwinięte rozbicie wydatków z 12 miesięcy: porównane,
+  niekupowane w ostatnich 3 miesiącach, kupowane wcześniej ale nie w tych samych miesiącach rok temu, pierwszy
+  zakup w ostatnim roku (nowy produkt albo zmieniony kod lub nazwa). Pomaga ocenić, ile koszyka obejmuje porównanie.
+- Poprawna odmiana: „Porównanie dla 83 produktów”.
+
 ## 0.13.0
 
 - **Nowa zakładka „Ceny”:** jak zmieniają się ceny tego, co kupujemy (cena z półki, rok do roku: mediana

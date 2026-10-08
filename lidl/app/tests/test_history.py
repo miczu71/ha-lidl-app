@@ -464,3 +464,17 @@ def test_prices_on_empty_database(tmp_path: Path) -> None:
     overview = h.price_overview(today)
     assert overview.changes == [] and overview.series == []
     assert (overview.basket.pct, overview.basket.products, overview.basket.coverage) == (None, 0, 0.0)
+
+
+def test_price_overview_splits_spend_by_why_it_is_not_compared(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_prices(h)
+    h.upsert_tickets("a", [_ticket("t6", "2026-03-01")])
+    h.save_detail("t6", "S", _priced(("5", "Rzadki", 1, 7.0, 0.0)))
+    split = h.price_overview(date(2026, 10, 8)).split
+    assert split == {
+        "compared": (10.0, 2),  # Mleko i Chleb: zakupy w obu oknach
+        "no_recent": (7.0, 1),  # Rzadki: ostatnio w marcu
+        "no_old_window": (5.0, 1),  # Stary: kupowany od 2024, ale nie latem 2025
+        "no_history": (5.0, 1),  # Nowy: pierwszy zakup w ostatnim roku
+    }

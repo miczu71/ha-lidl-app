@@ -14,6 +14,12 @@ from .chart import LineChart, build_line, fmt_month_year_genitive, fmt_pln, fmt_
 TOP = 5
 DEAL = 0.9  # zapłacono najwyżej 90% ceny półkowej = zakup z rabatem
 _WORD = {"up": "drożej", "down": "taniej", "flat": "bez zmian"}
+_SPLIT = {
+    "compared": "Porównane: kupione w obu okresach",
+    "no_recent": "Niekupowane w ostatnich 3 miesiącach",
+    "no_old_window": "Kupowane wcześniej, ale nie w tych samych miesiącach rok temu",
+    "no_history": "Pierwszy zakup w ostatnim roku (nowy produkt albo zmieniony kod lub nazwa)",
+}
 
 
 def fmt_pct(value: float) -> str:
@@ -66,10 +72,26 @@ def basket_view(overview: PriceOverview) -> dict[str, Any] | None:
         chart = build_line(points, lambda v: f"{fmt_qty(v)}%", aria, zero=True)
     return {
         "delta": delta(basket.pct),
-        "products": count_text(basket.products, "produkt", "produkty", "produktów"),
+        "products": count_text(basket.products, "produktu", "produktów", "produktów"),
         "coverage": f"{round(basket.coverage * 100)}%",
         "chart": chart,
+        "split": _split_rows(overview.split),
     }
+
+
+def _split_rows(split: dict[str, tuple[float, int]]) -> list[dict[str, str]]:
+    total = sum(spend for spend, _ in split.values())
+    rows = []
+    for group, label in _SPLIT.items():  # kolejność grup: tu
+        spend, n = split[group]
+        share = f" · {round(spend / total * 100)}%" if total else ""
+        rows.append(
+            {
+                "label": label,
+                "value": f"{fmt_pln(spend, 2)} · {count_text(n, 'produkt', 'produkty', 'produktów')}{share}",
+            }
+        )
+    return rows
 
 
 def product_view(product: ProductPrices, today: date) -> dict[str, Any]:

@@ -64,3 +64,12 @@ Dane demo: `~/dev/lidl-spike/seed_prices_demo.py` (534 paragony 2019–2026, ~0,
 Skill `simplify` → skill `release` (bump `lidl/config.yaml` i `pyproject.toml`, CHANGELOG, published release,
 aktualizacja przez Supervisora za zgodą), cache-busting, znacznik wersji. Na żywo: pokrycie r/r (zob. E7.0),
 ocena top 5 przez użytkownika. Cofnięcie: downgrade do 0.12.2 (bez zmian schematu).
+
+## E7.3 ✅ 0.13.0 na żywo (2026-10-08 18:50)
+Koszyk −3,0% r/r, 83 produkty, **pokrycie 30%** (poniżej progu 50%). Top 5 zdominowane przez warzywa/owoce
+(część z wydatkami kilku zł rocznie). Kiwi: starsze ceny półkowe 1,00 zł vs 2,00–2,49 zł — do sprawdzenia.
+
+## E7.4 — diagnoza pokrycia, 0.13.1
+Rozbicie wydatków z 12 mies. (`PriceOverview.split`, sekcja „Co nie jest porównane”): porównane / niekupowane
+w ostatnich 3 mies. / bez zakupu w tych samych miesiącach rok temu / pierwszy zakup w ostatnim roku. Decyzja
+o oknach (3 vs 6 mies.) albo poprawie mostu kodów `n:` ↔ HTML na podstawie liczb z panelu.

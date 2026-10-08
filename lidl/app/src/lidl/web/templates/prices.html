@@ -19,6 +19,12 @@
   {% if basket.chart %}{% set line = basket.chart %}{% include "_line.html" %}{% endif %}
   <p class="sum">Porównanie dla <strong>{{ basket.products }}</strong>, które kupowaliśmy w obu okresach: to <strong>{{ basket.coverage }}</strong> naszych wydatków z 12 miesięcy.
     Ostatnie 3 miesiące wobec tych samych miesięcy rok wcześniej, ważone tym, ile na produkt wydajemy.</p>
+  <details class="ef__more">
+    <summary><span class="ef__sumtxt"><span>Co nie jest porównane</span><span class="meta">Wydatki z 12 miesięcy według tego, czemu produkt jest albo nie jest w porównaniu</span></span></summary>
+    <ul class="cplist ef__list">
+      {% for r in basket.split %}<li class="cp"><div class="cp__txt"><span class="cp__name">{{ r.label }}</span><span class="cp__meta"><span>{{ r.value }}</span></span></div></li>{% endfor %}
+    </ul>
+  </details>
 </section>
 
 <div class="tops">
