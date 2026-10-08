@@ -201,6 +201,10 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   sortowanie i paginacja (setki paragonów), przejścia z rankingu Produktów i wykresu do paragonów danego produktu
   (i odwrotnie), pokazanie paragonów nierozpoznanych (dziś tylko licznik), czy pokazywać oryginalny wygląd
   paragonu czy własny układ. Niezależny od E3–E7, korzysta z danych E2; kolejność do ustalenia.
+  **Wywiad 2026-10-08 (plan: `docs/PLAN_E8_paragony.md`):** cel = znaleźć zakup produktu (kiedy, gdzie, za ile);
+  nowa zakładka „Paragony”: Szukaj w całej historii → produkty → zakupy produktu → paragon (własny układ,
+  podświetlony produkt); lista paragonów po miesiącach z filtrami konto/sklep/daty, nierozpoznane oznaczone;
+  tylko odczyt. Podetapy: E8.0 docs ✅, E8.1 dane, E8.2 zakładka, E8.3 zakupy produktu + linki, E8.4 wydanie 0.15.0.
 - **Propozycje na bazie danych z 0.3.3** (2026-10-07; to pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu przed startem,
   kolejność z użytkownikiem; dane potrzebne do E9–E11 są już w bazie):
   - **E9 Rytm zakupów (heatmapa):** heatmapa dzień tygodnia × godzina (liczba zakupów i/lub wydatki), trendy w czasie. Dane:
