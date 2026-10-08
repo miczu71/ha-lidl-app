@@ -325,3 +325,37 @@ def test_v3_database_gets_archive_columns(tmp_path: Path) -> None:
     assert [
         (c["promotion_id"], c["article_ids"], c["gone_at"]) for c in history.account_coupons("osoba-1")
     ] == [("p1", "", None)]
+
+
+def test_star_turns_auto_activation_on_and_opt_out_removes_star(tmp_path: Path) -> None:
+    history = _history(tmp_path)  # 222 odznaczony
+    history.set_watched("222", True)
+    flags = {c.art_id: (c.enabled, c.watched) for c in history.coupon_candidates(NOW.date())}
+    assert flags == {"111": (True, False), "222": (True, True)}
+    history.set_auto_activate("222", False)
+    assert history.watched_codes() == set()
+
+
+def test_watched_coupons_skip_archived_expired_and_unwatched(tmp_path: Path) -> None:
+    history = _history(tmp_path)
+    history.set_watched("222", True)
+    current = _payload(
+        AllStores=[
+            _promo("p1", "Kawa X", ["111", "222"]),
+            _promo("p2", "Stara kawa", ["222"], end=PAST),
+            _promo("p3", "Obcy", ["999"]),
+        ]
+    )
+    history.save_coupons(
+        "osoba-1", parse_coupons(_payload(AllStores=[_promo("p4", "Zniknął", ["222"])])), "t1"
+    )
+    history.save_coupons("osoba-1", parse_coupons(current), "t2")
+    found = history.watched_coupons(NOW.date())
+    assert [(c.promotion_id, c.valid_to) for c in found] == [("p1", date(2026, 10, 10))]
+
+
+def test_watched_sent_keys_are_remembered(tmp_path: Path) -> None:
+    history = _history(tmp_path)
+    history.mark_watched_sent(["c:osoba-1:p1", "p:222:2026-10-07"], "t1")
+    history.mark_watched_sent(["c:osoba-1:p1"], "t2")
+    assert history.watched_sent_keys() == {"c:osoba-1:p1", "p:222:2026-10-07"}

@@ -10,6 +10,7 @@ from lidl import notify
 from lidl.accounts import Account
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.daily import DailyJob, at_time_loop, seconds_until
+from lidl.history import WatchedCoupon
 from lidl.promotions import Promotion
 from lidl.rewards import Rewards, ScratchCard
 from lidl.text import fmt_until
@@ -92,15 +93,41 @@ class FakePromotions:
         return [Promotion("0000111", "Produkt B", "-40%", today, today + timedelta(days=2))]
 
 
-def _job(log: list[str], expires: datetime | None = None) -> DailyJob:
+class FakeHistory:
+    """Obserwowane (E15): kody, kupony z bazy i klucze już wysłanych powiadomień."""
+
+    def __init__(self, watched: set[str] | None = None, coupons: list[WatchedCoupon] | None = None) -> None:
+        self.watched, self.coupons, self.sent = watched or set(), coupons or [], set[str]()
+
+    def watched_codes(self) -> set[str]:
+        return self.watched
+
+    def watched_coupons(self, today: date) -> list[WatchedCoupon]:
+        return self.coupons
+
+    def watched_sent_keys(self) -> set[str]:
+        return set(self.sent)
+
+    def mark_watched_sent(self, keys: list[str], sent_at: str) -> None:
+        self.sent.update(keys)
+
+
+def _job(
+    log: list[str],
+    expires: datetime | None = None,
+    history: FakeHistory | None = None,
+    *,
+    dry_run: bool = True,
+) -> DailyJob:
     return DailyJob(
         FakeStore(),  # type: ignore[arg-type]
         FakeSync(log),  # type: ignore[arg-type]
         FakeRunner(log),  # type: ignore[arg-type]
         FakeRewards(log, expires),  # type: ignore[arg-type]
         FakePromotions(log),  # type: ignore[arg-type]
+        history or FakeHistory(),  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
-        dry_run=True,
+        dry_run=dry_run,
     )
 
 
@@ -125,6 +152,55 @@ async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
         + fmt_until(date.today() + timedelta(days=2), date.today())
         + ")",
     ]
+
+
+def _watched_history() -> FakeHistory:
+    end = date.today() + timedelta(days=3)
+    return FakeHistory(
+        {"0000111", "222"},
+        [
+            WatchedCoupon("osoba-1", "p1", "Kawa X | 500 g", "-30%", end),
+            WatchedCoupon("osoba-2", "p1", "Kawa X | 500 g", "-30%", end),  # konto niepołączone
+        ],
+    )
+
+
+@pytest.mark.parametrize(("ok", "dry_run", "pushes"), [(True, False, 1), (True, True, 2), (False, False, 2)])
+async def test_watched_products_get_a_separate_push_once(
+    monkeypatch: pytest.MonkeyPatch, ok: bool, dry_run: bool, pushes: int
+) -> None:
+    log: list[str] = []
+    sent: list[tuple[str, str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        if tag == notify.TAG_WATCHED:
+            sent.append((message[0], message[1], tag))
+        return ok
+
+    monkeypatch.setattr(notify, "send", send)
+    job = _job(log, history=_watched_history(), dry_run=dry_run)
+    await job()
+    await job()  # drugi przebieg tego dnia („Sprawdź teraz”) nie powtarza, chyba że próbny albo nieudany
+    assert len(sent) == pushes
+    title, body, _ = sent[0]
+    assert title == "Lidl: 2 obserwowane produkty z rabatem"
+    end = fmt_until(date.today() + timedelta(days=3), date.today())
+    assert body.splitlines() == [
+        f"Kawa X −30% (do {end}) · kupon Osoba 1",
+        f"Produkt B −40% (do {fmt_until(date.today() + timedelta(days=2), date.today())}) · promocja od dziś",
+    ]
+
+
+async def test_nothing_watched_sends_no_extra_push(monkeypatch: pytest.MonkeyPatch) -> None:
+    tags: list[str] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        tags.append(tag)
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    await _job([], dry_run=False)()
+    assert tags == [notify.TAG]
 
 
 async def test_start_coupons_reports_running_at_once_and_only_one_run() -> None:

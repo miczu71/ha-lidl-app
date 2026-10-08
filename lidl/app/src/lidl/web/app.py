@@ -90,7 +90,14 @@ def create_app(settings: Settings) -> FastAPI:
             rewards = RewardsRunner(service)
             promotions = PromotionRunner(session, history)
             job = DailyJob(
-                service.store, sync, runner, rewards, promotions, session, dry_run=not settings.auto_activate
+                service.store,
+                sync,
+                runner,
+                rewards,
+                promotions,
+                history,
+                session,
+                dry_run=not settings.auto_activate,
             )
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards

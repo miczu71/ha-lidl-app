@@ -13,6 +13,7 @@ from datetime import date
 import aiohttp
 
 from .coupons import AccountReport, ActiveCoupon
+from .history import WatchedCoupon
 from .promotions import Promotion
 from .rewards import Rewards
 from .text import count_text, fmt_until, plural
@@ -24,9 +25,10 @@ NOTIFY_URL = "http://supervisor/core/api/services/notify/family"
 PANEL = "/app/" + os.environ.get("HOSTNAME", "f0987e0f-lidl").replace("-", "_")
 TAG = "lidl-kupony"  # nowe powiadomienie zastępuje poprzednie
 TAG_SCRATCH = "lidl-zdrapki"  # wieczorne przypomnienie nie zastępuje porannego
+TAG_WATCHED = "lidl-obserwowane"  # obserwowane produkty (E15) obok porannego, nie zamiast niego
 
 
-def _name(c: ActiveCoupon) -> str:
+def _name(c: ActiveCoupon | WatchedCoupon) -> str:
     return c.title.split("|")[0].strip(" *")
 
 
@@ -36,6 +38,10 @@ def _discount(text: str) -> str:
     text = re.sub(r"(\d+)\s*\+\s*(\d+)\s*gratis", r"\1+\2", text)
     text = text.replace(" przy zakupie ", " przy ").replace(" rabatu", "")
     return text.replace("-", "−", 1) if text.startswith("-") else text
+
+
+def _offer(name: str, discount: str, end: date, today: date) -> str:
+    return f"{name} {discount} (do {fmt_until(end, today)})"
 
 
 def _label(c: ActiveCoupon) -> str:
@@ -62,9 +68,7 @@ def compose(
         for label, r in (rewards or {}).items()
         for c in r.scratch_cards
     ]
-    promo = " · ".join(
-        f"{p.title} {_discount(p.discount)} (do {fmt_until(p.end, today)})" for p in promos or []
-    )
+    promo = " · ".join(_offer(p.title, _discount(p.discount), p.end, today) for p in promos or [])
     tail = ([f"Promocje od dziś: {promo}"] if promo else []) + (
         [f"Zdrapki: {' · '.join(cards)}"] if cards else []
     )
@@ -121,11 +125,38 @@ def compose_expiring(rewards: dict[str, Rewards], today: date | None = None) -> 
     return f"Lidl: {title} dziś o 23:59", ", ".join(labels) + " — zdrap w aplikacji Lidl Plus"
 
 
-async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag: str = TAG) -> None:
+def compose_watched(
+    coupons: list[tuple[str, WatchedCoupon]], promos: list[Promotion], today: date
+) -> tuple[str, str] | None:
+    """Obserwowane produkty (E15): kupony (para etykieta konta, kupon) i promocje od dziś, linia na rzecz;
+    ten sam kupon na obu kontach to jedna linia. None, gdy nic."""
+    who: dict[tuple[str, str, date], list[str]] = {}
+    for label, c in coupons:
+        who.setdefault((_name(c), _discount(c.discount), c.valid_to), []).append(label)
+    rows = [(name, "kupon", disc, end, "obie karty" if len(labels) > 1 else labels[0])
+            for (name, disc, end), labels in who.items()]  # fmt: skip
+    rows += [(p.title, "promocja", _discount(p.discount), p.end, "od dziś") for p in promos]
+    if not rows:
+        return None
+    if len(rows) == 1:
+        name, kind, disc, _, _ = rows[0]
+        title = f"{name} — {kind} {disc}"
+    else:
+        n = len({row[0] for row in rows})
+        title = (
+            count_text(n, "obserwowany produkt", "obserwowane produkty", "obserwowanych produktów")
+            + " z rabatem"
+        )
+    body = [f"{_offer(name, disc, end, today)} · {kind} {note}" for name, kind, disc, end, note in rows]
+    return "Lidl: " + title, "\n".join(body)
+
+
+async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag: str = TAG) -> bool:
+    """True, gdy HA przyjął powiadomienie (w trybie dev — tylko log, też True)."""
     token = os.environ.get("SUPERVISOR_TOKEN")
     if not token:
         log.info("Brak SUPERVISOR_TOKEN (tryb dev) — powiadomienie tylko w logu: %s", message[0])
-        return
+        return True
     title, body = message
     payload = {"title": title, "message": body, "data": {"clickAction": PANEL, "url": PANEL, "tag": tag}}
     try:
@@ -134,5 +165,8 @@ async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag:
         ) as response:
             if response.status >= 400:
                 log.warning("Powiadomienie nieudane: HTTP %s", response.status)
+                return False
+            return True
     except aiohttp.ClientError as err:
         log.warning("Powiadomienie nieudane: %s", err)
+        return False

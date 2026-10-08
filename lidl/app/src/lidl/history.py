@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS ticket_coupons (
     PRIMARY KEY (ticket_id, line)
 );
 CREATE TABLE IF NOT EXISTS coupon_optout (art_id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS watched (art_id TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS watched_sent (key TEXT PRIMARY KEY, sent_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS coupons (
     account TEXT NOT NULL,
     promotion_id TEXT NOT NULL,
@@ -142,6 +144,18 @@ class CouponCandidate:
     promo_saved: float
     matchable: bool  # kod z paragonu HTML = kod w `articleIds` kuponu; `n:<EAN>` się nie dopasuje
     enabled: bool  # do auto-aktywacji w E3 (domyślnie tak, chyba że odznaczony)
+    watched: bool  # gwiazdka E15: osobne powiadomienie o kuponach i promocjach
+
+
+@dataclass(frozen=True)
+class WatchedCoupon:
+    """Bieżący kupon konta na obserwowany produkt (E15)."""
+
+    account: str
+    promotion_id: str
+    title: str
+    discount: str
+    valid_to: date
 
 
 @dataclass(frozen=True)
@@ -478,6 +492,7 @@ class History:
         """Produkty kupowane regularnie (≥ `CANDIDATE_MIN_PURCHASES` paragonów w ostatnich 365 dniach, cały
         dom) — kandydaci do auto-aktywacji kuponów. Zapisujemy tylko odznaczenia, więc nowy jest włączony."""
         opted_out = {r[0] for r in self._db.execute("SELECT art_id FROM coupon_optout")}
+        watched = self.watched_codes()
         out = []
         for key, p in self._products(_year_ago(today)).items():
             if len(p["tickets"]) < CANDIDATE_MIN_PURCHASES:
@@ -494,6 +509,7 @@ class History:
                     round(p["coupon"] - p["discount"], 2),
                     matchable,
                     matchable and key not in opted_out,
+                    matchable and key in watched,
                 )
             )
         out.sort(key=lambda c: (-c.purchases, c.name))
@@ -512,6 +528,43 @@ class History:
                 self._db.execute("DELETE FROM coupon_optout WHERE art_id = ?", (art_id,))
             else:
                 self._db.execute("INSERT OR IGNORE INTO coupon_optout VALUES (?)", (art_id,))
+                self._db.execute("DELETE FROM watched WHERE art_id = ?", (art_id,))
+
+    def watched_codes(self) -> set[str]:
+        return {r[0] for r in self._db.execute("SELECT art_id FROM watched")}
+
+    def set_watched(self, art_id: str, on: bool) -> None:
+        """Gwiazdka E15; obserwowany produkt jest zawsze auto-aktywowany (i odwrotnie: wyłączenie
+        auto-aktywacji zdejmuje gwiazdkę)."""
+        with self._db:
+            if on:
+                self._db.execute("INSERT OR IGNORE INTO watched VALUES (?)", (art_id,))
+                self._db.execute("DELETE FROM coupon_optout WHERE art_id = ?", (art_id,))
+            else:
+                self._db.execute("DELETE FROM watched WHERE art_id = ?", (art_id,))
+
+    def watched_coupons(self, today: date) -> list[WatchedCoupon]:
+        """Kupony z bieżącej listy Lidla, ważne co najmniej do dziś, z kodem obserwowanego produktu."""
+        watched = self.watched_codes()
+        rows = self._db.execute(
+            "SELECT account, promotion_id, title, discount, valid_to, article_ids FROM coupons"
+            " WHERE gone_at IS NULL AND substr(valid_to, 1, 10) >= ? ORDER BY valid_to, title",
+            (today.isoformat(),),
+        )
+        return [
+            WatchedCoupon(account, pid, title, discount, date.fromisoformat(valid_to[:10]))
+            for account, pid, title, discount, valid_to, ids in rows
+            if watched.intersection(ids.split(","))
+        ]
+
+    def watched_sent_keys(self) -> set[str]:
+        return {r[0] for r in self._db.execute("SELECT key FROM watched_sent")}
+
+    def mark_watched_sent(self, keys: Iterable[str], sent_at: str) -> None:
+        with self._db:
+            self._db.executemany(
+                "INSERT OR IGNORE INTO watched_sent VALUES (?, ?)", [(k, sent_at) for k in keys]
+            )
 
     def save_coupons(self, account: str, coupons: Iterable[Coupon], seen_at: str) -> None:
         """Bieżąca lista kuponów konta; status ostatniej decyzji zostaje, kupony spoza listy trafiają

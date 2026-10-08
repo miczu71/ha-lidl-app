@@ -6,7 +6,8 @@ from typing import Any
 import pytest
 
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
-from lidl.notify import NOTIFY_URL, PANEL, compose, compose_expiring, send
+from lidl.history import WatchedCoupon
+from lidl.notify import NOTIFY_URL, PANEL, compose, compose_expiring, compose_watched, send
 from lidl.promotions import Promotion
 from lidl.rewards import Rewards, ScratchCard
 
@@ -126,7 +127,8 @@ def test_expiring_reminder_lists_only_cards_ending_today() -> None:
 
 
 class FakeResponse:
-    status = 200
+    def __init__(self, status: int = 200) -> None:
+        self.status = status
 
     async def __aenter__(self) -> FakeResponse:
         return self
@@ -136,12 +138,13 @@ class FakeResponse:
 
 
 class FakeSession:
-    def __init__(self) -> None:
+    def __init__(self, status: int = 200) -> None:
         self.posts: list[tuple[str, dict[str, Any], dict[str, str]]] = []
+        self.status = status
 
     def post(self, url: str, *, json: dict[str, Any], headers: dict[str, str]) -> FakeResponse:
         self.posts.append((url, json, headers))
-        return FakeResponse()
+        return FakeResponse(self.status)
 
 
 async def test_send_posts_to_notify_family_with_tap_action_and_tag(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -169,3 +172,33 @@ async def test_send_without_token_only_logs(monkeypatch: pytest.MonkeyPatch) -> 
     session = FakeSession()
     await send(session, ("Tytuł", "Treść"))  # type: ignore[arg-type]
     assert session.posts == []
+
+
+@pytest.mark.parametrize(("status", "ok"), [(200, True), (500, False)])
+async def test_send_reports_whether_ha_accepted(
+    monkeypatch: pytest.MonkeyPatch, status: int, ok: bool
+) -> None:
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "t")
+    assert await send(FakeSession(status), ("Tytuł", "Treść")) is ok  # type: ignore[arg-type]
+
+
+def _w(account: str, title: str = "Kawa X | 500 g", discount: str = "-30%") -> WatchedCoupon:
+    return WatchedCoupon(account, "p1", title, discount, date(2026, 10, 8))
+
+
+def test_watched_nothing_new_is_silent() -> None:
+    assert compose_watched([], [], TODAY) is None
+
+
+def test_watched_single_coupon_on_both_cards_is_one_line_named_in_title() -> None:
+    message = compose_watched([("Osoba 1", _w("osoba-1")), ("Osoba 2", _w("osoba-2"))], [], TODAY)
+    assert message == ("Lidl: Kawa X — kupon −30%", "Kawa X −30% (do jutra) · kupon obie karty")
+
+
+def test_watched_several_products_are_counted_in_title() -> None:
+    promo = Promotion("333", "Masło", "-25%", TODAY, date(2026, 10, 12))
+    message = compose_watched([("Osoba 1", _w("osoba-1"))], [promo], TODAY)
+    assert message == (
+        "Lidl: 2 obserwowane produkty z rabatem",
+        "Kawa X −30% (do jutra) · kupon Osoba 1\nMasło −25% (do 12 paź) · promocja od dziś",
+    )

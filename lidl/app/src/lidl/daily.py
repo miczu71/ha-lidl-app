@@ -14,7 +14,8 @@ import aiohttp
 from . import notify
 from .accounts import AccountStore
 from .coupons import CouponRunner
-from .promotions import PromotionRunner
+from .history import History
+from .promotions import Promotion, PromotionRunner
 from .rewards import Rewards, RewardsRunner
 from .sync import HistorySync
 
@@ -57,12 +58,13 @@ class DailyJob:
         runner: CouponRunner,
         rewards: RewardsRunner,
         promotions: PromotionRunner,
+        history: History,
         session: aiohttp.ClientSession,
         *,
         dry_run: bool,
     ) -> None:
         self._store, self._sync, self._runner, self._rewards = store, sync, runner, rewards
-        self._promotions = promotions
+        self._promotions, self._history = promotions, history
         self._session = session
         self.dry_run = dry_run
         self.last_check: datetime | None = None
@@ -115,3 +117,27 @@ class DailyJob:
         message = notify.compose(results, rewards, dry_run=self.dry_run, promos=promos)
         if message:
             await notify.send(self._session, message)
+        await self._watched(dict(accounts), promos)
+
+    async def _watched(self, labels: dict[str, str], promos: list[Promotion]) -> None:
+        """Osobne powiadomienie o kuponach i promocjach na obserwowane produkty (E15); każdy kupon konta
+        i każda promocja tylko raz (`watched_sent`; w trybie próbnym bez zapisu)."""
+        watched = self._history.watched_codes()
+        if not watched:
+            return
+        today, sent = date.today(), self._history.watched_sent_keys()
+        coupons = {
+            key: (labels[c.account], c)
+            for c in self._history.watched_coupons(today)
+            if c.account in labels and (key := f"c:{c.account}:{c.promotion_id}") not in sent
+        }
+        found = {
+            key: p
+            for p in promos
+            if p.art_id in watched and (key := f"p:{p.art_id}:{p.start.isoformat()}") not in sent
+        }
+        message = notify.compose_watched(list(coupons.values()), list(found.values()), today)
+        if not message:
+            return
+        if await notify.send(self._session, message, tag=notify.TAG_WATCHED) and not self.dry_run:
+            self._history.mark_watched_sent([*coupons, *found], datetime.now().isoformat())
