@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0
+
+- **Promocje od dziś w porannym powiadomieniu:** gdy w sklepie startuje promocja na produkt z listy „Kupowane
+  regularnie” (ten sam przełącznik co przy kuponach), powiadomienie o 07:00 dostaje linię z rabatem i datą końca,
+  np. „Produkt A −20% przy 2 szt. (do 10 paź)”. Źródła: promocje z lidl.pl (bez cen kuponowych Lidl Plus — te
+  aktywuje add-on) i oferty sklepu, w którym robicie najwięcej zakupów. Bez logowania, bez nowych opcji.
+
 ## 0.7.2
 
 - **Rabaty od kwoty zakupów w różnych sekcjach:** kupon „min. 200 zł” Lidl pokazuje wśród zwykłych kuponów, nie
