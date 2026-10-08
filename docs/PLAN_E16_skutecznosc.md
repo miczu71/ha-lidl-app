@@ -47,9 +47,26 @@ release, aktualizacja przez Supervisora; restart add-onu = aktualizacja, robi j�
 Cofnięcie: wydanie 0.9.1 nie zna kolumn, ale je toleruje (SELECT *, INSERT z listą kolumn) — downgrade bezpieczny,
 archiwum by tylko rosło.
 
-## E16.2 — sekcja „Efekt” w Kuponach (osobny wywiad szczegółów + makieta przed kodem)
-Licznik miesiąca vs średnia 12 mies. (z `items.coupon`), promocje informacyjnie, lista aktywowanych:
-wykorzystane / przepadłe / w toku. Skill `impeccable`, weryfikacja Playwright. Wydanie 0.10.0.
+## E16.2 — sekcja „Efekt” w Kuponach, wydanie 0.10.0 (projekt zatwierdzony 2026-10-08)
+Decyzje z wywiadu: układ = duża kwota + pasek względem średniej, pod spodem zwinięte szczegóły; porównanie =
+**ostatnie 30 dni** vs średnia 30-dniowa z 12 miesięcy przed 2026-10-07 (suma ÷ 12,2), orientacyjnie (sezonowość),
+promocje osobno informacyjnie; lista = **wszystkie aktywowane** kupony (add-on i ręcznie) ze statusem.
+
+Dane (`history.py`, tylko odczyty):
+- `coupon_effect(today)`: suma `-items.coupon` z ostatnich 30 dni, średnia z okna 2025-10-07…2026-10-06 przeliczona
+  na 30 dni, różnica w zł i %, promocje z tych samych okresów.
+- `activated_coupons(account)`: `activated = 1`, razem z archiwum (`gone_at`).
+- Status: **wykorzystany** — kupon produktowy: na paragonie tego konta w oknie ważności jest pozycja
+  `items.coupon < 0` z kodem w `article_ids`; ogólny (bez kodów): wpis w `ticket_coupons` o tym samym tytule
+  w oknie ważności. **Przepadł** — okno minęło bez dopasowania. **W toku** — kupon jeszcze ważny. Kupony sprzed
+  0.9.2 nie mają `article_ids` → „brak danych”, bez zgadywania.
+
+UI: `_effect.html` pod „Nagrodami”, tokeny z `docs/DESIGN.md`; pasek zielony powyżej średniej, neutralny poniżej
+(bez czerwieni); lista zwinięta, filtr konta jak przy kuponach, podsumowanie „wykorzystane X z Y”; stan pusty
+„zbieramy dane od 8.10” (licznik działa od razu).
+
+Podetapy (każdy po „go”): E16.2a makieta na danych dev (Playwright, desktop + telefon) → E16.2b zapytania w TDD →
+E16.2c szablon i podpięcie → `simplify` → E16.2d wydanie 0.10.0 (skill `release`, cache-busting, znacznik wersji).
 
 ## Weryfikacja
 - E16.1: `pytest`, `ruff`, `mypy` lokalnie + CI zielone; po wydaniu `ha_get_app(source="installed")` = 0.9.2,
