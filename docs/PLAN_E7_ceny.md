@@ -73,3 +73,11 @@ Koszyk −3,0% r/r, 83 produkty, **pokrycie 30%** (poniżej progu 50%). Top 5 zd
 Rozbicie wydatków z 12 mies. (`PriceOverview.split`, sekcja „Co nie jest porównane”): porównane / niekupowane
 w ostatnich 3 mies. / bez zakupu w tych samych miesiącach rok temu / pierwszy zakup w ostatnim roku. Decyzja
 o oknach (3 vs 6 mies.) albo poprawie mostu kodów `n:` ↔ HTML na podstawie liczb z panelu.
+
+## E7.5 ✅ 0.13.2 na żywo (2026-10-08 19:24) — wynik diagnozy
+Grupa „niekupowane w ostatnich 3 mies.” (46% wydatków, 537 produktów) to w **20 pp. (3 743 zł, 316 produktów) stare
+kody `n:`** z paragonów NATIVE — most po identycznej nazwie ich nie łączy. Przykłady par: „Winog.jas.bezp.500g” (stary)
+↔ „Winogrono j.bezp.500” (nowy); stare nazwy różnią się też między sobą („JimBeam whisky” / „Jim Beam whiskey 1l”).
+Reszta tej grupy (~26 pp., 221 produktów z nowymi kodami) to rzeczy naprawdę kupowane rzadziej niż raz na kwartał.
+Wniosek: dwie przyczyny podobnej wagi — (1) brak łączenia starych i nowych nazw (skróty, obcięcia), (2) za krótkie
+okna dla rzadkich zakupów. Pierwsza dotyczy też rankingu Produktów i listy E11 (zaniżone liczby zakupów).
