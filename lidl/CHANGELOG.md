@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.16.0
+
+- **Miesiące (E19):** nowa zakładka z podsumowaniem miesiąca w stylu „Wrapped”: ile zostawiliśmy w Lidlu
+  (z porównaniem do poprzedniego miesiąca i tego samego miesiąca rok wcześniej), wizyty, średni paragon,
+  oszczędności i kaucje; na co wydaliśmy najwięcej i czego kupiliśmy najwięcej sztuk, najlepsza okazja,
+  produkty kupione pierwszy raz; największy paragon, ulubiony dzień, godzina i sklep, podział między konta;
+  miejsce miesiąca w historii. Strzałki i lista prowadzą do każdego miesiąca od pierwszego paragonu;
+  bieżący miesiąc bez porównań do jego końca.
+- 1. dnia miesiąca o 10:00 powiadomienie z podsumowaniem poprzedniego miesiąca (oba telefony); przez
+  pierwszy tydzień miesiąca strona Konta prowadzi do podsumowania (HA otwiera z powiadomienia stronę główną).
+- Sześć zakładek na telefonie układa się w dwóch rzędach po trzy.
+
 ## 0.15.0
 
 - **Paragony (E8):** nowa zakładka. „Szukaj produktu” przeszukuje całą historię, także stare nazwy ze

@@ -142,7 +142,10 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     oszczędności, top produkty, zmiana vs poprzedni miesiąc. **Wywiad 2026-10-09** (plan: `docs/PLAN_E19_podsumowanie.md`):
     ciekawostka, nie narzędzie decyzji; push 1. dnia o 10:00 do obojga (tag `lidl-podsumowanie`) + nowa zakładka
     „Miesiące” z archiwum; treść: liczby miesiąca, produkty, rekordy i rytm, historia. Podetapy: E19.0 docs ✅,
-    E19.1 dane, E19.2 strona (makieta przed kodem), E19.3 push, E19.4 wydanie 0.16.0.
+    E19.1 dane ✅, E19.2 strona ✅ (bez osobnej makiety — user: bez checkpointów; zweryfikowana w przeglądarce
+    na danych demo), E19.3 push ✅, E19.4 wydanie 0.16.0. Ustalenie: HA ignoruje podstronę w `/app/<slug>/…`
+    (sprawdzone na żywo), więc dotknięcie powiadomienia otwiera Konta — tam przez 7 dni link do podsumowania;
+    bieżący miesiąc bez porównań i miejsca do jego końca. Do sprawdzenia: push 2026-11-01 10:00.
   - **E20 Zdrapki, progi nagród, Pieczątka Plus:** postęp do progu („brakuje 23 zł do nagrody”), przypomnienie
     o niezdrapanych zdrapkach i ich ważności. **Najpierw rozpoznanie:** czy API (biblioteka upstream lub ruch
     aplikacji) udostępnia te dane; bez tego etap odpada. Wstępne rozpoznanie (2026-10-07): klienci open source tego
