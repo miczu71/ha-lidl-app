@@ -309,7 +309,7 @@ def create_app(settings: Settings) -> FastAPI:
             "section": "kupony",
             "q": q,
             "clear_href": f"{base(request)}/kupony",
-            "cards": coupon_cards(service(request).store.list(), history, datetime.now(UTC), q),
+            "cards": coupon_cards(service(request).store.list(), history, datetime.now(UTC)),
             "dry_run": job.dry_run,
             "running": job.running,
             "last_check": fmt_time_day_month(job.last_check) if job.last_check else None,

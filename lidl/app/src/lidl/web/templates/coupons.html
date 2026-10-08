@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "_macros.html" import search_input %}
 {% block main %}
 <div>
   <h1 class="t">Kupony</h1>
@@ -13,9 +12,9 @@
 </p>
 {% endif %}
 
+{% include "_coupons_accounts.html" %}
+
 {% include "_effect.html" %}
 
-{{ search_input(q, "Szukaj", "kupon albo produkt, np. banany", base ~ "/kupony", "kupony-wyniki") }}
-
-{% include "_coupons_results.html" %}
+{% include "_coupons_regular.html" %}
 {% endblock %}

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.1
+
+- **Nowy układ zakładki Kupony:** kupony w tym tygodniu (z zakładkami kont), Nagrody, Efekt kuponów, a na końcu
+  Kupowane regularnie z wyszukiwarką.
+- **Szukaj dotyczy tylko „Kupowanych regularnie”** i stoi przy tej liście. Kupony kont na zakładkach są zawsze
+  pełne i nie otwierają się same po wpisaniu frazy.
+
 ## 0.10.0
 
 - **Efekt kuponów:** nowa sekcja na górze zakładki Kupony — kwota rabatów kuponowych z ostatnich 30 dni

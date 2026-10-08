@@ -1,8 +1,6 @@
-{% from "_macros.html" import no_match, search_count %}
 {# Konta i ich kupony. W trakcie sprawdzania blok odświeża się sam co 3 s (z bieżącą frazą z pola #q);
    gdy przebieg się skończy, odpowiedź nie ma już `hx-trigger` i odświeżanie staje. #}
 <div id="kupony-konta" class="stack"{% if running %} hx-get="{{ clear_href }}" hx-include="#q" hx-trigger="every 3s" hx-indicator="#kt-h" hx-select="#kupony-konta" hx-swap="outerHTML"{% endif %}>
-{% include "_rewards.html" %}
 <section class="card" aria-labelledby="kt-h">
   <h2 class="s" id="kt-h">Kupony w tym tygodniu</h2>
   <div class="row2 kt-run">
@@ -13,22 +11,20 @@
 </section>
 
 {% if cards %}
-{# Zakładki kont w jednym rzędzie; na starcie zwinięte (przy wyszukiwaniu otwarta pierwsza z trafieniami).
+{# Zakładki kont w jednym rzędzie; na starcie zwinięte.
    Przełączanie i zachowanie otwartej zakładki przy podmianach htmx: skrypt w base.html (data-tab). #}
-{% set open = (cards|selectattr("rows")|first|default({})).slug if q else "" %}
 <section class="card card--flush" aria-label="Kupony kont">
   <div class="tabs">
     {% for card in cards %}
-    <button class="tab" type="button" id="tab-{{ card.slug }}" data-tab aria-controls="kupony-{{ card.slug }}" aria-expanded="{{ 'true' if open == card.slug else 'false' }}">
+    <button class="tab" type="button" id="tab-{{ card.slug }}" data-tab aria-controls="kupony-{{ card.slug }}" aria-expanded="false">
       <span class="tab__name">{{ card.label }}<svg class="tab__chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></span>
-      <span class="tab__sum" id="kt-sum-{{ card.slug }}">{% if card.total %}aktywne {{ card.active }} z {{ card.total }}{% if card.only %} · tylko tu: {{ card.only }}{% endif %}{% if q %} · pasuje {{ card.rows|length }}{% endif %}{% else %}brak kuponów{% endif %}</span>
+      <span class="tab__sum" id="kt-sum-{{ card.slug }}">{% if card.total %}aktywne {{ card.active }} z {{ card.total }}{% if card.only %} · tylko tu: {{ card.only }}{% endif %}{% else %}brak kuponów{% endif %}</span>
     </button>
     {% endfor %}
   </div>
   {% for card in cards %}
-  <div class="tabpanel" id="kupony-{{ card.slug }}" role="region" aria-labelledby="tab-{{ card.slug }}"{% if open != card.slug %} hidden{% endif %}>
+  <div class="tabpanel" id="kupony-{{ card.slug }}" role="region" aria-labelledby="tab-{{ card.slug }}" hidden>
     {% if card.total %}
-    {{ search_count(card.rows|length, card.total, q, clear_href) }}
     <ul class="cplist">
       {% for r in card.rows %}
       <li class="cp" id="k-{{ card.slug }}-{{ r.pid }}">
@@ -45,8 +41,6 @@
           {% endif %}
         </div>
       </li>
-      {% else %}
-      {{ no_match(q) }}
       {% endfor %}
     </ul>
     {% else %}
@@ -56,4 +50,5 @@
   {% endfor %}
 </section>
 {% endif %}
+{% include "_rewards.html" %}
 </div>

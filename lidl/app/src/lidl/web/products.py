@@ -11,7 +11,7 @@ from lidl.accounts import Account
 from lidl.history import ADDON_START, EFFECT_DAYS, CouponCandidate, History, RankedProduct
 from lidl.rewards import Rewards
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_day_month, fmt_recent, fmt_until, matches
+from lidl.text import count_text, fmt_day_month, fmt_recent, fmt_until
 
 from .chart import fmt_pln
 
@@ -66,12 +66,9 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
     return rows
 
 
-def coupon_cards(
-    accounts: list[Account], history: History, now: datetime, q: str = ""
-) -> list[dict[str, Any]]:
+def coupon_cards(accounts: list[Account], history: History, now: datetime) -> list[dict[str, Any]]:
     """Bieżące kupony każdego połączonego konta ze statusem słownym (daty w czasie lokalnym) i znacznikiem
-    „wspólny” / „tylko <konto>” (ten sam tytuł i rabat na wszystkich kontach); liczniki z całej listy, wiersze
-    zawężone do frazy `q`."""
+    „wspólny” / „tylko <konto>” (ten sam tytuł i rabat na wszystkich kontach)."""
     cards: list[dict[str, Any]] = []
     for a in accounts:
         if not a.connected:
@@ -120,7 +117,6 @@ def coupon_cards(
             total=len(rows),
             active=sum(r["kind"] == "on" for r in rows),
             only=sum(r["shared"] is False for r in rows),
-            rows=[r for r in rows if matches(r["title"], q)],
         )
     return cards
 

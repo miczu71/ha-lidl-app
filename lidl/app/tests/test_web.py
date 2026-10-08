@@ -430,16 +430,33 @@ def test_search_matches_every_word_in_any_order() -> None:
     assert matches("Ser gouda plastry 150 g", "plastry ser") and not matches("Ser gouda", "ser mleko")
 
 
-def test_coupons_search_filters_both_sections_and_live_returns_results_only(client: TestClient) -> None:
+def test_coupons_search_filters_only_regular_products_and_live_returns_the_list_only(
+    client: TestClient,
+) -> None:
     _seed_regular(client)
     _seed_coupons(client)
-    text = client.get("/kupony?q=aktywacji").text
-    results = text.split('id="kupony-wyniki"')[1]  # sekcja „Efekt kuponów” nie zależy od frazy
-    assert "Kupon do aktywacji" in results and "Kupon aktywny" not in results
-    assert "Produkt A" not in text.split('id="cp-h"')[1] and "1 z 3" in text
+    text = client.get("/kupony?q=produkt a").text
+    regular = text.split('id="cp-h"')[1]
+    assert "Produkt A" in regular and "Produkt C" not in regular and "1 z 2" in regular
+    assert (
+        "Kupon aktywny" in text and "Kupon do aktywacji" in text and "pasuje" not in text
+    )  # kupony kont bez filtra
     part = client.get("/kupony?q=produkt a", headers={"HX-Target": "kupony-wyniki"}).text
     assert part.lstrip().startswith('<div id="kupony-wyniki"') and "<html" not in part
     assert "Produkt A" in part and "Produkt C" not in part
+    for other in ("kupony-konta", "Nagrody", "Efekt kuponów", "Kupowane regularnie", 'id="q"'):
+        assert other not in part
+
+
+def test_coupons_sections_are_ordered_and_search_sits_in_regular_products(client: TestClient) -> None:
+    now = datetime.now(UTC)
+    _seed_effect(client, now)
+    _seed_regular(client)
+    text = client.get("/kupony").text
+    order = [text.index(h) for h in ("Kupony w tym tygodniu", "Nagrody", "Efekt kuponów", 'id="cp-h"')]
+    assert order == sorted(order)
+    assert text.index('id="cp-h"') < text.index('id="q"') < text.index('id="kupony-wyniki"')
+    assert text.count('id="q"') == 1
 
 
 def test_coupons_controls_update_in_place(client: TestClient, monkeypatch) -> None:
@@ -515,12 +532,13 @@ def test_account_coupons_are_collapsed_tabs_with_shared_and_unique_tags(client: 
     assert "tylko Osoba 2" in two.split("Kupon drugiej osoby")[1]
 
 
-def test_search_opens_the_first_tab_with_matches(client: TestClient) -> None:
+def test_search_does_not_open_or_filter_account_tabs(client: TestClient) -> None:
     _seed_coupons(client)
     _seed_second_account(client)
     text = client.get("/kupony?q=drugiej").text
-    assert 'aria-controls="kupony-osoba-2" aria-expanded="true"' in text
-    assert 'aria-controls="kupony-osoba-1" aria-expanded="false"' in text
+    assert (
+        'aria-expanded="true"' not in text and "Kupon drugiej osoby" in text and "Kupon do aktywacji" in text
+    )
 
 
 def test_single_account_has_no_shared_tags(client: TestClient) -> None:
