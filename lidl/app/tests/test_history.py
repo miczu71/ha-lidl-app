@@ -371,3 +371,92 @@ def test_ranking_can_be_limited_to_a_date_range(tmp_path: Path) -> None:
     assert {r.art_id for r in h.ranking()} == {"1", "2"}
     assert [r.art_id for r in h.ranking(start=date(2025, 11, 1), end=date(2026, 10, 7))] == ["2"]
     assert [r.art_id for r in h.ranking(start=date(2024, 1, 1), end=date(2024, 12, 31))] == ["1"]
+
+
+def _priced(*items: tuple[str, str, float, float, float]) -> ParsedReceipt:
+    """Pozycje (kod, nazwa, ilość, cena półkowa, rabat) — rabat ujemny jak na paragonie."""
+    return ParsedReceipt(items=[ReceiptItem(a, n, q, p, round(q * p, 2), d) for a, n, q, p, d in items])
+
+
+def _seed_prices(h: History) -> None:
+    days = ["2024-05-01", "2025-08-01", "2025-08-20", "2025-09-01", "2026-08-15", "2026-09-10"]
+    h.upsert_tickets("a", [_ticket(f"t{i}", d) for i, d in enumerate(days)])
+    h.save_detail("t0", "S", _priced(("4", "Stary", 1, 5.0, 0.0)))
+    h.save_detail("t1", "S", _priced(("1", "Mleko", 1, 3.0, 0.0), ("2", "Chleb", 1, 5.0, 0.0)))
+    h.save_detail("t2", "S", _priced(("1", "Mleko", 1, 9.9, 0.0)))  # anomalia: mediana ją pomija
+    h.save_detail("t3", "S", _priced(("1", "Mleko", 1, 3.0, 0.0)))
+    h.save_detail("t4", "S", _priced(("1", "Mleko", 1, 3.3, -0.6), ("3", "Nowy", 1, 5.0, 0.0)))
+    h.save_detail(
+        "t5",
+        "S",
+        _priced(("1", "Mleko", 1, 3.3, 0.0), ("2", "Chleb", 1, 4.0, 0.0), ("4", "Stary", 1, 5.0, 0.0)),
+    )
+
+
+def test_price_changes_compare_medians_year_over_year(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_prices(h)
+    changes = h.price_changes(date(2026, 10, 8))
+    assert [(c.art_id, c.old, c.new, c.pct, c.spend) for c in changes] == [
+        ("1", 3.0, 3.3, 10.0, 6.0),
+        ("2", 5.0, 4.0, -20.0, 4.0),
+    ]
+
+
+def test_basket_inflation_is_weighted_by_spend_with_coverage(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_prices(h)
+    basket = h.basket_inflation(date(2026, 10, 8))
+    assert (basket.pct, basket.products, basket.coverage) == (-2.0, 2, 0.5)
+
+
+def test_price_changes_bridge_names_and_weighed_per_kg(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("old", "2025-09-01"), _ticket("new", "2026-09-01")])
+    h.save_detail(
+        "old", "S", ParsedReceipt(items=[ReceiptItem("n:1", "Banany  luz", 0.5, 20.0, 10.0, is_weight=True)])
+    )
+    h.save_detail(
+        "new", "S", ParsedReceipt(items=[ReceiptItem("0001", "banany luz", 1.5, 22.0, 33.0, is_weight=True)])
+    )
+    (bananas,) = h.price_changes(date(2026, 10, 8))
+    assert (bananas.art_id, bananas.name, bananas.is_weight, bananas.pct) == (
+        "0001",
+        "banany luz",
+        True,
+        10.0,
+    )
+
+
+def test_basket_series_monthly_from_first_comparable_month(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a", [_ticket("t1", "2025-08-01"), _ticket("t2", "2026-08-15"), _ticket("t3", "2026-09-10")]
+    )
+    h.save_detail("t1", "S", _priced(("1", "Mleko", 1, 3.0, 0.0)))
+    h.save_detail("t2", "S", _priced(("1", "Mleko", 1, 3.3, 0.0)))
+    h.save_detail("t3", "S", _priced(("1", "Mleko", 1, 3.3, 0.0)))
+    series = h.basket_series(date(2026, 10, 8))
+    assert [(month, b.pct) for month, b in series] == [
+        ("2026-08-01", 10.0),
+        ("2026-09-01", 10.0),
+        ("2026-10-01", 10.0),
+    ]
+
+
+def test_price_history_shelf_and_paid_per_unit(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_prices(h)
+    assert [(p.day, p.shelf, p.paid) for p in h.price_history("1")][-2:] == [
+        ("2026-08-15", 3.3, 2.7),
+        ("2026-09-10", 3.3, 3.3),
+    ]
+
+
+def test_prices_on_empty_database(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    today = date(2026, 10, 8)
+    assert h.price_changes(today) == []
+    assert h.basket_series(today) == []
+    basket = h.basket_inflation(today)
+    assert (basket.pct, basket.products, basket.coverage) == (None, 0, 0.0)

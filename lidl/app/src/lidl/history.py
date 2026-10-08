@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import statistics
 import zlib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ SCHEMA_VERSION = 4
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
+PRICE_WINDOW_DAYS = 91  # E7: okno mediany ceny (ok. 3 miesiące), porównywane z tym samym oknem rok wcześniej
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tickets (
@@ -213,6 +215,33 @@ class SpendBucket:
     purchases: int
 
 
+@dataclass(frozen=True)
+class PriceChange:
+    """Zmiana ceny półkowej r/r: mediana z ostatnich `PRICE_WINDOW_DAYS` dni vs to samo okno rok wcześniej."""
+
+    art_id: str
+    name: str
+    is_weight: bool  # ceny za kg
+    old: float
+    new: float
+    pct: float
+    spend: float  # zapłacono za produkt w ostatnich 365 dniach (waga w koszyku)
+
+
+@dataclass(frozen=True)
+class BasketInflation:
+    pct: float | None  # średnia zmian r/r ważona wydatkami; None bez produktów do porównania
+    products: int
+    coverage: float  # udział porównanych produktów w wydatkach z ostatnich 365 dni (0–1)
+
+
+@dataclass(frozen=True)
+class PricePoint:
+    day: str
+    shelf: float
+    paid: float  # za jednostkę po rabatach pozycji
+
+
 def _bucket_start(d: date, step: str) -> date:
     if step == "week":
         return d - timedelta(days=d.weekday())
@@ -233,6 +262,45 @@ def _next_bucket(d: date, step: str) -> date:
 
 def _year_ago(today: date | None) -> date:
     return (today or date.today()) - timedelta(days=365)
+
+
+# pozycja do analizy cen: (produkt po moście nazw, nazwa, dzień, cena półkowa, zapłacono, ilość, ważony)
+_PriceRow = tuple[str, str, date, float, float, float, bool]
+
+
+def _price_changes(rows: list[_PriceRow], today: date) -> tuple[list[PriceChange], float]:
+    """Zmiany r/r produktów kupionych w obu oknach (od największej podwyżki) i wydatki z 365 dni do dziś."""
+    year = today - timedelta(days=365)
+    new_from, old_from = today - timedelta(days=PRICE_WINDOW_DAYS), year - timedelta(days=PRICE_WINDOW_DAYS)
+    acc: dict[str, dict[str, Any]] = {}
+    total = 0.0
+    for key, name, day, price, paid, _qty, weight in rows:
+        if day > today:
+            continue
+        p = acc.setdefault(key, {"old": [], "new": [], "spend": 0.0})
+        p["name"], p["weight"] = name, weight
+        if old_from < day <= year:
+            p["old"].append(price)
+        if day > new_from:
+            p["new"].append(price)
+        if day > year:
+            p["spend"] += paid
+            total += paid
+    changes = []
+    for key, p in acc.items():
+        if not p["old"] or not p["new"]:
+            continue
+        old, new = statistics.median(p["old"]), statistics.median(p["new"])
+        pct = round((new - old) / old * 100, 1)
+        changes.append(PriceChange(key, p["name"], p["weight"], old, new, pct, round(p["spend"], 2)))
+    changes.sort(key=lambda c: (-c.pct, c.name))
+    return changes, total
+
+
+def _basket(changes: list[PriceChange], total: float) -> BasketInflation:
+    spend = sum(c.spend for c in changes)
+    pct = round(sum(c.pct * c.spend for c in changes) / spend, 1) if spend > 0 else None
+    return BasketInflation(pct, len(changes), round(spend / total, 3) if total > 0 else 0.0)
 
 
 def _norm(name: str) -> str:
@@ -865,3 +933,48 @@ class History:
             )
             b = _next_bucket(b, step)
         return series
+
+    def _price_rows(self) -> list[_PriceRow]:
+        resolve = self._resolver()
+        rows = self._db.execute(
+            "SELECT i.art_id, i.name, t.day, i.unit_price, i.total + i.discount, i.quantity, i.is_weight"
+            " FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE i.quantity > 0 AND i.unit_price > 0"
+            " ORDER BY t.day, i.ticket_id, i.line"
+        )
+        return [
+            (resolve(art_id, name), name, date.fromisoformat(day), price, paid, qty, bool(weight))
+            for art_id, name, day, price, paid, qty, weight in rows
+        ]
+
+    def price_changes(self, today: date | None = None) -> list[PriceChange]:
+        """Zmiany ceny półkowej r/r (E7), od największej podwyżki."""
+        return _price_changes(self._price_rows(), today or date.today())[0]
+
+    def basket_inflation(self, today: date | None = None) -> BasketInflation:
+        """Inflacja naszego koszyka r/r: zmiany cen ważone wydatkami z ostatnich 365 dni."""
+        return _basket(*_price_changes(self._price_rows(), today or date.today()))
+
+    def basket_series(self, today: date | None = None) -> list[tuple[str, BasketInflation]]:
+        """Inflacja koszyka liczona na koniec każdego miesiąca (bieżący: na `today`), od pierwszego miesiąca,
+        w którym jest rok historii; miesiące bez produktów do porównania pominięte."""
+        today = today or date.today()
+        rows = self._price_rows()
+        if not rows:
+            return []
+        series = []
+        month = _bucket_start(rows[0][2] + timedelta(days=365), "month")
+        while month <= today:
+            following = _next_bucket(month, "month")
+            basket = _basket(*_price_changes(rows, min(following - timedelta(days=1), today)))
+            if basket.products:
+                series.append((month.isoformat(), basket))
+            month = following
+        return series
+
+    def price_history(self, art_id: str) -> list[PricePoint]:
+        """Każdy zakup produktu: cena półkowa i zapłacona za jednostkę (po rabatach pozycji)."""
+        return [
+            PricePoint(day.isoformat(), price, round(paid / qty, 2))
+            for key, _name, day, price, paid, qty, _weight in self._price_rows()
+            if key == art_id
+        ]
