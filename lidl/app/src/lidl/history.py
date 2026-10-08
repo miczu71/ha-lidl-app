@@ -274,6 +274,95 @@ class ProductPrices:
     change: PriceChange | None  # bez zakupu w którymś z okien r/r: None
 
 
+@dataclass(frozen=True)
+class ReceiptFilter:
+    """Filtry listy paragonów (E8); None = bez filtra, daty domknięte."""
+
+    account: str | None = None
+    store: str | None = None  # kod sklepu (`store_code`, bez niego `store` z listy API)
+    start: date | None = None
+    end: date | None = None
+
+
+@dataclass(frozen=True)
+class TicketSummary:
+    id: str
+    account: str
+    day: str
+    time: str | None  # „19:39” z paragonu (czas lokalny), starsze bez godziny
+    store: str  # nazwa z koperty, inaczej z listy API, inaczej pusta
+    total: float  # zapłacono
+    savings: float  # rabaty pozycji (dodatnie)
+    items: int
+    status: str  # ok | pending (bez szczegółów) | unparsed (nierozpoznany)
+
+
+@dataclass(frozen=True)
+class ReceiptLine:
+    product: str  # kod produktu po moście nazw (do linków i podświetlenia)
+    name: str
+    quantity: float
+    unit_price: float
+    total: float
+    discount: float  # ujemny; część z kuponów w `coupon`
+    coupon: float
+    is_weight: bool
+    promo: str
+
+
+@dataclass(frozen=True)
+class Purchase:
+    ticket: TicketSummary
+    line: ReceiptLine
+
+
+@dataclass(frozen=True)
+class TicketDetail:
+    ticket: TicketSummary
+    payment: str | None
+    deposit_charged: float
+    deposit_refunded: float
+    lines: list[ReceiptLine]
+    coupons: list[dict[str, str]]
+
+
+@dataclass(frozen=True)
+class StoreCount:
+    code: str
+    name: str
+    tickets: int
+
+
+# kolumny `TicketSummary` (alias `t` = tickets)
+_TICKET_COLS = (
+    "t.id, t.account, t.day, t.purchased_at, COALESCE(NULLIF(t.store_name, ''), t.store, ''), t.total,"
+    " (SELECT -COALESCE(SUM(discount), 0) FROM items WHERE ticket_id = t.id),"
+    " (SELECT COUNT(*) FROM items WHERE ticket_id = t.id), t.detail_fetched, t.parsed"
+)
+_STORE_KEY = "COALESCE(NULLIF(t.store_code, ''), t.store, '')"
+
+
+def _summary(row: tuple[Any, ...]) -> TicketSummary:
+    tid, account, day, at, store, total, savings, items, fetched, parsed = row
+    status = "pending" if not fetched else "ok" if parsed else "unparsed"
+    time = at[11:16] if at and len(at) >= 16 else None
+    return TicketSummary(tid, account, day, time, store, total, round(savings, 2), items, status)
+
+
+def _receipt_where(f: ReceiptFilter) -> tuple[str, list[str]]:
+    where, args = "", []
+    for sql, value in (
+        ("t.account = ?", f.account),
+        (f"{_STORE_KEY} = ?", f.store),
+        ("t.day >= ?", f.start and f.start.isoformat()),
+        ("t.day <= ?", f.end and f.end.isoformat()),
+    ):
+        if value:
+            where += f" AND {sql}"
+            args.append(value)
+    return where, args
+
+
 def _bucket_start(d: date, step: str) -> date:
     if step == "week":
         return d - timedelta(days=d.weekday())
@@ -616,8 +705,12 @@ class History:
         for art_id, name, qty, price, ticket_id, day, discount, coupon in rows:
             p = acc.setdefault(
                 resolve(art_id, name),
-                {"tickets": set(), "days": set(), "qty": 0.0, "uses": 0, "discount": 0.0, "coupon": 0.0},
-            )
+                {
+                    "tickets": set(), "days": set(), "names": set(), "qty": 0.0, "uses": 0,
+                    "discount": 0.0, "coupon": 0.0,
+                },
+            )  # fmt: skip
+            p["names"].add(name)
             p["tickets"].add(ticket_id)
             p["days"].add(day)
             p["qty"] += qty
@@ -637,10 +730,15 @@ class History:
                 return str(name)
         return None
 
-    def ranking(self, start: date | None = None, end: date | None = None) -> list[RankedProduct]:
-        """Najczęściej kupowane w dniach `start`–`end` (domyślnie cała historia)."""
+    def ranking(
+        self, start: date | None = None, end: date | None = None, query: str = ""
+    ) -> list[RankedProduct]:
+        """Najczęściej kupowane w dniach `start`–`end` (domyślnie cała historia); z `query` tylko produkty,
+        których któraś nazwa z paragonów pasuje do frazy (także stare skróty po moście nazw, E8)."""
         ranked = []
         for key, p in self._products(start, end).items():
+            if query and not any(matches(n, query) for n in p["names"]):
+                continue
             days = sorted(date.fromisoformat(d) for d in p["days"])
             cycle = (days[-1] - days[0]).days / (len(days) - 1) if len(days) > 1 else None
             ranked.append(
@@ -1112,3 +1210,78 @@ class History:
             for _, _, day, price, paid, qty, _ in rows
         ]
         return ProductPrices(rows[-1][1], rows[-1][6], points, changes[0] if changes else None)
+
+    def tickets(self, f: ReceiptFilter, limit: int) -> tuple[list[TicketSummary], int]:
+        """Paragony od najnowszych (do `limit`) i liczba wszystkich pasujących do filtrów (E8)."""
+        where, args = _receipt_where(f)
+        rows = self._db.execute(
+            f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where}"
+            " ORDER BY t.day DESC, t.purchased_at DESC, t.id DESC LIMIT ?",
+            [*args, limit],
+        )
+        found = [_summary(r) for r in rows]
+        total = self._db.execute(f"SELECT COUNT(*) FROM tickets t WHERE 1 = 1{where}", args).fetchone()[0]
+        return found, int(total)
+
+    def ticket_months(self, f: ReceiptFilter) -> dict[str, tuple[int, float]]:
+        """Liczba paragonów i zapłacona suma na miesiąc (`2026-10`), filtry jak w `tickets`, bez limitu."""
+        where, args = _receipt_where(f)
+        rows = self._db.execute(
+            f"SELECT substr(t.day, 1, 7), COUNT(*), SUM(t.total) FROM tickets t WHERE 1 = 1{where}"
+            " GROUP BY 1",
+            args,
+        )
+        return {m: (n, round(s, 2)) for m, n, s in rows}
+
+    def stores(self) -> list[StoreCount]:
+        """Sklepy z paragonów (nazwa z najnowszego), od najczęstszych; bez kodu sklepu pomijane."""
+        counts: dict[str, int] = {}
+        names: dict[str, str] = {}
+        for code, name in self._db.execute(
+            f"SELECT {_STORE_KEY}, NULLIF(t.store_name, '') FROM tickets t ORDER BY t.day"
+        ):
+            if code:
+                counts[code] = counts.get(code, 0) + 1
+                names[code] = name or names.get(code) or code
+        return sorted(
+            (StoreCount(c, names[c], n) for c, n in counts.items()), key=lambda s: (-s.tickets, s.name)
+        )
+
+    def ticket(self, ticket_id: str) -> TicketDetail | None:
+        """Paragon z pozycjami (kod produktu po moście nazw) i użytymi kuponami."""
+        row = self._db.execute(
+            f"SELECT {_TICKET_COLS}, t.payment, t.deposit_charged, t.deposit_refunded FROM tickets t"
+            " WHERE t.id = ?",
+            (ticket_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        resolve = self._resolver()
+        lines = [
+            ReceiptLine(resolve(art, name), name, qty, price, total, disc, coupon, bool(weight), promo)
+            for art, name, qty, price, total, disc, coupon, weight, promo in self._db.execute(
+                "SELECT art_id, name, quantity, unit_price, total, discount, coupon, is_weight, promo"
+                " FROM items WHERE ticket_id = ? ORDER BY line",
+                (ticket_id,),
+            )
+        ]
+        return TicketDetail(_summary(row[:10]), row[10], row[11], row[12], lines, self.coupons(ticket_id))
+
+    def product_purchases(self, art_id: str) -> list[Purchase]:
+        """Każdy zakup produktu (po moście nazw) od najnowszych, z paragonem."""
+        resolve = self._resolver()
+        rows = self._db.execute(
+            f"SELECT {_TICKET_COLS}, i.art_id, i.name, i.quantity, i.unit_price, i.total, i.discount,"
+            " i.coupon, i.is_weight, i.promo FROM items i JOIN tickets t ON t.id = i.ticket_id"
+            " WHERE i.art_id = ? OR i.art_id LIKE 'n:%'"  # most zmienia tylko stare kody `n:`
+            " ORDER BY t.day DESC, t.purchased_at DESC, t.id DESC, i.line",
+            (art_id,),
+        )
+        out = []
+        for r in rows:
+            art, name, qty, price, total, disc, coupon, weight, promo = r[10:]
+            key = resolve(art, name)
+            if key == art_id:
+                line = ReceiptLine(key, name, qty, price, total, disc, coupon, bool(weight), promo)
+                out.append(Purchase(_summary(r[:10]), line))
+        return out

@@ -539,3 +539,124 @@ def test_merges_bridge_old_code_before_name_and_replace_all(tmp_path: Path) -> N
     assert [x["code"] for x in h.merge_candidates()["old"]] == []
     assert h.set_merges([]) == 0
     assert [x["code"] for x in h.merge_candidates()["old"]] == ["n:2"]
+
+
+def _receipts(tmp_path: Path) -> History:
+    """Dwa konta, dwa sklepy, stary paragon NATIVE (kod `n:` połączony przez `merges`), paragon bez
+    szczegółów."""
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "osoba-1", [_ticket("o1", "2025-11-02", total=12.0), _ticket("n1", "2026-05-01", total=9.5)]
+    )
+    h.upsert_tickets(
+        "osoba-2", [_ticket("n2", "2026-05-20", total=4.0), _ticket("p1", "2026-06-01", total=7.0)]
+    )
+    h.save_detail("o1", None, _receipt(("n:5", "Fil.z ind.XXL", 1, 12.0)))
+    h.save_detail(
+        "n1",
+        None,
+        ParsedReceipt(
+            items=[
+                ReceiptItem(
+                    "555",
+                    "Filet z indyka XXL",
+                    1,
+                    11.0,
+                    11.0,
+                    discount=-2.0,
+                    coupon=-2.0,
+                    promo="Lidl Plus kupon",
+                ),
+                ReceiptItem("111", "Mleko UHT", 1, 0.5, 0.5),
+            ],
+            purchased_at="2026-05-01T19:39:20",
+            store={"code": "PL0002", "name": "Miasto A Ulica B", "address": "", "postal": "", "locality": ""},
+            payment="Karta płatnicza",
+            deposit_charged=0.5,
+            deposit_refunded=0.5,
+        ),
+    )
+    h.save_detail(
+        "n2",
+        None,
+        ParsedReceipt(
+            items=[ReceiptItem("111", "Mleko UHT", 2, 2.0, 4.0)],
+            store={"code": "PL0002", "name": "Miasto A Ulica B", "address": "", "postal": "", "locality": ""},
+        ),
+    )
+    h.set_merges([("n:5", "555")])
+    return h
+
+
+def test_tickets_newest_first_with_store_status_and_savings(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    h = _receipts(tmp_path)
+    found, total = h.tickets(ReceiptFilter(), limit=3)
+    assert total == 4
+    assert [(t.id, t.status) for t in found] == [("p1", "pending"), ("n2", "ok"), ("n1", "ok")]
+    n1 = found[2]
+    assert (n1.time, n1.store, n1.total, n1.savings, n1.items) == ("19:39", "Miasto A Ulica B", 9.5, 2.0, 2)
+    assert found[0].store == "PL0001"  # bez szczegółów: kod sklepu z listy API
+
+
+def test_tickets_filters_and_month_totals(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    h = _receipts(tmp_path)
+    assert [t.id for t in h.tickets(ReceiptFilter(account="osoba-2"), 10)[0]] == ["p1", "n2"]
+    assert [t.id for t in h.tickets(ReceiptFilter(store="PL0002"), 10)[0]] == ["n2", "n1"]
+    may = ReceiptFilter(start=date(2026, 5, 1), end=date(2026, 5, 31))
+    assert [t.id for t in h.tickets(may, 1)[0]] == ["n2"] and h.tickets(may, 1)[1] == 2
+    months = {"2025-11": (1, 12.0), "2026-05": (2, 13.5), "2026-06": (1, 7.0)}
+    assert h.ticket_months(ReceiptFilter()) == months
+
+
+def test_unparsed_ticket_is_marked(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01", articles=3)])
+    h.save_detail("t1", None, ParsedReceipt())
+    assert h.tickets(ReceiptFilter(), 10)[0][0].status == "unparsed"
+
+
+def test_stores_most_frequent_first_with_latest_name(tmp_path: Path) -> None:
+    h = _receipts(tmp_path)
+    assert [(s.code, s.name, s.tickets) for s in h.stores()] == [
+        ("PL0002", "Miasto A Ulica B", 2),
+        ("PL0001", "PL0001", 2),
+    ]
+
+
+def test_ticket_detail_lines_resolve_products(tmp_path: Path) -> None:
+    h = _receipts(tmp_path)
+    d = h.ticket("n1")
+    assert d is not None
+    assert (d.payment, d.deposit_charged, d.deposit_refunded) == ("Karta płatnicza", 0.5, 0.5)
+    assert [(x.product, x.name, x.discount, x.coupon, x.promo) for x in d.lines] == [
+        ("555", "Filet z indyka XXL", -2.0, -2.0, "Lidl Plus kupon"),
+        ("111", "Mleko UHT", 0.0, 0.0, ""),
+    ]
+    old = h.ticket("o1")
+    assert old is not None and old.lines[0].product == "555"  # stary kod po `merges`
+    assert h.ticket("brak") is None
+
+
+def test_product_purchases_include_bridged_old_receipts(tmp_path: Path) -> None:
+    h = _receipts(tmp_path)
+    found = h.product_purchases("555")
+    assert [(p.ticket.id, p.line.name, p.line.unit_price) for p in found] == [
+        ("n1", "Filet z indyka XXL", 11.0),
+        ("o1", "Fil.z ind.XXL", 12.0),
+    ]
+    assert [p.ticket.account for p in h.product_purchases("111")] == ["osoba-2", "osoba-1"]
+
+
+def test_ranking_query_matches_any_name_of_the_product(tmp_path: Path) -> None:
+    h = _receipts(tmp_path)
+    assert [(r.art_id, r.name, r.purchases) for r in h.ranking(query="ind")] == [
+        ("555", "Filet z indyka XXL", 2)
+    ]
+    assert [r.art_id for r in h.ranking(query="fil.z")] == ["555"]  # tylko stara nazwa pasuje
+    assert h.ranking(query="chleb") == []
