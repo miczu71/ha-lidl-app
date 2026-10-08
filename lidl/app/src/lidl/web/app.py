@@ -312,6 +312,12 @@ def create_app(settings: Settings) -> FastAPI:
             )
         return render(request, "products.html", **ctx)
 
+    @app.get("/produkty/laczenie/kandydaci.json")
+    async def merge_candidates(request: Request) -> dict[str, list[dict[str, Any]]]:
+        """E21.1: stare kody bez mostu i nowe bez historii — do jednorazowego dopasowania."""
+        history: History = request.app.state.history
+        return history.merge_candidates()
+
     @app.get("/ceny")
     async def prices(request: Request) -> Response:
         history: History = request.app.state.history

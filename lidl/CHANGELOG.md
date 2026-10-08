@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+
+- **Eksport do łączenia nazw (E21):** `produkty/laczenie/kandydaci.json` w panelu (tylko odczyt) — produkty ze
+  starych paragonów, które nie łączą się z nowymi kodami, i nowe kody bez starszej historii, z cenami i datami
+  zakupów. Służy do jednorazowego dopasowania par przed etapem łączenia.
+
 ## 0.13.3
 
 - **Ceny — porównanie z 6 miesięcy:** mediana ceny z ostatnich 6 miesięcy wobec tych samych 6 miesięcy rok wcześniej

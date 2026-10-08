@@ -862,3 +862,12 @@ def test_prices_split_shows_old_receipt_codes_and_examples(client: TestClient) -
     text = client.get("/ceny").text
     assert "w tym ze starych paragonów: 9,00 zł · 1 produkt" in text
     assert "Ze starych paragonów, niekupowane od 6 miesięcy, np.: Ser zolty." in text
+
+
+def test_merge_candidates_export_is_json_without_cache(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "o", "date": "2026-01-10T10:00:00+00:00"}])
+    history.save_detail("o", "S", ParsedReceipt(items=[ReceiptItem("n:9", "Ser zolty", 1, 9.0, 9.0)]))
+    r = client.get("/produkty/laczenie/kandydaci.json")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    assert r.json()["old"][0]["code"] == "n:9" and r.json()["new"] == []

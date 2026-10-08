@@ -495,3 +495,36 @@ def test_price_window_is_six_months(tmp_path: Path) -> None:
     for t in ("b_old", "b_new"):  # ok. 7 mies. przed: poza oknem
         h.save_detail(t, "S", _priced(("2", "Poza oknem", 1, 2.0, 0.0)))
     assert [c.name for c in h.price_changes(date(2026, 10, 8))] == ["W oknie"]
+
+
+def test_merge_candidates_list_unbridged_old_codes_and_new_codes_without_history(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a", [_ticket("o1", "2025-11-02"), _ticket("o2", "2026-01-10"), _ticket("n1", "2026-05-01")]
+    )
+    h.save_detail(
+        "o1", "S", _priced(("n:1", "Mleko UHT", 1, 3.0, 0.0), ("n:2", "Winog.jas.bezp.500g", 1, 9.0, 0.0))
+    )
+    h.save_detail(
+        "o2",
+        "S",
+        _priced(("n:2", "Winog.jas.bezp.500", 1, 11.0, 0.0), ("n:2", "Winog.jas.bezp.500g", 1, 10.0, 0.0)),
+    )
+    h.save_detail(
+        "n1",
+        "S",
+        _priced(("111", "Mleko UHT", 1, 3.2, 0.0), ("222", "Winogrono j.bezp.500", 1, 10.5, 0.0)),
+    )
+    c = h.merge_candidates()
+    assert c["old"] == [
+        {
+            "code": "n:2",
+            "names": ["Winog.jas.bezp.500g", "Winog.jas.bezp.500"],
+            "weight": False,
+            "price": 10.0,
+            "purchases": 2,
+            "first": "2025-11-02",
+            "last": "2026-01-10",
+        }
+    ]
+    assert [x["code"] for x in c["new"]] == ["222"]  # „111” ma już most po nazwie z „n:1”

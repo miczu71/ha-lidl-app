@@ -672,6 +672,45 @@ class History:
         out.sort(key=lambda c: (-c.purchases, c.name))
         return out
 
+    def merge_candidates(self) -> dict[str, list[dict[str, Any]]]:
+        """E21: stare kody `n:` bez mostu po nazwie (`old`) i nowe kody, na które nie wskazuje żaden stary
+        (`new`) — do jednorazowego dopasowania; od najczęściej kupowanych. Cena = mediana ceny półkowej."""
+        resolve = self._resolver()
+        acc: dict[str, dict[str, Any]] = {}
+        bridged: set[str] = set()
+        for art_id, name, day, price, weight in self._db.execute(
+            "SELECT i.art_id, i.name, t.day, i.unit_price, i.is_weight FROM items i"
+            " JOIN tickets t ON t.id = i.ticket_id WHERE i.quantity > 0 AND i.unit_price > 0 ORDER BY t.day"
+        ):
+            key = resolve(art_id, name)
+            if key != art_id:
+                bridged.add(key)
+                continue
+            p = acc.setdefault(key, {"names": [], "prices": [], "days": set(), "weight": False})
+            if name not in p["names"]:
+                p["names"].append(name)
+            p["prices"].append(price)
+            p["days"].add(day)
+            p["weight"] = bool(weight)
+        out: dict[str, list[dict[str, Any]]] = {"old": [], "new": []}
+        for key, p in acc.items():
+            if key in bridged:
+                continue
+            out["old" if key.startswith("n:") else "new"].append(
+                {
+                    "code": key,
+                    "names": p["names"],
+                    "weight": p["weight"],
+                    "price": statistics.median(p["prices"]),
+                    "purchases": len(p["days"]),
+                    "first": min(p["days"]),
+                    "last": max(p["days"]),
+                }
+            )
+        for side in out.values():
+            side.sort(key=lambda c: (-c["purchases"], c["code"]))
+        return out
+
     def other_products(self, query: str, listed: set[str], limit: int = 20) -> list[RankedProduct]:
         """Kupione kiedykolwiek produkty z kodem artykułu spoza listy `listed` („Kupowane regularnie”)
         pasujące do frazy — do nadania gwiazdki (E15.4)."""
