@@ -168,7 +168,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   bo aktywuje je E3; dziś 4 zwykłe obniżki na lidl.pl + 16 ofert sklepu, 1 trafienie w nasze produkty),
   E4.2 próba AI ✅ (2026-10-08: tekst PDF niewystarczający, obrazy Gemini najlepsze; limity darmowe 20 zapytań/dzień
   na model Gemini Flash), E4.3 AI w add-onie ✅ wydane (0.9.0 + 0.9.1, 2026-10-08: obrazy stron w paczkach po 5,
-  kolejka modeli, postęp w bazie) — czeka weryfikacja pełnego przebiegu gazetki i pierwszej porannej linii z gazetki.
+  kolejka modeli, postęp w bazie) — czeka weryfikacja pełnego przebiegu gazetki i pierwszej porannej linii z gazetki. **0.12.2 (2026-10-08, diagnoza):** (1) lidl.pl odpowiadał 401 na KAŻDE
+  zapytanie add-onu przez `Accept: application/json` (CDN cache'uje 200 na 5 min bez względu na Accept, stąd pozorna
+  losowość) — lidl.pl pytamy bez `Accept`; (2) poranna linia brała tylko promocje ze startem dziś, więc gazetka
+  przetworzona po 07:00 dnia startu przepadała — teraz „Nowe promocje” = trwające i jeszcze niezgłoszone (klucze `m:`
+  w `watched_sent`). Na żywo: start bez 401, „Promocje: 67 pozycji”.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
 - **E6 Integracja z Budżetem Domowym:** dopasowanie paragonu do transakcji kartą (data + kwota), podział na kategorie.
 - **E7 Śledzenie cen produktów w czasie** (zlecone 2026-10-07): z bazy historii (E2) bierzemy ceny jednostkowe
