@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from lidl.accounts import Account
-from lidl.history import CouponCandidate, History, RankedProduct
+from lidl.history import ADDON_START, EFFECT_DAYS, CouponCandidate, History, RankedProduct
 from lidl.rewards import Rewards
 from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_day_month, fmt_recent, fmt_until, matches
@@ -123,6 +123,69 @@ def coupon_cards(
             rows=[r for r in rows if matches(r["title"], q)],
         )
     return cards
+
+
+_OUTCOME = {
+    "used": ("on", "Wykorzystany"),
+    "lost": ("err", "Przepadł"),
+    "pending": ("wait", "W toku"),
+    "unknown": ("none", "Brak danych"),
+}
+
+
+def _delta(delta: float, pct: float | None) -> dict[str, str]:
+    if pct is None:
+        return {"kind": "flat", "text": "Brak paragonów sprzed add-onu do porównania"}
+    if delta == 0:
+        return {"kind": "flat", "text": "Tyle samo co zwykle"}
+    kind, word = ("up", "więcej") if delta > 0 else ("down", "mniej")
+    return {"kind": kind, "text": f"O {fmt_pln(abs(delta), 2)} ({abs(pct):.0f}%) {word} niż zwykle"}
+
+
+def effect_view(
+    history: History, accounts: list[Account], today: date, now: datetime
+) -> dict[str, Any] | None:
+    """Sekcja „Efekt kuponów” (E16): kupony z ostatnich 30 dni vs średnia sprzed add-onu i wyniki kuponów
+    aktywowanych w tym okresie; `None`, gdy nie ma jeszcze żadnych danych."""
+    e = history.coupon_effect(today)
+    since = now - timedelta(days=EFFECT_DAYS)
+    labels = {a.slug: a.label for a in accounts}
+    coupons = [c for c in history.activated_coupons(now) if datetime.fromisoformat(c.valid_to) >= since]
+    if not coupons and not (e.coupons or e.coupons_before or e.promotions or e.promotions_before):
+        return None
+    top = max(e.coupons, e.coupons_before)
+    finished = [c for c in coupons if c.status in ("used", "lost")]
+    used = sum(c.status == "used" for c in finished)
+    rows = []
+    for c in coupons:
+        kind, status = _OUTCOME[c.status]
+        until = datetime.fromisoformat(c.valid_to).astimezone().date()
+        rows.append(
+            {
+                "title": c.title,
+                "discount": c.discount,
+                "who": labels.get(c.account, c.account),
+                "until": "do " + fmt_day_month(until),
+                "kind": kind,
+                "status": status,
+            }
+        )
+    return {
+        "since": f"{ADDON_START.day}.{ADDON_START.month}.{ADDON_START.year}",
+        "now": fmt_pln(e.coupons, 2),
+        "before": fmt_pln(e.coupons_before, 2),
+        "now_pct": round(e.coupons / top * 100) if top else 0,
+        "before_pct": round(e.coupons_before / top * 100) if top else 0,
+        "delta": _delta(e.delta, e.delta_pct),
+        "promotions": fmt_pln(e.promotions, 2),
+        "promotions_before": fmt_pln(e.promotions_before, 2),
+        "summary": (
+            f"Wykorzystane {used} z {len(finished)} zakończonych ({round(used / len(finished) * 100)}%)"
+            if finished
+            else "Jeszcze nic do podsumowania"
+        ),
+        "rows": rows,
+    }
 
 
 def _pln(value: float) -> str:

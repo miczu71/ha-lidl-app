@@ -279,3 +279,26 @@ h3.rw__who { margin: 0; font: 700 18px/24px var(--font-sans); }
 .kp__disc { margin-top: var(--space-2); padding: 2px 8px; border-radius: var(--radius-xs); background: var(--blue); color: var(--on-blue); font: 800 15px/22px var(--font-sans); }
 .kp__gift { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--blue-wash); color: var(--blue); flex: none; }
 .kp__gift svg { width: 26px; height: 26px; stroke-width: 1.75; }
+
+/* Efekt kuponów (E16): kwota, dwa paski (30 dni vs średnia sprzed add-onu), wyniki aktywowanych kuponów */
+.ef .kpi__num { color: var(--ink); }
+.ef__bars { display: flex; flex-direction: column; gap: var(--space-3); }
+.ef__row { display: grid; grid-template-columns: 1fr auto; gap: var(--space-1) var(--space-3); align-items: baseline; }
+.ef__lbl { font: 600 14px/20px var(--font-sans); }
+.ef__val { font: 800 16px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.ef__track { grid-column: 1 / -1; height: 10px; border-radius: var(--radius-pill); background: var(--surface-inset); overflow: hidden; }
+.ef__fill { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--blue); }
+.ef__fill--before { background: var(--control-border); }
+.ef__delta { display: flex; align-items: center; gap: var(--space-2); margin: 0; font: 700 16px/22px var(--font-sans); }
+.ef__delta--up { color: var(--green-deep); }
+.ef__delta svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.ef__more > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: 44px; font: 700 16px/22px var(--font-sans); }
+.ef__more > summary::-webkit-details-marker { display: none; }
+.ef__more > summary::after { content: ""; width: 20px; height: 20px; flex: none; background: var(--blue); mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.25' d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2.25' d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat; transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+.ef__more[open] > summary::after { transform: rotate(180deg); }
+.ef__sumtxt { display: flex; flex-direction: column; }
+.ef__list { margin-top: var(--space-2); }
+.ef .cp__side { width: auto; }
+.ef .status { margin-left: 0; white-space: nowrap; }
+.ef__empty { margin: var(--space-2) 0 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); background: var(--surface-inset); font: 400 14px/20px var(--font-sans); }
+@media (prefers-reduced-motion: reduce) { .ef__more > summary::after { transition: none; } }

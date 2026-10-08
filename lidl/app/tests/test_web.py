@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -11,7 +11,7 @@ from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.web.app import create_app
-from lidl.web.products import reward_cards
+from lidl.web.products import effect_view, reward_cards
 
 
 def test_index_empty_and_no_store(client: TestClient) -> None:
@@ -434,7 +434,8 @@ def test_coupons_search_filters_both_sections_and_live_returns_results_only(clie
     _seed_regular(client)
     _seed_coupons(client)
     text = client.get("/kupony?q=aktywacji").text
-    assert "Kupon do aktywacji" in text and "Kupon aktywny" not in text
+    results = text.split('id="kupony-wyniki"')[1]  # sekcja „Efekt kuponów” nie zależy od frazy
+    assert "Kupon do aktywacji" in results and "Kupon aktywny" not in results
     assert "Produkt A" not in text.split('id="cp-h"')[1] and "1 z 3" in text
     part = client.get("/kupony?q=produkt a", headers={"HX-Target": "kupony-wyniki"}).text
     assert part.lstrip().startswith('<div id="kupony-wyniki"') and "<html" not in part
@@ -568,3 +569,121 @@ def test_reward_goal_labels_skip_crowded_thresholds() -> None:
 def test_coupons_page_rewards_pending_before_first_read(client: TestClient) -> None:
     _connect(client)
     assert "pojawią się po pierwszym sprawdzeniu" in client.get("/kupony").text
+
+
+def _effect_payload(now: datetime, *promos: tuple[str, list[str], int]) -> dict[str, object]:
+    """Kupony aktywowane, ważne od `now - 8 dni` do `now + dni` (trzecia wartość krotki)."""
+    return {
+        "sections": [
+            {
+                "name": "AllStores",
+                "promotions": [
+                    {
+                        "id": pid, "promotionId": pid, "title": f"Kupon {pid}", "discount": {"title": "-30%"},
+                        "validity": {
+                            "start": (now - timedelta(days=8)).isoformat(),
+                            "end": (now + timedelta(days=days)).isoformat(),
+                        },
+                        "isActivated": True, "articleIds": codes,
+                    }
+                    for pid, codes, days in promos
+                ],
+            }
+        ]
+    }  # fmt: skip
+
+
+def _seed_effect(client: TestClient, now: datetime) -> list:
+    """Dwa konta niepotrzebne: jedno konto, paragon z kuponem na 111 w oknie ważności kuponów."""
+    from lidl.coupons import parse_coupons
+
+    _connect(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    day = (now - timedelta(days=2)).astimezone().date()
+    history.upsert_tickets("osoba-1", [{"id": "t1", "date": f"{day.isoformat()}T10:00:00+00:00"}])
+    history.save_detail(
+        "t1",
+        "S",
+        ParsedReceipt(items=[ReceiptItem("111", "Produkt", 1, 10, 10, discount=-35.0, coupon=-30.0)]),
+    )
+    payload = _effect_payload(
+        now, ("used", ["111", "999"], -1), ("lost", ["222"], -1), ("wait", ["222"], 3), ("none", [], -1)
+    )
+    history.save_coupons("osoba-1", parse_coupons(payload), now.isoformat())
+    return client.app.state.service.store.list()  # type: ignore[attr-defined]
+
+
+def test_effect_view_numbers_and_coupon_outcomes(client: TestClient) -> None:
+    now = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)  # okno 30 dni nie nachodzi na okres sprzed add-onu
+    accounts = _seed_effect(client, now)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "base", "date": "2026-06-01T10:00:00+00:00"}])
+    history.save_detail(
+        "base",
+        "S",
+        ParsedReceipt(items=[ReceiptItem("5", "Stary", 1, 10, 10, discount=-109.5, coupon=-73.0)]),
+    )
+    v = effect_view(history, accounts, now.date(), now)
+    assert (v["now"], v["before"]) == ("30,00 zł", "6,00 zł")
+    assert (v["now_pct"], v["before_pct"]) == (100, 20)
+    assert v["delta"] == {"kind": "up", "text": "O 24,00 zł (400%) więcej niż zwykle"}
+    assert v["promotions"] == "5,00 zł" and v["promotions_before"] == "3,00 zł"
+    assert v["summary"] == "Wykorzystane 1 z 2 zakończonych (50%)"
+    assert {r["title"]: (r["kind"], r["status"]) for r in v["rows"]} == {
+        "Kupon used": ("on", "Wykorzystany"),
+        "Kupon lost": ("err", "Przepadł"),
+        "Kupon wait": ("wait", "W toku"),
+        "Kupon none": ("none", "Brak danych"),
+    }
+    assert {r["who"] for r in v["rows"]} == {"Osoba 1"}
+
+
+def test_effect_view_without_data_is_hidden(client: TestClient) -> None:
+    _connect(client)
+    now = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)
+    accounts = client.app.state.service.store.list()  # type: ignore[attr-defined]
+    assert effect_view(client.app.state.history, accounts, now.date(), now) is None  # type: ignore[attr-defined]
+
+
+def test_effect_view_without_activated_coupons_says_we_collect_data(client: TestClient) -> None:
+    now = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)
+    _connect(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "t", "date": "2026-11-28T10:00:00+00:00"}])
+    history.save_detail(
+        "t", "S", ParsedReceipt(items=[ReceiptItem("1", "P", 1, 10, 10, discount=-2.0, coupon=-2.0)])
+    )
+    accounts = client.app.state.service.store.list()  # type: ignore[attr-defined]
+    v = effect_view(history, accounts, now.date(), now)
+    assert v is not None and v["rows"] == [] and v["summary"] == "Jeszcze nic do podsumowania"
+    assert v["delta"]["text"] == "Brak paragonów sprzed add-onu do porównania"
+
+
+def test_effect_view_lists_only_the_last_30_days_of_coupons(client: TestClient) -> None:
+    from lidl.coupons import parse_coupons
+
+    now = datetime(2026, 12, 1, 12, 0, tzinfo=UTC)
+    _connect(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "t", "date": "2026-11-28T10:00:00+00:00"}])
+    history.save_detail(
+        "t", "S", ParsedReceipt(items=[ReceiptItem("1", "P", 1, 10, 10, discount=-2.0, coupon=-2.0)])
+    )
+    history.save_coupons("osoba-1", parse_coupons(_effect_payload(now, ("old", ["1"], -40))), now.isoformat())
+    accounts = client.app.state.service.store.list()  # type: ignore[attr-defined]
+    assert effect_view(history, accounts, now.date(), now)["rows"] == []  # type: ignore[index]
+
+
+def test_coupons_page_shows_the_effect_section(client: TestClient) -> None:
+    _seed_effect(client, datetime.now(UTC))
+    text = client.get("/kupony").text
+    assert 'id="efekt-h"' in text and "Efekt kuponów" in text
+    for word in ("Wykorzystany", "Przepadł", "W toku", "Brak danych", "Wykorzystane 1 z 2 zakończonych"):
+        assert word in text
+    for target in ("kupony-konta", "kupony-wyniki"):  # odświeżanie i wyszukiwanie jej nie dotykają
+        assert "Efekt kuponów" not in client.get("/kupony", headers={"hx-target": target}).text
+
+
+def test_coupons_page_without_any_data_has_no_effect_section(client: TestClient) -> None:
+    _connect(client)
+    assert "Efekt kuponów" not in client.get("/kupony").text

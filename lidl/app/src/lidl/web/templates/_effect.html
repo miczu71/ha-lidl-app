@@ -1,0 +1,38 @@
+{# Efekt kuponów (E16): kupony z ostatnich 30 dni vs średnia sprzed add-onu i wyniki aktywowanych kuponów
+   (wykorzystany / przepadł / w toku / brak danych — kupony bez kodów artykułów nie są rozstrzygane). #}
+{% if effect %}
+<section class="card ef" aria-labelledby="efekt-h">
+  <h2 class="s" id="efekt-h">Efekt kuponów</h2>
+  <div class="kpi"><span class="kpi__num">{{ effect.now }}</span><span class="kpi__cap">z kuponów w ostatnich 30 dni</span></div>
+  <div class="ef__bars" role="group" aria-label="Porównanie z okresem przed add-onem">
+    <div class="ef__row"><span class="ef__lbl">Ostatnie 30 dni</span><span class="ef__val">{{ effect.now }}</span>
+      <span class="ef__track"><span class="ef__fill" style="width: {{ effect.now_pct }}%"></span></span></div>
+    <div class="ef__row"><span class="ef__lbl">Średnio przed add-onem (30 dni)</span><span class="ef__val">{{ effect.before }}</span>
+      <span class="ef__track"><span class="ef__fill ef__fill--before" style="width: {{ effect.before_pct }}%"></span></span></div>
+  </div>
+  <p class="ef__delta ef__delta--{{ effect.delta.kind }}">
+    {% if effect.delta.kind == "up" %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>{% endif %}
+    <span>{{ effect.delta.text }}</span>
+  </p>
+  <p class="sum">Do tego promocje na paragonach: <strong>{{ effect.promotions }}</strong> w ostatnich 30 dni (średnio przed: {{ effect.promotions_before }}).
+    Średnia z 12 miesięcy przed {{ effect.since }} jest orientacyjna — kupony zależą od sezonu.</p>
+  <details class="ef__more">
+    <summary><span class="ef__sumtxt"><span>Aktywowane kupony</span><span class="meta">{{ effect.summary }}</span></span></summary>
+    {% if effect.rows %}
+    <ul class="cplist ef__list">
+      {% for r in effect.rows %}
+      <li class="cp">
+        <div class="cp__txt">
+          <span class="cp__name">{{ r.title }}</span>
+          <span class="cp__meta"><span>{{ r.discount }}</span><span>{{ r.who }}</span><span>{{ r.until }}</span></span>
+        </div>
+        <div class="cp__side"><span class="status{% if r.kind == 'on' %} status--on{% elif r.kind == 'err' %} status--err{% endif %}">{{ r.status }}</span></div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ef__empty">Wyniki kuponów zbieramy od 8.10.2026. Gdy pierwsze aktywowane kupony wygasną, zobaczysz tu, które zadziałały, a które przepadły.</p>
+    {% endif %}
+  </details>
+</section>
+{% endif %}

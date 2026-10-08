@@ -44,6 +44,7 @@ from .products import (
     MORE_STEP,
     coupon_cards,
     coupon_rows,
+    effect_view,
     import_status,
     parse_limit,
     ranking_rows,
@@ -320,6 +321,7 @@ def create_app(settings: Settings) -> FastAPI:
             return render(request, "_coupons_accounts.html", **ctx)
         regular = coupon_rows(history.coupon_candidates())
         ctx.update(
+            effect=effect_view(history, service(request).store.list(), date.today(), datetime.now(UTC)),
             rows=[r for r in regular if matches(r["name"], q)],
             regular_total=len(regular),
             min_purchases=CANDIDATE_MIN_PURCHASES,

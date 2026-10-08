@@ -13,6 +13,8 @@
 </p>
 {% endif %}
 
+{% include "_effect.html" %}
+
 {{ search_input(q, "Szukaj", "kupon albo produkt, np. banany", base ~ "/kupony", "kupony-wyniki") }}
 
 {% include "_coupons_results.html" %}
