@@ -45,3 +45,13 @@ ich nie czyta).
 Eksport: **3 150 starych kodów** bez mostu (od 2019; 630 z ostatnim zakupem od 04.2025, 741 kupionych ≥ 3 dni) i
 **188 nowych kodów** bez starszej historii. Wniosek do E21.2: dopasowujemy od strony nowych (188) — każdy nowy kod
 szuka swoich starych odpowiedników (może być kilka wariantów nazw); stare bez pary to produkty, których już nie kupujemy.
+
+## E21.2 — wynik pierwszego przebiegu (2026-10-08) i zmiana założenia
+Przegląd 188 nowych kodów: to głównie naprawdę nowe produkty (smaki piwa, lody, sezonowe), kupione 1–3 razy.
+Szkic: 104 pary (80 pewnych, 24 do potwierdzenia) dla 62 nowych kodów — ale obejmują tylko **18 z 316** starych
+kodów kupowanych w ostatnich 12 mies. Wniosek: luka 20 pp. nie siedzi w „nowych bez historii”, tylko w starych
+kodach, których nowe odpowiedniki **mają już historię** (połączyły się z innym wariantem starej nazwy albo innym
+EAN) — eksport ich nie zawiera. Obserwacje do reguł w E21.3: (1) część kodów `n:` (≤ 7 cyfr) to numer artykułu
+Lidla bez zer wiodących (`n:80505` = `0080505`); (2) produkty ważone mają EAN zmienny przy każdym zakupie
+(`n:28…`, ta sama nazwa) — łączyć po nazwie, nie po kodzie; (3) ten sam EAN miewa kilka wariantów nazwy, z których
+tylko część łączy się po nazwie. Potrzebny eksport wszystkich nowych kodów z nazwami (E21.1b).
