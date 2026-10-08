@@ -83,6 +83,8 @@ CREATE TABLE IF NOT EXISTS ticket_coupons (
 );
 CREATE TABLE IF NOT EXISTS coupon_optout (art_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS watched (art_id TEXT PRIMARY KEY);
+-- połączenia stary kod `n:` → nowy kod HTML dopasowane jednorazowo poza add-onem (E21)
+CREATE TABLE IF NOT EXISTS merges (old TEXT PRIMARY KEY, new TEXT NOT NULL);
 -- wysłane powiadomienia: obserwowane (`c:`/`p:`, E15) i promocje w porannym (`m:`)
 CREATE TABLE IF NOT EXISTS watched_sent (key TEXT PRIMARY KEY, sent_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS coupons (
@@ -567,7 +569,9 @@ class History:
         return done
 
     def _resolver(self) -> Callable[[str, str], str]:
-        """Most po nazwie: kod `n:` → kod HTML, gdy nazwa pasuje do dokładnie jednego kodu HTML."""
+        """Most kodu `n:` → kod HTML: najpierw połączenia z `merges`, potem nazwa pasująca do dokładnie
+        jednego kodu HTML."""
+        merges = dict(self._db.execute("SELECT old, new FROM merges").fetchall())
         names: dict[str, set[str]] = {}
         for art_id, name in self._db.execute(
             "SELECT DISTINCT art_id, name FROM items WHERE art_id NOT LIKE 'n:%'"
@@ -576,9 +580,19 @@ class History:
         unique = {n: next(iter(ids)) for n, ids in names.items() if len(ids) == 1}
 
         def resolve(art_id: str, name: str) -> str:
-            return unique.get(_norm(name), art_id) if art_id.startswith("n:") else art_id
+            if not art_id.startswith("n:"):
+                return art_id
+            return merges.get(art_id) or unique.get(_norm(name), art_id)
 
         return resolve
+
+    def set_merges(self, pairs: Iterable[tuple[str, str]]) -> int:
+        """Zastępuje wszystkie połączenia E21 (pusta lista cofa całość); zwraca ich liczbę."""
+        rows = {old: new for old, new in pairs if old.startswith("n:")}
+        with self._db:
+            self._db.execute("DELETE FROM merges")
+            self._db.executemany("INSERT INTO merges VALUES (?, ?)", rows.items())
+        return len(rows)
 
     def _products(self, start: date | None = None, end: date | None = None) -> dict[str, dict[str, Any]]:
         """Pozycje z paragonów z dni `start`–`end` (domknięty, bez zakresu: całość) zebrane per produkt

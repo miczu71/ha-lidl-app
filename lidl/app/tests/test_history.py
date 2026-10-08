@@ -528,3 +528,14 @@ def test_merge_candidates_list_unbridged_old_codes_and_new_codes_without_history
         }
     ]
     assert [(x["code"], x["bridged"]) for x in c["new"]] == [("111", True), ("222", False)]  # wszystkie nowe
+
+
+def test_merges_bridge_old_code_before_name_and_replace_all(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("o1", "2025-11-02"), _ticket("n1", "2026-05-01")])
+    h.save_detail("o1", "S", _priced(("n:2", "Winog.jas.bezp.500g", 1, 9.0, 0.0)))
+    h.save_detail("n1", "S", _priced(("222", "Winogrono j.bezp.500", 1, 10.5, 0.0)))
+    assert h.set_merges([("n:2", "222"), ("333", "222")]) == 1  # tylko stare kody `n:`
+    assert [x["code"] for x in h.merge_candidates()["old"]] == []
+    assert h.set_merges([]) == 0
+    assert [x["code"] for x in h.merge_candidates()["old"]] == ["n:2"]

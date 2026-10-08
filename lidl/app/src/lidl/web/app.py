@@ -318,6 +318,13 @@ def create_app(settings: Settings) -> FastAPI:
         history: History = request.app.state.history
         return history.merge_candidates()
 
+    @app.post("/produkty/laczenie/import")
+    async def merge_import(request: Request) -> dict[str, int]:
+        """E21.3: zastępuje połączenia parami `[{"old", "new"}, …]`; `[]` cofa wszystkie."""
+        history: History = request.app.state.history
+        pairs = await request.json()
+        return {"merges": history.set_merges((p["old"], p["new"]) for p in pairs)}
+
     @app.get("/ceny")
     async def prices(request: Request) -> Response:
         history: History = request.app.state.history

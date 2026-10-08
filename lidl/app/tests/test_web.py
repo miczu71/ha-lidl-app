@@ -871,3 +871,9 @@ def test_merge_candidates_export_is_json_without_cache(client: TestClient) -> No
     r = client.get("/produkty/laczenie/kandydaci.json")
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
     assert r.json()["old"][0]["code"] == "n:9" and r.json()["new"] == []
+
+
+def test_merge_import_replaces_pairs_and_empty_list_undoes(client: TestClient) -> None:
+    r = client.post("/produkty/laczenie/import", json=[{"old": "n:9", "new": "0000009"}])
+    assert r.status_code == 200 and r.json() == {"merges": 1}
+    assert client.post("/produkty/laczenie/import", json=[]).json() == {"merges": 0}
