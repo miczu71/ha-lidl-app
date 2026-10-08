@@ -202,3 +202,21 @@ def test_watched_several_products_are_counted_in_title() -> None:
         "Lidl: 2 obserwowane produkty z rabatem",
         "Kawa X −30% (do jutra) · kupon Osoba 1\nMasło −25% (do 12 paź) · promocja od dziś",
     )
+
+
+def test_month_summary_message_first_place_and_no_previous_month(tmp_path: Any) -> None:
+    from lidl.history import History
+    from lidl.notify import compose_month
+    from lidl.receipt_html import ParsedReceipt, ReceiptItem
+
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("osoba-1", [{"id": "s", "date": "2026-09-10T10:00:00+00:00", "totalAmount": 9.5}])
+    h.save_detail("s", "Sklep X", ParsedReceipt(items=[ReceiptItem("1", "Produkt A", 1, 10.0, 10.0, -0.5)]))
+    s = h.month_summary("2026-09")
+    assert s is not None
+    assert compose_month(s)[1].splitlines() == [
+        "We wrześniu wydaliśmy 9,50 zł w 1 wizycie",
+        "Najwięcej na: Produkt A (9,50 zł)",
+        "Zaoszczędziliśmy 0,50 zł · najdroższy miesiąc w historii",
+        "Więcej w panelu, zakładka Miesiące",
+    ]

@@ -28,7 +28,7 @@ from lidl import __version__
 from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
-from lidl.daily import EVENING, DailyJob, at_time_loop
+from lidl.daily import EVENING, MONTHLY, DailyJob, at_time_loop
 from lidl.history import CANDIDATE_MIN_PURCHASES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
@@ -40,7 +40,7 @@ from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
 
 from .chart import build_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
-from .months import default_month, first_day, last_day, month_nav, month_view
+from .months import default_month, first_day, last_day, month_banner, month_nav, month_view
 from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_changes
 from .products import (
     MORE_STEP,
@@ -111,6 +111,7 @@ def create_app(settings: Settings) -> FastAPI:
             loops = [
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
                 asyncio.create_task(at_time_loop(EVENING, job.evening)),
+                asyncio.create_task(at_time_loop(MONTHLY, job.monthly)),
                 asyncio.create_task(job.refresh_rewards()),
             ]
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
@@ -178,7 +179,15 @@ def create_app(settings: Settings) -> FastAPI:
         if m in MESSAGES:
             kind, text = MESSAGES[m]
             msg = {"kind": kind, "text": text}
-        return render(request, "index.html", section="konta", accounts=svc.store.list(), msg=msg)
+        history: History = request.app.state.history
+        return render(
+            request,
+            "index.html",
+            section="konta",
+            accounts=svc.store.list(),
+            msg=msg,
+            month=month_banner(history.ticket_months(ReceiptFilter()), date.today()),
+        )
 
     @app.post("/accounts")
     async def add_account(request: Request, label: str = Form(...)) -> Response:

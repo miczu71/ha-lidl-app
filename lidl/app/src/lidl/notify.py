@@ -1,7 +1,7 @@
 """Powiadomienia na `notify.family` (API Core przez Supervisora, `homeassistant_api`): poranne — którą kartę
 wziąć na zakupy, jakie kupony są na niej aktywne, jakie promocje na nasze produkty startują dziś i jakie
 zdrapki czekają; wieczorne — zdrapki wygasające
-dziś."""
+dziś; miesięczne (E19) — podsumowanie poprzedniego miesiąca."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ from datetime import date
 import aiohttp
 
 from .coupons import AccountReport, ActiveCoupon
-from .history import WatchedCoupon
+from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
 from .rewards import Rewards
-from .text import count_text, fmt_until, plural
+from .text import count_text, fmt_in_month, fmt_until, plural
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ PANEL = "/app/" + os.environ.get("HOSTNAME", "f0987e0f-lidl").replace("-", "_")
 TAG = "lidl-kupony"  # nowe powiadomienie zastępuje poprzednie
 TAG_SCRATCH = "lidl-zdrapki"  # wieczorne przypomnienie nie zastępuje porannego
 TAG_WATCHED = "lidl-obserwowane"  # obserwowane produkty (E15) obok porannego, nie zamiast niego
+TAG_MONTH = "lidl-podsumowanie"  # podsumowanie miesiąca (E19)
 
 
 def _name(c: ActiveCoupon | WatchedCoupon) -> str:
@@ -151,6 +152,29 @@ def compose_watched(
         )
     body = [f"{_offer(name, disc, end, today)} · {kind} {note}" for name, kind, disc, end, note in rows]
     return "Lidl: " + title, "\n".join(body)
+
+
+def _pln(value: float) -> str:
+    return f"{value:,.2f}".replace(",", " ").replace(".", ",") + " zł"
+
+
+def compose_month(s: MonthSummary) -> tuple[str, str]:
+    """Podsumowanie miesiąca (E19): kwota z porównaniem, top produkt, oszczędności i miejsce w historii."""
+    start = date.fromisoformat(f"{s.month}-01")
+    spent = f"{fmt_in_month(start).capitalize()} wydaliśmy {_pln(s.totals.paid)} w " + count_text(
+        s.totals.tickets, "wizycie", "wizytach", "wizytach"
+    )
+    if s.prev_paid:
+        pct = (s.totals.paid - s.prev_paid) / s.prev_paid * 100
+        prev = date.fromordinal(start.toordinal() - 1)
+        spent += f" ({'+' if pct > 0 else '−' if pct < 0 else ''}{abs(pct):.0f}% niż {fmt_in_month(prev)})"
+    lines = [spent]
+    if s.top_spend:
+        lines.append(f"Najwięcej na: {s.top_spend[0].name} ({_pln(s.top_spend[0].value)})")
+    rank = "najdroższy miesiąc w historii" if s.rank == 1 else f"{s.rank}. najdroższy z {s.months} miesięcy"
+    lines.append(f"Zaoszczędziliśmy {_pln(s.savings)} · {rank}")
+    lines.append("Więcej w panelu, zakładka Miesiące")
+    return "Lidl: podsumowanie miesiąca", "\n".join(lines)
 
 
 async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag: str = TAG) -> bool:

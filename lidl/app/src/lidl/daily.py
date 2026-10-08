@@ -1,5 +1,6 @@
 """Dzienny przebieg o stałej godzinie (opcja `run_time`, czas lokalny): paragony, promocje, kupony, nagrody,
-powiadomienie; wieczorem (18:00) przypomnienie o zdrapkach wygasających dziś."""
+powiadomienie; wieczorem (18:00) przypomnienie o zdrapkach wygasających dziś; 1. dnia miesiąca o 10:00
+podsumowanie poprzedniego miesiąca (E19)."""
 
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from .sync import HistorySync
 log = logging.getLogger(__name__)
 
 EVENING = time(18, 0)
+MONTHLY = time(10, 0)  # po porannym imporcie paragonów (`run_time`)
 
 
 def seconds_until(now: datetime, at: time) -> float:
@@ -94,6 +96,20 @@ class DailyJob:
         message = notify.compose_expiring(await self.refresh_rewards(), date.today())
         if message:
             await notify.send(self._session, message, tag=notify.TAG_SCRATCH)
+
+    async def monthly(self, today: date | None = None) -> None:
+        """1. dnia miesiąca podsumowanie poprzedniego; raz (klucz `s:<RRRR-MM>` w `watched_sent`), bez
+        powiadomienia, gdy w miesiącu nie było zakupów."""
+        today = today or date.today()
+        if today.day != 1:
+            return
+        month = (today - timedelta(days=1)).strftime("%Y-%m")
+        key = f"s:{month}"
+        if key in self._history.watched_sent_keys():
+            return
+        summary = self._history.month_summary(month)
+        if summary and await notify.send(self._session, notify.compose_month(summary), tag=notify.TAG_MONTH):
+            self._history.mark_watched_sent([key], datetime.now().isoformat())
 
     def start_coupons(self) -> bool:
         """„Sprawdź teraz” w panelu: kupony w tle; False, gdy przebieg już trwa."""

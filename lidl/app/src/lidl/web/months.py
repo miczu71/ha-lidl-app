@@ -138,6 +138,17 @@ def month_view(
     }
 
 
+BANNER_DAYS = 7  # tyle dni od 1. strona główna (tu otwiera powiadomienie) prowadzi do podsumowania
+
+
+def month_banner(months: Mapping[str, Any], today: date) -> str | None:
+    """„września 2026”, gdy w pierwszym tygodniu miesiąca jest podsumowanie poprzedniego; inaczej None."""
+    prev = today.replace(day=1) - timedelta(days=1)
+    if today.day > BANNER_DAYS or prev.strftime("%Y-%m") not in months:
+        return None
+    return fmt_month_year_genitive(prev)
+
+
 def month_nav(months: Iterable[str], current: str, href: Callable[[str], str]) -> dict[str, Any]:
     """Poprzedni i następny miesiąc z zakupami oraz wszystkie do wyboru (od najnowszego)."""
     known = sorted(months)

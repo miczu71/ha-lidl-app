@@ -1025,3 +1025,12 @@ def test_months_empty_month_keeps_navigation(client: TestClient) -> None:
     _seed(client, ("2026-08-03",))
     text = client.get("/miesiace?m=2026-07").text
     assert "Lipiec 2026" in text and "nie było zakupów" in text and 'href="/miesiace?m=2026-08"' not in text
+
+
+def test_accounts_page_links_to_last_month_summary_in_first_week() -> None:
+    from lidl.web.months import month_banner
+
+    months = {"2026-09": (1, 20.0)}
+    assert month_banner(months, date(2026, 10, 7)) == "września 2026"
+    assert month_banner(months, date(2026, 10, 8)) is None
+    assert month_banner({}, date(2026, 10, 1)) is None

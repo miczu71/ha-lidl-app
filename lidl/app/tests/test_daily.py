@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime, time, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -10,8 +11,9 @@ from lidl import notify
 from lidl.accounts import Account
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.daily import DailyJob, at_time_loop, seconds_until
-from lidl.history import WatchedCoupon
+from lidl.history import History, WatchedCoupon
 from lidl.promotions import Promotion
+from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.rewards import Rewards, ScratchCard
 from lidl.text import fmt_until
 
@@ -242,3 +244,40 @@ async def test_evening_reminds_only_about_cards_expiring_today(
     await _job(log, expires).evening()
     reminder = "powiadomienie Lidl: zdrapka wygasa dziś o 23:59 [lidl-zdrapki]"
     assert log == ["nagrody [('osoba-1', 'Osoba 1')]"] + ([reminder] if sent else [])
+
+
+def _month_history(tmp_path: Path) -> History:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "osoba-1",
+        [
+            {"id": "a", "date": "2026-08-10T10:00:00+00:00", "totalAmount": 40.0},
+            {"id": "s", "date": "2026-09-10T10:00:00+00:00", "totalAmount": 50.0},
+        ],
+    )
+    h.save_detail("s", "Sklep X", ParsedReceipt(items=[ReceiptItem("1", "Produkt A", 2, 25.0, 50.0, -5.0)]))
+    return h
+
+
+async def test_monthly_summary_on_the_first_once_and_not_for_empty_month(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sent: list[tuple[str, str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str) -> bool:
+        sent.append((*message, tag))
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    job = _job([], history=_month_history(tmp_path))  # type: ignore[arg-type]
+    await job.monthly(date(2026, 10, 2))  # nie 1. dnia
+    assert sent == []
+    await job.monthly(date(2026, 10, 1))
+    await job.monthly(date(2026, 10, 1))  # restart tego samego dnia: bez powtórki
+    assert [(title, tag) for title, _, tag in sent] == [("Lidl: podsumowanie miesiąca", "lidl-podsumowanie")]
+    assert sent[0][1].splitlines()[:2] == [
+        "We wrześniu wydaliśmy 50,00 zł w 1 wizycie (+25% niż w sierpniu)",
+        "Najwięcej na: Produkt A (45,00 zł)",
+    ]
+    await job.monthly(date(2026, 8, 1))  # lipiec bez zakupów
+    assert len(sent) == 1
