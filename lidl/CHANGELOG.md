@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2
+
+- **Łączenie nazw (E21):** połączenia starych kodów produktów z nowymi (import jednorazowy,
+  `POST produkty/laczenie/import`) mają pierwszeństwo przed dopasowaniem po nazwie — Produkty, Ceny i lista
+  kuponowa liczą wtedy wspólną historię. Pusta lista cofa wszystkie połączenia; pozycje paragonów się nie zmieniają.
+
 ## 0.14.1
 
 - **Eksport do łączenia nazw (E21):** lista nowych kodów obejmuje teraz wszystkie produkty z nowych paragonów
