@@ -1,0 +1,12 @@
+{% from "_macros.html" import no_match, price_row, search_count %}
+<div id="ceny-wyniki" class="live">
+  {{ search_count(found, compared, q, clear_href) }}
+  <ul class="rklist" aria-labelledby="all-h">
+    {% for r in rows %}
+    {{ price_row(r, spend=true) }}
+    {% else %}
+    {% if q %}{{ no_match(q, " wśród porównanych produktów") }}{% else %}<li class="meta">Brak produktów do porównania.</li>{% endif %}
+    {% endfor %}
+  </ul>
+  {% if more_href %}<div><a class="ds-btn ds-btn--secondary" href="{{ more_href }}">Pokaż więcej</a></div>{% endif %}
+</div>

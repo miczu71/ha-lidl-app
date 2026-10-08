@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Ceny — Lidl Plus{% endblock %}
+{% from "_macros.html" import price_row, search_input %}
+{% block main %}
+<div>
+  <h1 class="t">Ceny</h1>
+  <p class="lead">Jak zmieniają się ceny tego, co kupujemy. Cena z półki, bez rabatów, porównana rok do roku.</p>
+</div>
+
+{% if not basket %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>{% if has_history %}Za krótka historia do porównania: potrzebne są zakupy tych samych produktów z ostatnich 3 miesięcy i z tych samych miesięcy rok wcześniej.{% else %}Brak historii zakupów. Pobierz ją w zakładce Produkty.{% endif %}</span>
+</p>
+{% else %}
+<section class="card" aria-labelledby="kosz-h">
+  <h2 class="s" id="kosz-h">Nasz koszyk</h2>
+  <div class="kpi">{% set d = basket.delta %}{% include "_delta.html" %}<span class="kpi__cap">{% if d.kind == 'flat' %}tyle samo co rok temu{% else %}niż rok temu za te same produkty{% endif %}</span></div>
+  {% if basket.chart %}{% set line = basket.chart %}{% include "_line.html" %}{% endif %}
+  <p class="sum">Porównanie dla <strong>{{ basket.products }}</strong>, które kupowaliśmy w obu okresach: to <strong>{{ basket.coverage }}</strong> naszych wydatków z 12 miesięcy.
+    Ostatnie 3 miesiące wobec tych samych miesięcy rok wcześniej, ważone tym, ile na produkt wydajemy.</p>
+</section>
+
+<div class="tops">
+  {% for id, title, rows, empty in [("up-h", "Najbardziej podrożały", ups, "podrożał"), ("down-h", "Najbardziej potaniały", downs, "potaniał")] %}
+  <section class="card" aria-labelledby="{{ id }}">
+    <h2 class="s" id="{{ id }}">{{ title }}</h2>
+    <ul class="rklist">
+      {% for r in rows %}{{ price_row(r) }}{% else %}<li class="meta">Żaden produkt nie {{ empty }} rok do roku.</li>{% endfor %}
+    </ul>
+  </section>
+  {% endfor %}
+</div>
+
+<section class="card" aria-labelledby="all-h">
+  <div>
+    <h2 class="s" id="all-h">Wszystkie porównane produkty</h2>
+    <p class="sum">Cena za sztukę albo za kg (produkty ważone) · ile wydaliśmy w 12 miesięcy</p>
+  </div>
+  {# pole poza formularzem (jak na Produktach): jego „change” przy utracie fokusu nie wysyła formularza #}
+  {{ search_input(q, "Szukaj produktu", "np. masło, kawa, banany", base ~ "/ceny", "ceny-wyniki", form="filtry-cen") }}
+  <form class="ctl" id="filtry-cen" method="get" action="{{ base }}/ceny" hx-get="{{ base }}/ceny" hx-trigger="change, submit" hx-target="#ceny-wyniki" hx-select="#ceny-wyniki" hx-swap="outerHTML" hx-indicator="#ceny-wyniki" hx-replace-url="true" hx-sync="this:replace">
+    <fieldset>
+      <legend>Kolejność</legend>
+      <div class="seg seg--narrow">
+        <label><input type="radio" name="kolejnosc" value="zmiana"{% if order == 'zmiana' %} checked{% endif %}><span>Zmiana ceny</span></label>
+        <label><input type="radio" name="kolejnosc" value="wydatki"{% if order == 'wydatki' %} checked{% endif %}><span>Wydatki</span></label>
+      </div>
+    </fieldset>
+    <noscript><div><button class="ds-btn" type="submit">Pokaż</button></div></noscript>
+  </form>
+  {% include "_prices_list.html" %}
+</section>
+{% endif %}
+{% endblock %}

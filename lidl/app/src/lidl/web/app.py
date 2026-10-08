@@ -40,6 +40,7 @@ from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
 
 from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
+from .prices import basket_view, price_rows, product_view, top_changes
 from .products import (
     MORE_STEP,
     coupon_cards,
@@ -56,6 +57,7 @@ log = logging.getLogger(__name__)
 
 HERE = Path(__file__).parent
 INGRESS_PROXY = "172.30.32.2"
+PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
 
 LOGIN_ERRORS = {
     "token_rejected": "Lidl odrzucił kod: wygasł albo został już użyty. Zaloguj się od nowa.",
@@ -145,10 +147,19 @@ def create_app(settings: Settings) -> FastAPI:
     def base(request: Request) -> str:
         return request.headers.get("x-ingress-path", "").rstrip("/")
 
-    def render(request: Request, name: str, **ctx: Any) -> Response:
+    def render(request: Request, name: str, status_code: int = 200, **ctx: Any) -> Response:
         return templates.TemplateResponse(
-            request, name, {"base": base(request), "version": __version__, **ctx}
+            request, name, {"base": base(request), "version": __version__, **ctx}, status_code=status_code
         )
+
+    def query_link(
+        request: Request, path: str, params: dict[str, str], keys: tuple[str, ...], **over: object
+    ) -> str:
+        """Adres listy z bieżącymi parametrami `keys` nadpisanymi przez `over` (pusta = bez filtra)."""
+        keep = {k: v for k, v in params.items() if k in keys}
+        keep.update({k: str(v) for k, v in over.items()})
+        keep = {k: v for k, v in keep.items() if v}
+        return f"{base(request)}{path}?{urlencode(keep)}" if keep else f"{base(request)}{path}"
 
     def go(request: Request, path: str) -> RedirectResponse:
         return RedirectResponse(f"{base(request)}{path}", status_code=303)
@@ -235,14 +246,7 @@ def create_app(settings: Settings) -> FastAPI:
         status = import_status(sync, history, accounts)
 
         def link(**over: object) -> str:
-            keep = {
-                k: v
-                for k, v in params.items()
-                if k in ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
-            }
-            keep.update({k: str(v) for k, v in over.items()})
-            keep = {k: v for k, v in keep.items() if v}  # pusta wartość = bez filtra
-            return f"{base(request)}/produkty?{urlencode(keep)}" if keep else f"{base(request)}/produkty"
+            return query_link(request, "/produkty", params, PRODUCT_PARAMS, **over)
 
         ctx: dict[str, Any] = {"section": "produkty", "status": status, "accounts": accounts}
         if status["state"] != "empty":
@@ -307,6 +311,61 @@ def create_app(settings: Settings) -> FastAPI:
                 ),
             )
         return render(request, "products.html", **ctx)
+
+    @app.get("/ceny")
+    async def prices(request: Request) -> Response:
+        history: History = request.app.state.history
+        params = dict(request.query_params)
+        q = params.get("q", "").strip()
+        order = "wydatki" if params.get("kolejnosc") == "wydatki" else "zmiana"
+        limit = parse_limit(params.get("limit"))
+        today = date.today()
+
+        def link(**over: object) -> str:
+            return query_link(request, "/ceny", params, ("q", "kolejnosc", "limit"), **over)
+
+        def href(art_id: str) -> str:
+            return f"{base(request)}/ceny/produkt/{quote(art_id, safe=':')}"
+
+        overview = None
+        if request.headers.get("hx-target") == "ceny-wyniki":  # wyszukiwanie i kolejność na żywo: sama lista
+            changes = history.price_changes(today)
+        else:
+            overview = history.price_overview(today)
+            changes = overview.changes
+        found = [c for c in changes if matches(c.name, q)] if q else changes
+        if order == "wydatki":
+            found = sorted(found, key=lambda c: (-c.spend, c.name))
+        ctx: dict[str, Any] = {
+            "section": "ceny",
+            "q": q,
+            "order": order,
+            "found": len(found),
+            "compared": len(changes),
+            "clear_href": link(q=""),
+            "rows": price_rows(found[:limit], href),
+            "more_href": link(limit=limit + MORE_STEP) if len(found) > limit else None,
+        }
+        if overview is None:
+            return render(request, "_prices_list.html", **ctx)
+        ups, downs = top_changes(changes)
+        ctx.update(
+            has_history=history.ticket_count() > 0,
+            basket=basket_view(overview),
+            ups=price_rows(ups, href),
+            downs=price_rows(downs, href),
+        )
+        return render(request, "prices.html", **ctx)
+
+    @app.get("/ceny/produkt/{art_id}")
+    async def product_prices(request: Request, art_id: str) -> Response:
+        history: History = request.app.state.history
+        today = date.today()
+        prices = history.product_prices(art_id, today)
+        if prices is None:
+            return render(request, "prices_product.html", product=None, status_code=404)
+        spend = f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres"
+        return render(request, "prices_product.html", product=product_view(prices, today), spend=spend)
 
     @app.get("/kupony")
     async def coupons(request: Request) -> Response:

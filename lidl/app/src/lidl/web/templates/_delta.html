@@ -1,0 +1,2 @@
+{# Zmiana ceny: strzałka + znak + słowo dla czytników (kolor tylko wzmacnia) — zmienna `d` = prices.delta() #}
+<span class="pc pc--{{ d.kind }}">{% if d.kind == 'up' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>{% elif d.kind == 'down' %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"/></svg>{% endif %}<span>{{ d.text }}</span><span class="vh"> {{ d.word }}</span></span>

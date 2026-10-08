@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from lidl.history import SpendBucket
-from lidl.web.chart import build_chart, fmt_pln, fmt_qty, parse_chart_query
+from lidl.web.chart import build_chart, build_line, fmt_pln, fmt_qty, parse_chart_query
 
 TODAY = date(2026, 10, 7)
 NBSP = " "
@@ -121,3 +121,25 @@ def test_dates_equal_to_a_preset_are_recognised_as_that_preset() -> None:
     q = parse_chart_query({"od": "2019-05-10", "do": "2026-10-07"}, TODAY, date(2019, 5, 10))
     assert q.preset == "all"
     assert parse_chart_query({"od": "2026-01-15", "do": "2026-03-01"}, TODAY, None).preset is None
+
+
+# --- wykres liniowy (E7) ---
+
+
+def test_line_axis_has_four_nice_steps_and_zero_line_for_negative_values() -> None:
+    pts = [(date(2024, 1, 1), -0.4), (date(2025, 1, 1), 2.6), (date(2026, 6, 1), 4.8)]
+    line = build_line(pts, lambda v: f"{v:g}", "koszyk", zero=True)
+    assert line.ticks == ["6", "4", "2", "0", "-2"]
+    assert line.zero == "M0,150.0H1000"
+    assert line.line.startswith("M0.0,") and line.line.count("L") == 2
+    assert [t for _, t in line.labels] == ["2025", "2026"]
+
+
+def test_line_steps_extend_to_last_day_and_dots_are_zero_length_paths() -> None:
+    steps = [(date(2026, 1, 1), 5.0), (date(2026, 3, 1), 6.0)]
+    dots = [(date(2026, 1, 1), 5.0), (date(2026, 3, 1), 4.0)]
+    line = build_line(steps, str, "masło", dots=dots, step=True, last=date(2026, 7, 1))
+    assert line.line.endswith("H1000.0")
+    assert "V" in line.line and line.end.startswith("M1000.0,")
+    assert all(d.endswith("h0") for d in line.dots) and len(line.dots) == 2
+    assert [t for _, t in line.labels][:2] == ["lut 26", "mar 26"]  # krócej niż 2 lata: miesiące

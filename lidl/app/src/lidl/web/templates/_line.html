@@ -1,0 +1,8 @@
+{# Wykres liniowy (E7): zmienna `line` = chart.LineChart; oś Y i czasu w HTML, linia w SVG rozciąganym na szerokość #}
+<div class="plot" role="img" aria-label="{{ line.aria }}">
+  <div class="yl" aria-hidden="true">{% for t in line.ticks %}<span>{{ t }}</span>{% endfor %}</div>
+  <div class="ln">
+    <svg viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">{% if line.zero %}<path class="ln__zero" d="{{ line.zero }}"/>{% endif %}<path class="ln__line" d="{{ line.line }}"/>{% for d in line.dots %}<path class="ln__dot" d="{{ d }}"/>{% endfor %}<path class="ln__end" d="{{ line.end }}"/></svg>
+  </div>
+  <div class="xl xl--time" aria-hidden="true">{% for pos, text in line.labels %}<span style="left: {{ pos }}%">{{ text }}</span>{% endfor %}</div>
+</div>

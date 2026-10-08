@@ -406,8 +406,9 @@ def test_price_changes_compare_medians_year_over_year(tmp_path: Path) -> None:
 def test_basket_inflation_is_weighted_by_spend_with_coverage(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     _seed_prices(h)
-    basket = h.basket_inflation(date(2026, 10, 8))
-    assert (basket.pct, basket.products, basket.coverage) == (-2.0, 2, 0.5)
+    overview = h.price_overview(date(2026, 10, 8))
+    assert overview.changes == h.price_changes(date(2026, 10, 8))
+    assert (overview.basket.pct, overview.basket.products, overview.basket.coverage) == (-2.0, 2, 0.5)
 
 
 def test_price_changes_bridge_names_and_weighed_per_kg(tmp_path: Path) -> None:
@@ -436,7 +437,7 @@ def test_basket_series_monthly_from_first_comparable_month(tmp_path: Path) -> No
     h.save_detail("t1", "S", _priced(("1", "Mleko", 1, 3.0, 0.0)))
     h.save_detail("t2", "S", _priced(("1", "Mleko", 1, 3.3, 0.0)))
     h.save_detail("t3", "S", _priced(("1", "Mleko", 1, 3.3, 0.0)))
-    series = h.basket_series(date(2026, 10, 8))
+    series = h.price_overview(date(2026, 10, 8)).series
     assert [(month, b.pct) for month, b in series] == [
         ("2026-08-01", 10.0),
         ("2026-09-01", 10.0),
@@ -447,7 +448,11 @@ def test_basket_series_monthly_from_first_comparable_month(tmp_path: Path) -> No
 def test_price_history_shelf_and_paid_per_unit(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     _seed_prices(h)
-    assert [(p.day, p.shelf, p.paid) for p in h.price_history("1")][-2:] == [
+    milk = h.product_prices("1", date(2026, 10, 8))
+    assert milk is not None and milk.change is not None
+    assert (milk.name, milk.weight, milk.change.pct) == ("Mleko", False, 10.0)
+    assert h.product_prices("brak") is None
+    assert [(p.day, p.shelf, p.paid) for p in milk.points][-2:] == [
         ("2026-08-15", 3.3, 2.7),
         ("2026-09-10", 3.3, 3.3),
     ]
@@ -456,7 +461,6 @@ def test_price_history_shelf_and_paid_per_unit(tmp_path: Path) -> None:
 def test_prices_on_empty_database(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     today = date(2026, 10, 8)
-    assert h.price_changes(today) == []
-    assert h.basket_series(today) == []
-    basket = h.basket_inflation(today)
-    assert (basket.pct, basket.products, basket.coverage) == (None, 0, 0.0)
+    overview = h.price_overview(today)
+    assert overview.changes == [] and overview.series == []
+    assert (overview.basket.pct, overview.basket.products, overview.basket.coverage) == (None, 0, 0.0)

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ product.name if product else "Produkt" }} — Ceny — Lidl Plus{% endblock %}
+{% block bar %}<a class="back" href="{{ base }}/ceny" aria-label="Wróć do cen"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Ceny</span>{% endblock %}
+{% block main %}
+{% if not product %}
+<h1 class="t">Nie ma takiego produktu</h1>
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Ten produkt nie występuje na naszych paragonach. Wróć do listy cen i wybierz go jeszcze raz.</span>
+</p>
+{% else %}
+<div>
+  <h1 class="t">{{ product.name }}</h1>
+  <p class="lead">{{ product.lead }}</p>
+</div>
+<section class="card" aria-labelledby="cena-h">
+  <h2 class="s" id="cena-h">Cena w czasie</h2>
+  <dl class="facts">
+    <div><dt>Ostatnio na półce</dt><dd>{{ product.last_shelf }}</dd></div>
+    {% if product.delta %}
+    <div><dt>Rok temu</dt><dd>{{ product.year_ago }}</dd></div>
+    <div><dt>Zmiana r/r</dt><dd>{% set d = product.delta %}{% include "_delta.html" %}</dd></div>
+    {% endif %}
+    <div><dt>Najtaniej zapłacono</dt><dd>{{ product.best }}</dd></div>
+  </dl>
+  <ul class="lg"><li><span class="lg__line"></span>Cena na półce</li><li><span class="lg__dot"></span>{{ product.paid_label }}</li></ul>
+  {% set line = product.chart %}{% include "_line.html" %}
+  <p class="sum">Ostatni zakup {{ product.last_date }}. Z rabatem co najmniej 10%: <strong>{{ product.deals }} z {{ product.purchases }}</strong> zakupów (kupony i promocje). Najtaniej {{ product.best_date }}.{% if not product.delta %} Brak porównania rok do roku: produkt nie był kupowany w obu okresach.{% endif %}</p>
+</section>
+<div><a class="ds-btn ds-btn--secondary" href="{{ spend }}">Wydatki na ten produkt</a></div>
+{% endif %}
+{% endblock %}

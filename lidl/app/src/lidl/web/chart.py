@@ -1,9 +1,9 @@
-"""Zapytanie i dane wykresu wydatków (ekran „Produkty”): parsowanie parametrów GET, oś, etykiety, formaty."""
+"""Wykresy panelu: słupki wydatków („Produkty”: parametry GET, oś, etykiety, formaty) i linie cen („Ceny”)."""
 
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -116,15 +116,8 @@ def fmt_qty(value: float) -> str:
 
 
 def _nice_axis_max(top: float) -> float:
-    """Najmniejsza „ładna” wartość osi (4 równe odstępy: 1, 2, 2,5, 5 × 10^k)."""
-    if top <= 0:
-        return 4.0
-    raw = top / 4
-    magnitude = float(10 ** math.floor(math.log10(raw)))
-    for factor in (1, 2, 2.5, 5, 10):
-        if factor * magnitude >= raw:
-            return factor * magnitude * 4
-    return 10 * magnitude * 4  # pragmatycznie nieosiągalne
+    """Najmniejsza „ładna” wartość osi od zera (4 równe odstępy: 1, 2, 2,5, 5 × 10^k)."""
+    return 4 * _nice_range(0.0, top)[1] if top > 0 else 4.0
 
 
 def _label(step: str, d: date) -> str:
@@ -177,4 +170,103 @@ def build_chart(buckets: list[SpendBucket], step: str, metric: str) -> Chart:
         average=fmt(average) + suffix,
         per=_PER[step],
         empty=total == 0,
+    )
+
+
+# --- Wykres liniowy (ekran „Ceny”, E7) ---------------------------------------------------------------
+# SVG w viewBox 1000×200 rozciągany na szerokość (preserveAspectRatio="none", kreski non-scaling-stroke);
+# punkty to odcinki zerowej długości z okrągłymi końcami, więc nie zamieniają się w elipsy. Osie w HTML
+# (ta sama siatka 4 odstępów co słupki).
+LINE_W, LINE_H = 1000, 200
+MAX_TIME_LABELS = 6
+
+
+@dataclass(frozen=True)
+class LineChart:
+    line: str
+    dots: list[str]
+    end: str
+    zero: str | None  # linia 0, gdy oś obejmuje wartości ujemne
+    ticks: list[str]  # od góry, 5 wartości
+    labels: list[tuple[str, str]]  # (pozycja w %, etykieta) na osi czasu
+    aria: str
+
+
+def _nice_range(lo: float, hi: float) -> tuple[float, float]:
+    """Dół osi i krok: 4 równe „ładne” odstępy (1, 2, 2,5, 5 × 10^k) obejmujące `lo`–`hi`."""
+    hi = max(hi, lo + 0.01)
+    magnitude = float(10 ** math.floor(math.log10((hi - lo) / 4)))
+    for factor in (1, 2, 2.5, 5, 10, 20):
+        step = factor * magnitude
+        bottom = math.floor(lo / step + 1e-9) * step
+        if bottom + 4 * step >= hi - 1e-9:
+            return bottom, step
+    return math.floor(lo / (50 * magnitude)) * 50 * magnitude, 50 * magnitude  # pragmatycznie nieosiągalne
+
+
+def _next_month(d: date) -> date:
+    return date(d.year + d.month // 12, d.month % 12 + 1, 1)
+
+
+def _time_labels(first: date, last: date) -> list[tuple[str, str]]:
+    """Lata (1 stycznia) przy zakresie ponad 2 lata, inaczej co kilka miesięcy; bez etykiet przy brzegach."""
+    span = max((last - first).days, 1)
+    if span > 730:
+        marks = [(date(y, 1, 1), str(y)) for y in range(first.year + 1, last.year + 1)]
+    else:
+        months = []
+        d = _next_month(first)
+        while d <= last:
+            months.append(d)
+            d = _next_month(d)
+        every = max(1, math.ceil(len(months) / MAX_TIME_LABELS))
+        marks = [(d, f"{_SHORT[d.month - 1]} {d:%y}") for d in months[::every]]
+    out = []
+    for d, text in marks:
+        pos = (d - first).days / span * 100
+        if 4 <= pos <= 96:
+            out.append((f"{pos:.1f}", text))
+    return out
+
+
+def build_line(
+    points: list[tuple[date, float]],
+    fmt: Callable[[float], str],
+    aria: str,
+    *,
+    dots: list[tuple[date, float]] | None = None,
+    step: bool = False,
+    zero: bool = False,
+    last: date | None = None,
+) -> LineChart:
+    """Linia `points` (rosnące daty), opcjonalnie schodkowa (cena obowiązuje do następnej zmiany) i
+    przedłużona do `last`; `dots` to osobne punkty (np. ceny zapłacone); `zero` dokłada 0 do osi."""
+    dots = dots or []
+    values = [v for _, v in points] + [v for _, v in dots] + ([0.0] if zero else [])
+    bottom, size = _nice_range(min(values), max(values))
+    top = bottom + 4 * size
+    first = min(d for d, _ in points + dots)
+    end = max([last or first] + [d for d, _ in points + dots])
+    span = max((end - first).days, 1)
+
+    def x(d: date) -> str:
+        return f"{(d - first).days / span * LINE_W:.1f}"
+
+    def y(v: float) -> str:
+        return f"{(top - v) / (top - bottom) * LINE_H:.1f}"
+
+    path = f"M{x(points[0][0])},{y(points[0][1])}"
+    for d, v in points[1:]:
+        path += f"H{x(d)}V{y(v)}" if step else f"L{x(d)},{y(v)}"
+    tail_x = x(end) if step else x(points[-1][0])
+    if step:
+        path += f"H{tail_x}"
+    return LineChart(
+        line=path,
+        dots=[f"M{x(d)},{y(v)}h0" for d, v in dots],
+        end=f"M{tail_x},{y(points[-1][1])}h0",
+        zero=f"M0,{y(0.0)}H{LINE_W}" if bottom < 0 < top else None,
+        ticks=[fmt(top - k * size) for k in range(5)],
+        labels=_time_labels(first, end),
+        aria=aria,
     )

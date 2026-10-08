@@ -54,6 +54,12 @@ produktów sortowana po zmianie z wyszukiwarką na żywo (htmx jak Produkty/Kupo
 (dwie serie: półkowa i zapłacona). `web/chart.py` ma dziś tylko słupki wydatków — wykres liniowy to nowy kod SVG
 (minimum: punkty + linia, bez biblioteki). Weryfikacja Playwright (desktop + telefon) na danych dev.
 
+**Stan E7.2 ✅ (2026-10-08):** makieta zaakceptowana; wykresy obejmują **całą historię** (decyzja użytkownika:
+bez przełącznika zakresu). Trasy `/ceny` (lista na żywo: `hx-target=ceny-wyniki`) i `/ceny/produkt/{kod}`;
+`History.price_overview()` i `product_prices()` czytają pozycje raz na żądanie; `web/prices.py`,
+`chart.build_line` (SVG + osie HTML), szablony `prices*.html`, `_line.html`, `_delta.html`, makro `price_row`.
+Dane demo: `~/dev/lidl-spike/seed_prices_demo.py` (534 paragony 2019–2026, ~0,04 s na stronę).
+
 ## E7.3 — wydanie 0.13.0
 Skill `simplify` → skill `release` (bump `lidl/config.yaml` i `pyproject.toml`, CHANGELOG, published release,
 aktualizacja przez Supervisora za zgodą), cache-busting, znacznik wersji. Na żywo: pokrycie r/r (zob. E7.0),

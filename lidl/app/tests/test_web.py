@@ -767,3 +767,84 @@ def test_search_offers_rare_products_and_star_moves_them_onto_the_list(client: T
     assert "<dt>Produkty</dt><dd>2</dd>" in text and "<dt>Obserwowane</dt><dd>1</dd>" in text
     client.post("/kupony/produkt/333/obserwuj", data={"on": "0"})
     assert "Filet z indyka XXL" not in client.get("/kupony").text
+
+
+# --- Ceny (E7) -----------------------------------------------------------------
+
+
+def _seed_prices(client: TestClient) -> None:
+    """Rok temu i miesiąc temu: Masło +10%, Cukier −10%; Banany (ważone) tylko teraz."""
+    history = client.app.state.history  # type: ignore[attr-defined]
+    today = date.today()
+    old, new = today - timedelta(days=395), today - timedelta(days=30)
+    history.upsert_tickets(
+        "osoba-1", [{"id": t, "date": f"{d}T10:00:00+00:00"} for t, d in (("old", old), ("new", new))]
+    )
+    history.save_detail(
+        "old",
+        "S",
+        ParsedReceipt(
+            items=[ReceiptItem("111", "Masło", 1, 6.0, 6.0), ReceiptItem("222", "Cukier", 1, 4.0, 4.0)]
+        ),
+    )
+    history.save_detail(
+        "new",
+        "S",
+        ParsedReceipt(
+            items=[
+                ReceiptItem("111", "Masło", 1, 6.6, 6.6),
+                ReceiptItem("222", "Cukier", 1, 3.6, 3.6),
+                ReceiptItem("333", "Banany", 2.0, 5.0, 10.0, is_weight=True),
+            ]
+        ),
+    )
+
+
+def test_prices_shows_basket_top_changes_and_list(client: TestClient) -> None:
+    _seed_prices(client)
+    text = client.get("/ceny").text
+    assert 'aria-current="page">Ceny<' in text
+    assert "Nasz koszyk" in text and "+2,9%" in text and "<strong>2 produktów</strong>" not in text
+    assert "<strong>2 produkty</strong>" in text and "<strong>50%</strong>" in text
+    up, down = text.index("Najbardziej podrożały"), text.index("Najbardziej potaniały")
+    assert up < text.index("Masło", up) < down < text.index("Cukier", down)
+    assert "6,00 zł → 6,60 zł" in text and "+10,0%" in text and "−10,0%" in text
+    assert 'href="/ceny/produkt/111"' in text and "7 zł rocznie" in text
+    assert "Banany" not in text  # bez zakupu rok temu nie ma porównania
+
+
+def test_prices_live_search_and_order_return_only_the_list(client: TestClient) -> None:
+    _seed_prices(client)
+    r = client.get("/ceny?q=cukier", headers={"hx-target": "ceny-wyniki"})
+    assert r.text.lstrip().startswith('<div id="ceny-wyniki"')
+    assert "Cukier" in r.text and "Masło" not in r.text and "1 z 2" in r.text
+    by_spend = client.get("/ceny?kolejnosc=wydatki", headers={"hx-target": "ceny-wyniki"}).text
+    assert by_spend.index("Masło") < by_spend.index("Cukier")
+    by_change = client.get("/ceny?kolejnosc=zmiana", headers={"hx-target": "ceny-wyniki"}).text
+    assert by_change.index("Masło") < by_change.index("Cukier")
+    assert "Nic nie pasuje do „kawa”" in client.get("/ceny?q=kawa").text
+
+
+def test_prices_without_history_or_comparison_say_why(client: TestClient) -> None:
+    assert "Brak historii zakupów" in client.get("/ceny").text
+    _seed(client, (date.today().isoformat(),))
+    text = client.get("/ceny").text
+    assert "Za krótka historia" in text and "Nasz koszyk" not in text
+
+
+def test_product_prices_page_shows_facts_chart_and_link_to_spending(client: TestClient) -> None:
+    _seed_prices(client)
+    r = client.get("/ceny/produkt/111", headers={"x-ingress-path": "/api/hassio_ingress/abc"})
+    assert r.status_code == 200
+    text = r.text
+    assert '<h1 class="t">Masło</h1>' in text and "Cena za sztukę · 2 zakupy" in text
+    assert "Rok temu" in text and "6,00 zł" in text and "+10,0%" in text
+    assert 'class="ln__line"' in text and text.count('class="ln__dot"') == 2
+    assert 'href="/api/hassio_ingress/abc/produkty?produkt=111&amp;zakres=all#wykres"' in text
+    bananas = client.get("/ceny/produkt/333").text
+    assert "Cena za kg" in bananas and "5,00 zł/kg" in bananas and "Brak porównania rok do roku" in bananas
+
+
+def test_unknown_product_prices_page_is_404(client: TestClient) -> None:
+    r = client.get("/ceny/produkt/999")
+    assert r.status_code == 404 and "Nie ma takiego produktu" in r.text

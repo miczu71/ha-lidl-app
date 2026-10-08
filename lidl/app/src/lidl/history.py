@@ -13,6 +13,7 @@ import json
 import sqlite3
 import statistics
 import zlib
+from bisect import bisect_right
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -242,6 +243,21 @@ class PricePoint:
     paid: float  # za jednostkę po rabatach pozycji
 
 
+@dataclass(frozen=True)
+class PriceOverview:
+    changes: list[PriceChange]
+    basket: BasketInflation
+    series: list[tuple[str, BasketInflation]]  # koszyk na koniec każdego miesiąca (bieżący: na dziś)
+
+
+@dataclass(frozen=True)
+class ProductPrices:
+    name: str  # z ostatniego zakupu
+    weight: bool  # ceny za kg
+    points: list[PricePoint]
+    change: PriceChange | None  # bez zakupu w którymś z okien r/r: None
+
+
 def _bucket_start(d: date, step: str) -> date:
     if step == "week":
         return d - timedelta(days=d.weekday())
@@ -268,15 +284,16 @@ def _year_ago(today: date | None) -> date:
 _PriceRow = tuple[str, str, date, float, float, float, bool]
 
 
-def _price_changes(rows: list[_PriceRow], today: date) -> tuple[list[PriceChange], float]:
-    """Zmiany r/r produktów kupionych w obu oknach (od największej podwyżki) i wydatki z 365 dni do dziś."""
+def _price_changes(rows: list[_PriceRow], days: list[date], today: date) -> tuple[list[PriceChange], float]:
+    """Zmiany r/r produktów kupionych w obu oknach (od największej podwyżki) i wydatki z 365 dni do dziś.
+    `rows` posortowane po dniu, `days` to ich dni; liczymy tylko wycinek z okien (seria koszyka woła to dla
+    każdego miesiąca)."""
     year = today - timedelta(days=365)
     new_from, old_from = today - timedelta(days=PRICE_WINDOW_DAYS), year - timedelta(days=PRICE_WINDOW_DAYS)
     acc: dict[str, dict[str, Any]] = {}
     total = 0.0
-    for key, name, day, price, paid, _qty, weight in rows:
-        if day > today:
-            continue
+    window = rows[bisect_right(days, old_from) : bisect_right(days, today)]
+    for key, name, day, price, paid, _qty, weight in window:
         p = acc.setdefault(key, {"old": [], "new": [], "spend": 0.0})
         p["name"], p["weight"] = name, weight
         if old_from < day <= year:
@@ -948,33 +965,34 @@ class History:
 
     def price_changes(self, today: date | None = None) -> list[PriceChange]:
         """Zmiany ceny półkowej r/r (E7), od największej podwyżki."""
-        return _price_changes(self._price_rows(), today or date.today())[0]
+        rows = self._price_rows()
+        return _price_changes(rows, [r[2] for r in rows], today or date.today())[0]
 
-    def basket_inflation(self, today: date | None = None) -> BasketInflation:
-        """Inflacja naszego koszyka r/r: zmiany cen ważone wydatkami z ostatnich 365 dni."""
-        return _basket(*_price_changes(self._price_rows(), today or date.today()))
-
-    def basket_series(self, today: date | None = None) -> list[tuple[str, BasketInflation]]:
-        """Inflacja koszyka liczona na koniec każdego miesiąca (bieżący: na `today`), od pierwszego miesiąca,
-        w którym jest rok historii; miesiące bez produktów do porównania pominięte."""
+    def price_overview(self, today: date | None = None) -> PriceOverview:
+        """Zmiany cen r/r, inflacja koszyka (zmiany ważone wydatkami z 365 dni) i jej seria miesięczna od
+        pierwszego miesiąca z rokiem historii (miesiące bez porównania pominięte), z jednego odczytu."""
         today = today or date.today()
         rows = self._price_rows()
-        if not rows:
-            return []
+        days = [r[2] for r in rows]
+        changes, total = _price_changes(rows, days, today)
         series = []
-        month = _bucket_start(rows[0][2] + timedelta(days=365), "month")
+        month = _bucket_start(days[0] + timedelta(days=365), "month") if days else today + timedelta(days=1)
         while month <= today:
             following = _next_bucket(month, "month")
-            basket = _basket(*_price_changes(rows, min(following - timedelta(days=1), today)))
+            basket = _basket(*_price_changes(rows, days, min(following - timedelta(days=1), today)))
             if basket.products:
                 series.append((month.isoformat(), basket))
             month = following
-        return series
+        return PriceOverview(changes, _basket(changes, total), series)
 
-    def price_history(self, art_id: str) -> list[PricePoint]:
-        """Każdy zakup produktu: cena półkowa i zapłacona za jednostkę (po rabatach pozycji)."""
-        return [
+    def product_prices(self, art_id: str, today: date | None = None) -> ProductPrices | None:
+        """Każdy zakup produktu (cena półkowa i zapłacona za jednostkę po rabatach) i jego zmiana r/r."""
+        rows = [r for r in self._price_rows() if r[0] == art_id]
+        if not rows:
+            return None
+        changes, _ = _price_changes(rows, [r[2] for r in rows], today or date.today())
+        points = [
             PricePoint(day.isoformat(), price, round(paid / qty, 2))
-            for key, _name, day, price, paid, qty, _weight in self._price_rows()
-            if key == art_id
+            for _, _, day, price, paid, qty, _ in rows
         ]
+        return ProductPrices(rows[-1][1], rows[-1][6], points, changes[0] if changes else None)
