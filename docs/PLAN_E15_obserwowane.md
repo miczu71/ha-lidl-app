@@ -39,7 +39,7 @@ powiadomieniu 07:00, więc kilka naprawdę ważnych produktów w nim ginie. E15 
   gwiazdka przenosi produkt na górę listy z dopiskiem „spoza listy”, bez przełącznika (gwiazdka = auto-aktywacja).
   Produkt z gwiazdką jest kandydatem w `coupon_candidates()` (`regular=False`, zakupy z całej historii), więc kupony
   (E3), promocje (E4) i gazetka obejmują go bez wyjątków. Produkty z samym `n:<EAN>` i nigdy niekupione — poza zakresem.
-  Wydanie 0.12.0.
+  Wydanie 0.12.0 ✅ (na żywo 2026-10-08).
 
 ## Weryfikacja
 `pytest`, `ruff`, `mypy` lokalnie i zielone CI; dev: gwiazdka przeżywa przeładowanie, filtr działa; na żywo po 0.11.0:
