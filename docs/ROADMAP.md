@@ -122,7 +122,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   jak nie powiadamiać dwa razy o tym samym kuponie/promocji, relacja do auto-aktywacji (E11) — czy kupon na
   obserwowany produkt też aktywować.
 - **Propozycje z przeglądu rynku** (zlecone 2026-10-07; każdy wymaga wywiadu przed startem, kolejność z użytkownikiem):
-  - **E16 Skuteczność auto-aktywacji i licznik efektu:** ile aktywowanych kuponów faktycznie wykorzystaliśmy
+  - **E16 Skuteczność auto-aktywacji i licznik efektu** (wywiad 2026-10-08, plan: `docs/PLAN_E16_skutecznosc.md`;
+    E16.1 archiwum kuponów zamiast kasowania, 0.9.2 → E16.2 sekcja „Efekt” w Kuponach, 0.10.0): ile aktywowanych kuponów faktycznie wykorzystaliśmy
     (`coupons` ↔ `ticket_coupons`), a ile przepadło; miesięczne oszczędności przed add-onem i po nim (punkt
     odniesienia z E2). Realizuje miarę sukcesu z nagłówka roadmapy. Dane już są.
   - **E17 Przypomnienie przy sklepie:** gdy telefon wejdzie w strefę HA wokół sklepu Lidl — którą kartę wziąć
@@ -140,7 +141,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     typ, status, `expirationDate`), progi Coupon Plus (`reachedAmount`, `goals[].value`) i pieczątki (`unitsAchieved`,
     `unitsPerPrize`). E20.1 ✅ (próbny GET): zdrapki i Coupon Plus działają, pieczątek brak (404). Projekt zatwierdzony
     2026-10-08: zdrapki w porannym + przypomnienie 18:00 w ostatnim dniu, Coupon Plus graficznie w panelu;
-    podetapy E20.2–E20.6 (wydanie 0.7.0) w `docs/PLAN_E20_nagrody.md`.
+    podetapy E20.2–E20.6 (wydanie 0.7.0) w `docs/PLAN_E20_nagrody.md`. E20 ✅ (0.7.0 i 0.7.1 na żywo 2026-10-08;
+    przypomnienie 18:00 czeka na pierwszą zdrapkę).
 - **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
   dziś most działa tylko przy identycznej nazwie.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
