@@ -108,17 +108,22 @@ wszystko (mechanika „1+1”, daty, kupon LP) bez fałszywych trafień, ogranic
 Flash/Flash-Lite 3.x — 10–15 RPM, **20 RPD na model**, 250k TPM; Gemma 4 (26B, 31B) — 15 RPM, **1000 RPD**. RPD
 resetuje się o północy czasu pacyficznego, limity liczone per projekt. Dzisiejsze `429` Gemini = wyczerpane 20 RPD.
 
-## E4.3 — AI w add-onie (decyzja 2026-10-08: mieszane + kolejka modeli; wydanie 0.9.0)
+## E4.3 — AI w add-onie (wydanie 0.9.0)
 
-- **Która gazetka:** z `v4/overview` tylko pozycje o nazwie „Gazetka” (jedna na tydzień, oferty pon.–sob.); katalogi
-  pomijamy. Każdą gazetkę (`id`) przetwarzamy raz; postęp per strona w bazie, więc restart nie marnuje limitów.
-- **Tekst:** PDF → `pdftotext -layout` (pakiet `poppler-utils` z apk w obrazie Alpine) → paczki po 5 stron →
-  model tekstowy (`gpt-oss-120b`).
-- **Obraz tylko dla „trudnych” stron:** brak ceny/rabatu w tekście albo zepsuty tekst (duży udział 1–2-literowych
-  „słów”) → `pdftoppm` 100 dpi → kolejka modeli wizyjnych (`gemini-3.5-flash` → `gemini-3.6-flash` →
-  `gemini-3.7-flash` → `gemma-4-31b-it`); przy `429`/`5xx` następny model, strona wraca do kolejki na później.
-- **Tempo:** jedna operacja co ~2 min w tle, przez cały dzień po wyjściu gazetki.
-- **Wynik:** trafienia (`code` z listy E11, nazwa z gazetki, rabat, daty DD.MM → rok z gazetki, kupon LP) w tabeli;
-  kupony Lidl Plus pomijamy (E3); linia „Promocje od dziś” łączy źródła z kodami (E4.1) i gazetkę, bez powtórzeń.
-- **Opcje add-onu:** `llm_url`, `llm_key` (`password` — maskowane przez ha-mcp), `llm_text_model`,
-  `llm_vision_models` (lista). Puste `llm_url`/`llm_key` = gazetka wyłączona, reszta działa jak w 0.8.0.
+**Rewizja 2026-10-08 (po teście paczek):** wykrywanie „trudnych” stron z tekstu nie działa — udział 1–2-literowych
+„słów” 0,18–0,72 prawie wszędzie, próg obejmujący zgubione strony wybiera 88/97; część pominięć `gpt-oss` to słabe
+dopasowanie przy czytelnym tekście (str. 56). Test **paczek obrazów** (`gemini-3.6-flash`, 5 stron/zapytanie,
+4 zapytania): w 2 udanych paczkach 6/6 pewnych, 0 fałszywych, kupon LP 6/6; 2 paczki `503 high demand` (cooldown
+freellmapi → `502`), nie limit. Paczka ~13 s, ~8,7k tokenów wejścia. Limit Gemini Flash to 20 **zapytań**/dzień
+na model, więc cała gazetka (~20 paczek) mieści się w jednym–dwóch modelach.
+
+Projekt:
+- **Która gazetka:** z `v4/overview` pozycje o nazwie „Gazetka” (jedna na tydzień); JSON gazetki
+  (`flyerJson`) daje obrazy stron (`pages[].image`, 1200 px) — bez PDF i bez popplera w obrazie Alpine.
+- **Paczki po 5 stron** w tabeli (postęp przetrwa restart); jedno zapytanie = 5 obrazów (base64) + lista E11.
+- **Kolejka modeli wizyjnych** (`llm_vision_models`): `gemini-3.5-flash` → `gemini-3.6-flash` →
+  `gemini-3.7-flash` → `gemma-4-31b-it`; `429` → następny model, `5xx` → ta sama paczka później (~10 min).
+- **Tempo:** w tle jedna paczka na raz, co ~2 min, aż do końca gazetki.
+- **Wynik:** trafienia (kod z listy E11, nazwa z gazetki, rabat, daty DD.MM → rok z gazetki, kupon LP) w tabeli;
+  kupony Lidl Plus pomijamy (E3); linia „Promocje od dziś” łączy E4.1 i gazetkę bez powtórzeń.
+- **Opcje:** `llm_url`, `llm_key` (`password`), `llm_vision_models`. Puste adres/klucz = gazetka wyłączona.
