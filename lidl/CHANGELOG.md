@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0
+
+- **Efekt kuponów:** nowa sekcja na górze zakładki Kupony — kwota rabatów kuponowych z ostatnich 30 dni
+  i porównanie ze średnią 30-dniową z 12 miesięcy przed 7.10.2026 (start add-onu), z promocjami osobno.
+  Pod spodem zwinięta lista aktywowanych kuponów z wynikiem: wykorzystany (rabat na paragonie tego konta),
+  przepadł, w toku albo brak danych (kupony ogólne i sprzed 0.9.2 nie mają kodów artykułów, więc ich nie
+  rozstrzygamy). Do ok. 6.11.2026 okno 30 dni nachodzi jeszcze na okres sprzed add-onu.
+
 ## 0.9.2
 
 - **Archiwum kuponów:** kupon, który znika z listy Lidla, zostaje w bazie (z kodami artykułów i datą zniknięcia)

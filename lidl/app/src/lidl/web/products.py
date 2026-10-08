@@ -148,9 +148,8 @@ def effect_view(
     """Sekcja „Efekt kuponów” (E16): kupony z ostatnich 30 dni vs średnia sprzed add-onu i wyniki kuponów
     aktywowanych w tym okresie; `None`, gdy nie ma jeszcze żadnych danych."""
     e = history.coupon_effect(today)
-    since = now - timedelta(days=EFFECT_DAYS)
     labels = {a.slug: a.label for a in accounts}
-    coupons = [c for c in history.activated_coupons(now) if datetime.fromisoformat(c.valid_to) >= since]
+    coupons = history.activated_coupons(now, since=now - timedelta(days=EFFECT_DAYS))
     if not coupons and not (e.coupons or e.coupons_before or e.promotions or e.promotions_before):
         return None
     top = max(e.coupons, e.coupons_before)

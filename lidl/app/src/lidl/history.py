@@ -14,7 +14,7 @@ import sqlite3
 import zlib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -689,14 +689,15 @@ class History:
             delta_pct=round(delta / coupons_b * 100, 1) if coupons_b > 0 else None,
         )
 
-    def activated_coupons(self, now: datetime) -> list[ActivatedCoupon]:
+    def activated_coupons(self, now: datetime, since: datetime | None = None) -> list[ActivatedCoupon]:
         """Aktywowane kupony (także z archiwum) ze statusem: kupon produktowy jest wykorzystany, gdy na
         paragonie tego konta w oknie ważności jest pozycja z rabatem kuponowym i kodem z `article_ids`.
-        Bez kodów (ogólne, sprzed 0.9.2) status to `unknown`."""
+        Bez kodów (ogólne, sprzed 0.9.2) status to `unknown`. `since` odcina kupony wygasłe wcześniej."""
         out = []
         rows = self._db.execute(
             "SELECT account, title, discount, valid_from, valid_to, article_ids FROM coupons"
-            " WHERE activated = 1 ORDER BY valid_to DESC, title"
+            " WHERE activated = 1 AND valid_to >= ? ORDER BY valid_to DESC, title",
+            (since.astimezone(UTC).isoformat() if since else "",),
         ).fetchall()
         for account, title, discount, valid_from, valid_to, codes in rows:
             ids = codes.split(",") if codes else []
