@@ -2,7 +2,7 @@
 
 - Bierzemy tylko sekcje AllStores i SSC. Kupon ogólny (bez kodów artykułów) aktywujemy zawsze, produktowy —
   gdy któryś kod jest na liście „Kupowane regularnie” (`History.coupon_candidates()`, włączone). Kupony
-  nadchodzące, wygasłe i już aktywne pomijamy; z sekcji SSC tylko jeden (najniższy rabat).
+  nadchodzące, wygasłe i już aktywne pomijamy; z ogólnych tylko jeden (najniższy rabat).
 - Ocena karty: aktywne kupony ważone tym, jak często kupujemy trafione produkty (`AccountReport.score`).
 - Aktywacja jest dwuetapowa: pierwszy POST po `id` z listy może się nie udać, ale tworzy egzemplarz kuponu
   konta z nowym `id` (ten sam `promotionId`); wtedy ponawiamy raz z nowym `id`.
@@ -119,16 +119,18 @@ def _amount(discount: str) -> float:
 
 
 def select(coupons: list[Coupon], codes: set[str], now: datetime) -> list[Coupon]:
-    """Kupony do aktywacji; z SSC tylko ten z najniższą kwotą, a gdy któryś jest już aktywny — żaden.
+    """Kupony do aktywacji; z ogólnych (bez kodów artykułów) tylko ten z najniższą kwotą, a gdy któryś jest
+    już aktywny — żaden.
 
-    Lidl pozwala na jeden aktywny kupon SSC naraz, także przy różnych progach zakupów (kolejne dostają 409).
+    Ogólne to rabaty od kwoty zakupów: w SSC i pojedynczo w AllStores („min. 200 zł”). Lidl pozwala na
+    jeden aktywny naraz, także przy różnych progach i sekcjach (kolejne dostają 409, 2026-10-08).
     """
     chosen = [c for c in coupons if should_activate(c, codes, now)]
-    ssc = [c for c in chosen if c.section == "SSC"]
+    general = [c for c in chosen if not c.article_ids]
     keep = None
-    if ssc and not any(c.activated for c in coupons if c.section == "SSC"):
-        keep = min(ssc, key=lambda c: _amount(c.discount))
-    return [c for c in chosen if c.section != "SSC" or c is keep]
+    if general and not any(c.activated for c in coupons if not c.article_ids):
+        keep = min(general, key=lambda c: _amount(c.discount))
+    return [c for c in chosen if c.article_ids or c is keep]
 
 
 def should_activate(coupon: Coupon, codes: set[str], now: datetime) -> bool:

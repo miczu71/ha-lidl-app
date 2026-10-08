@@ -145,7 +145,9 @@ async def test_two_step_activation_retries_with_new_instance_id(tmp_path: Path) 
 
 
 async def test_failed_coupon_does_not_stop_the_rest(tmp_path: Path) -> None:
-    source = FakeSource(_payload(AllStores=[_promo("g1", "Rabat 1", []), _promo("g2", "Rabat 2", [])]))
+    source = FakeSource(
+        _payload(AllStores=[_promo("g1", "Rabat 1", ["111"]), _promo("g2", "Rabat 2", ["111"])])
+    )
     source.fail["g1"] = LidlPlusError("http_412", status=412)
     result = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
     assert [(a.title, a.status) for a in result.activations] == [
@@ -175,7 +177,7 @@ async def test_saved_list_follows_current_coupons(tmp_path: Path) -> None:
 
 
 async def test_failures_refetch_the_list_only_once(tmp_path: Path) -> None:
-    source = FakeSource(_payload(AllStores=[_promo(f"g{i}", f"Rabat {i}", []) for i in range(3)]))
+    source = FakeSource(_payload(AllStores=[_promo(f"g{i}", f"Rabat {i}", ["111"]) for i in range(3)]))
     source.instance.update({"g0": "01a1-a", "g2": "01a1-c"})
     source.fail["g1"] = LidlPlusError("http_412", status=412)
     result = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
@@ -237,6 +239,18 @@ async def test_ssc_is_skipped_when_any_one_is_already_active(tmp_path: Path) -> 
     # Lidl pozwala na jeden aktywny SSC naraz, także przy innym progu zakupów (na żywo 409, 2026-10-08)
     source = FakeSource(
         _payload(SSC=[_promo("g10", "Min. 100 zł", [], active=True), _promo("g20", "Min. 200 zł", [])])
+    )
+    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
+    assert source.activations == [] and report.activations == []
+
+
+async def test_general_coupon_in_all_stores_is_skipped_when_ssc_is_active(tmp_path: Path) -> None:
+    # „min. 200 zł” leży w AllStores, nie w SSC — i też dostaje 409 przy aktywnym rabacie z SSC (2026-10-08)
+    source = FakeSource(
+        _payload(
+            SSC=[_promo("g10", "Min. 100 zł", [], active=True)],
+            AllStores=[_promo("g20", "Min. 200 zł", [], discount="20 zł rabatu*")],
+        )
     )
     report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
     assert source.activations == [] and report.activations == []
