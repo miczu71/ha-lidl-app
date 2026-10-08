@@ -156,7 +156,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E4 Gazetki — promocje na nasze produkty** (wywiad 2026-10-08; plan: `docs/PLAN_E4_gazetki.md`): linia
   „Promocje od dziś” w porannym powiadomieniu 07:00, produkty = lista E11. E4.0 rozpoznanie ✅ (2026-10-08): kody
   i daty bez logowania z lidl.pl (`q/api/search`, Żywność i napoje) i `offers.lidlplus.com/app/api/v4/PL/{sklep}/offers`;
-  gazetka (JSON/PDF) bez kodów żywności → AI (freellmapi, przypięty model). Podetapy: E4.1 źródła z kodami (0.8.0),
+  gazetka (JSON/PDF) bez kodów żywności → AI (freellmapi, przypięty model). Podetapy: E4.1 źródła z kodami ✅ (0.8.0 na żywo
+  2026-10-08; lista promocji w pamięci, bez tabeli; na lidl.pl większość „promocji” to ceny kuponowe Lidl Plus → pomijane,
+  bo aktywuje je E3; dziś 4 zwykłe obniżki na lidl.pl + 16 ofert sklepu, 1 trafienie w nasze produkty),
   E4.2 próba AI na gazetce, E4.3 AI w add-onie (0.9.0).
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
 - **E6 Integracja z Budżetem Domowym:** dopasowanie paragonu do transakcji kartą (data + kwota), podział na kategorie.

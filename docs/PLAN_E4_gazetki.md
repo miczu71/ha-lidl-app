@@ -75,3 +75,13 @@ obsługuje je E3 (auto-aktywacja), więc nie są luką E4.
 **Wniosek:** dwa publiczne źródła z kodami i datami (lidl.pl Żywność ~53 + oferty sklepu ~16) dają dopasowanie po
 kodzie bez AI i bez logowania. Luka: zwykłe obniżki z dalszych stron gazetki, których nie ma na lidl.pl (np. Milka,
 olej Kujawski, jabłka) — tylko tekst gazetki, wymagałby AI.
+
+## Wynik E4.1 (2026-10-08, 0.8.0 na żywo)
+
+- `promotions.py`: `parse_web`, `parse_offers`, `PromotionRunner` (oba źródła równolegle, lista `latest` w pamięci do
+  następnego porannego przebiegu — tabela okazała się zbędna, jedynym czytelnikiem jest powiadomienie);
+  `History.main_store()`, `History.enabled_codes()`; linia „Promocje od dziś” w `notify.compose`.
+- Na prawdziwych danych z 08.10: lidl.pl daje 4 zwykłe obniżki (reszta to ceny kuponowe Lidl Plus — robota E3),
+  oferty sklepu 63 pozycje (16 ofert × kody); trafienie w listę E11: 1 (szynka, −20% przy 2 szt.).
+  Wniosek: główna wartość promocji przyjdzie z gazetki (E4.2–E4.3).
+- Po restarcie lista jest pusta do 07:00 — pierwszy prawdziwy odczyt źródeł z hosta HA: 2026-10-09 07:00.
