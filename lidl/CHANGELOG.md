@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.1
+
+- **Gazetka:** gdy model jest przeciążony po stronie dostawcy, add-on od razu próbuje następnego z listy
+  zamiast czekać 10 minut na ten sam.
+
 ## 0.9.0
 
 - **Promocje z gazetki:** add-on czyta cotygodniową gazetkę przez model językowy z obsługą obrazów (opcje
