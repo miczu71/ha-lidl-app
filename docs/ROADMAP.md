@@ -181,7 +181,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   inflacji** (największe podwyżki) i inne analizy do ustalenia. Do rozstrzygnięcia w wywiadzie przed startem:
   cena półkowa czy po rabatach (paragon ma obie), produkty ważone (cena za kg), kody, które zmieniły się w
   czasie (grupujemy po kodzie — zob. E2), minimalna liczba zakupów i okres do porównania, inflacja koszyka
-  jako całości.
+  jako całości. **Wywiad 2026-10-08** (plan: `docs/PLAN_E7_ceny.md`): cena półkowa główna + zapłacona na wykresie,
+  zmiana r/r (mediana 3 mies. vs te same 3 mies. rok wcześniej), koszyk ważony wydatkami 12 mies., nowa zakładka
+  „Ceny”, bez powiadomień. Podetapy: E7.0 rozpoznanie ✅, E7.1 obliczenia, E7.2 zakładka, E7.3 wydanie 0.13.0.
 - **E8 Moduł paragonów — przeglądarka historii** (zlecone 2026-10-07; w E2 świadomie pominięta, teraz dochodzi jako
   osobny moduł/zakładka obok Produktów i Kont): lista wszystkich paragonów wraz ze szczegółami do przeglądania.
   Dane już są w bazie (`tickets` + `items`: data, sklep, konto, kwota, pozycje z ilością i ceną, rabaty z podziałem
