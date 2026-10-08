@@ -30,7 +30,7 @@
         <span class="kp__bar"></span><span class="kp__fill"></span>
         {% for g in p.goals %}
         <span class="kp__goal{% if g.won %} kp__goal--won{% endif %}" style="--g: {{ g.pct }}%">{{ ic_check() if g.won else ic_gift() }}</span>
-        {% if not g.won %}<span class="kp__val{% if loop.last %} kp__val--end{% endif %}" style="--g: {{ g.pct }}%">{{ g.value }}</span>{% endif %}
+        {% if g.label %}<span class="kp__val{% if loop.last %} kp__val--end{% endif %}" style="--g: {{ g.pct }}%">{{ g.value }}</span>{% endif %}
         {% endfor %}
       </div>
       {% if p.next %}

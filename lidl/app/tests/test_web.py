@@ -11,6 +11,7 @@ from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
 from lidl.service import LidlService
 from lidl.settings import Settings
 from lidl.web.app import create_app
+from lidl.web.products import reward_cards
 
 
 def test_index_empty_and_no_store(client: TestClient) -> None:
@@ -552,6 +553,16 @@ def test_coupons_page_shows_rewards_per_account(client: TestClient) -> None:
     assert "Produkt C LUB Produkt D" in text and "-50%" in text and "24 dni do końca" in text
     assert 'style="--p: 22.38%"' in text and 'style="--g: 33.33%"' in text
     assert "Brak zdrapek i akcji Kupon Plus." in text
+
+
+def test_reward_goal_labels_skip_crowded_thresholds() -> None:
+    # progi 50/300/500 na początku akcji leżą blisko siebie — podpis 500 nachodziłby na 300
+    goals = tuple(Goal(v, False, "Produkt A", "10 zł rabatu*") for v in (50, 300, 500, 1000, 1500))
+    today = date.today()
+    [card] = reward_cards({"Osoba 1": Rewards((), CouponPlus(40.32, goals, today))}, today)
+    assert card["label"] == "Osoba 1"
+    assert [g["label"] for g in card["plus"]["goals"]] == [True, False, True, True, True]
+    assert card["plus"]["next"]["discount"] == "10 zł rabatu"
 
 
 def test_coupons_page_rewards_pending_before_first_read(client: TestClient) -> None:

@@ -18,6 +18,7 @@ from .chart import fmt_pln
 DEFAULT_LIMIT = 8
 MORE_STEP = 25
 MAX_LIMIT = 200
+LABEL_GAP = 20  # % paska Kupon Plus między podpisami progów; mniej nachodzi na telefonie („1 000 zł”)
 
 
 def parse_limit(raw: str | None) -> int:
@@ -149,17 +150,22 @@ def reward_cards(rewards: dict[str, Rewards], today: date) -> list[dict[str, Any
         if cp and cp.goals:
             top = cp.goals[-1].value or 1
             nxt = cp.next_goal
+            goals, shown = [], None
+            for g in cp.goals:
+                pct = round(g.value / top * 100, 2)
+                # podpis kwoty pod progiem: zawsze najbliższy i ostatni, pozostałe tylko gdy nie nachodzą
+                roomy = (shown is None or pct - shown >= LABEL_GAP) and 100 - pct >= LABEL_GAP
+                show = not g.won and (g is nxt or pct == 100 or roomy)
+                shown = pct if show else shown
+                goals.append({"pct": pct, "value": _pln(g.value), "won": g.won, "label": show})
             plus = {
                 "reached": _pln(cp.reached),
                 "pct": round(min(cp.reached / top, 1) * 100, 2),
-                "goals": [
-                    {"pct": round(g.value / top * 100, 2), "value": _pln(g.value), "won": g.won}
-                    for g in cp.goals
-                ],
+                "goals": goals,
                 "next": nxt
                 and {
                     "prize": nxt.prize,
-                    "discount": nxt.discount,
+                    "discount": nxt.discount.rstrip("*"),
                     "value": _pln(nxt.value),
                     "missing": _pln(nxt.value - cp.reached),
                 },
