@@ -117,10 +117,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E15 Obserwowane produkty** (zlecone 2026-10-07): z listy kupowanych produktów wybieram produkt (wyszukiwanie
   na żywo jak na Produktach) i włączam śledzenie; gdy produkt pojawi się w kuponach albo promocjach, przychodzi
   powiadomienie. Kupony: dopasowanie po kodzie artykułu (`articleIds`), dla produktów z samym `n:<EAN>` po nazwie.
-  Promocje: wymagają danych z gazetek (E4), tam tylko po nazwie. Do ustalenia w wywiadzie: lista wspólna czy per
-  osoba i komu powiadomienie, osobne powiadomienie czy sekcja w porannym (E3/E14), dopasowanie nazw (dokładne/fuzzy/AI),
-  jak nie powiadamiać dwa razy o tym samym kuponie/promocji, relacja do auto-aktywacji (E11) — czy kupon na
-  obserwowany produkt też aktywować.
+  Promocje: wymagają danych z gazetek (E4), tam tylko po nazwie. **Wywiad 2026-10-08** (plan:
+  `docs/PLAN_E15_obserwowane.md`): E3/E4 już powiadamiają o całej liście E11, więc E15 = **wyróżnienie** kilku
+  ważnych produktów — gwiazdka na liście „Kupowane regularnie” (tylko kod artykułu, gwiazdka włącza auto-aktywację),
+  lista wspólna, osobny push `notify.family` (tag `lidl-obserwowane`) tylko o nowych kuponach i promocjach od dziś,
+  poranne bez zmian. Podetapy: E15.0 docs ✅, E15.1 dane i powiadomienie, E15.2 panel, E15.3 wydanie 0.11.0.
 - **Propozycje z przeglądu rynku** (zlecone 2026-10-07; każdy wymaga wywiadu przed startem, kolejność z użytkownikiem):
   - **E16 Skuteczność auto-aktywacji i licznik efektu** (wywiad 2026-10-08, plan: `docs/PLAN_E16_skutecznosc.md`;
     E16.1 archiwum kuponów zamiast kasowania ✅ 0.9.2 → E16.2 sekcja „Efekt kuponów” w Kuponach ✅ 0.10.0, 2026-10-08;
