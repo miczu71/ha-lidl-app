@@ -39,7 +39,8 @@ from lidl.settings import Settings
 from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches
 
-from .chart import build_chart, fmt_month_year_genitive, fmt_pln, parse_chart_query
+from .chart import build_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
+from .months import default_month, first_day, last_day, month_nav, month_view
 from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_changes
 from .products import (
     MORE_STEP,
@@ -443,6 +444,42 @@ def create_app(settings: Settings) -> FastAPI:
         has_history = history.ticket_count() > 0
         return render(
             request, "receipts.html", **ctx, accounts=labels, stores=stores, has_history=has_history
+        )
+
+    @app.get("/miesiace")
+    async def months(request: Request, m: str = "") -> Response:
+        history: History = request.app.state.history
+        known = history.ticket_months(ReceiptFilter())
+        today = date.today()
+        try:
+            month = first_day(m).strftime("%Y-%m")
+        except ValueError:
+            month = default_month(known, today) or ""
+        if not month:
+            return render(request, "months.html", section="miesiace", month=None)
+
+        def href(key: str) -> str:
+            return f"{base(request)}/miesiace?{urlencode({'m': key})}"
+
+        summary = history.month_summary(month)
+        view = summary and month_view(
+            summary,
+            account_labels(request),
+            min(known),
+            today=today,
+            product_href=lambda a: purchases_href(request, a),
+            receipt_href=lambda t: receipt_href(request, t),
+        )
+        bounds = {"od": first_day(month).isoformat(), "do": last_day(month).isoformat()}
+        return render(
+            request,
+            "months.html",
+            section="miesiace",
+            month=month,
+            title=fmt_month_year(first_day(month)),
+            view=view,
+            nav=month_nav(known, month, href),
+            receipts=f"{base(request)}/paragony?{urlencode(bounds)}",
         )
 
     @app.get("/paragony/produkt/{art_id}")

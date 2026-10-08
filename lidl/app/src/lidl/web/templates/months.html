@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ title or "Miesiące" }} — Lidl Plus{% endblock %}
+{% block main %}
+{% if not month %}
+<div>
+  <h1 class="t">Miesiące</h1>
+  <p class="lead">Podsumowanie każdego miesiąca zakupów.</p>
+</div>
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Brak historii zakupów. Pobierz ją w zakładce Produkty.</span>
+</p>
+{% else %}
+<div class="mw-head">
+  <a class="mw-step{% if not nav.prev %} mw-step--off{% endif %}" {% if nav.prev %}href="{{ nav.prev }}"{% else %}aria-disabled="true"{% endif %} aria-label="Poprzedni miesiąc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
+  <div class="mw-title">
+    <h1 class="t">{{ title }}</h1>
+    <form class="mw-pick" method="get" action="{{ base }}/miesiace">
+      <label class="vh" for="m">Wybierz miesiąc</label>
+      <select class="field" id="m" name="m" onchange="this.form.submit()">
+        {% for o in nav.options %}<option value="{{ o.value }}"{% if o.on %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+        {% if not view %}<option value="{{ month }}" selected>{{ title }}</option>{% endif %}
+      </select>
+      <noscript><button class="ds-btn ds-btn--secondary" type="submit">Pokaż</button></noscript>
+    </form>
+  </div>
+  <a class="mw-step{% if not nav.next %} mw-step--off{% endif %}" {% if nav.next %}href="{{ nav.next }}"{% else %}aria-disabled="true"{% endif %} aria-label="Następny miesiąc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>
+</div>
+
+{% if not view %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>W tym miesiącu nie było zakupów w Lidlu.</span>
+</p>
+{% else %}
+{% set v = view %}
+<section class="card mw-hero" aria-labelledby="mw-sum">
+  {% if v.in_progress %}<p class="sum">Miesiąc w toku: liczby zmienią się do jego końca, porównania pojawią się po nim.</p>{% endif %}
+  <h2 class="vh" id="mw-sum">Wydatki</h2>
+  <p class="mw-say">{{ v.in_month|capitalize }} zostawiliśmy w Lidlu <strong class="mw-big">{{ v.paid }}</strong></p>
+  {% if v.compare %}<ul class="mw-cmp">
+    {% for c in v.compare %}<li>{% set d = c.delta %}{% include "_delta.html" %}<span>{{ c.label }}</span></li>{% endfor %}
+  </ul>{% endif %}
+  <dl class="facts">
+    {% for f in v.stats %}<div><dt>{{ f.label }}</dt><dd{% if f.save %} class="save"{% endif %}>{{ f.value }}</dd></div>{% endfor %}
+  </dl>
+  <a class="ds-btn ds-btn--link mw-link" href="{{ receipts }}">Paragony z tego miesiąca</a>
+</section>
+
+<section class="card" aria-labelledby="mw-prod">
+  <h2 class="s" id="mw-prod">W koszyku</h2>
+  <div class="tops">
+    <div class="mw-col">
+      <h3 class="mw-h">Najwięcej wydaliśmy na</h3>
+      <ol class="mw-bars">
+        {% for p in v.top_spend %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}
+      </ol>
+    </div>
+    <div class="mw-col">
+      <h3 class="mw-h">Najwięcej sztuk</h3>
+      {% if v.top_quantity %}<ol class="mw-bars">
+        {% for p in v.top_quantity %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}
+      </ol>{% else %}<p class="sum">Same produkty na wagę.</p>{% endif %}
+    </div>
+  </div>
+  {% if v.best_saving %}<p class="mw-note"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><path d="M7.5 7.5h.01"/></svg><span>Najlepsza okazja: <a href="{{ v.best_saving.href }}">{{ v.best_saving.name }}</a>, taniej łącznie o <strong class="mw-save">{{ v.best_saving.amount }}</strong></span></p>{% endif %}
+  {% if v.new_products %}<div class="mw-col">
+    <h3 class="mw-h">Pierwszy raz w koszyku</h3>
+    <ul class="mw-new">{% for p in v.new_products %}<li><a href="{{ p.href }}">{{ p.name }}</a> <span class="meta">{{ p.amount }}</span></li>{% endfor %}</ul>
+  </div>{% endif %}
+</section>
+
+<section class="card" aria-labelledby="mw-rec">
+  <h2 class="s" id="mw-rec">Rekordy i rytm</h2>
+  <dl class="mw-rows">
+    <div><dt>Największy paragon</dt><dd><a class="mw-strong" href="{{ v.biggest.href }}">{{ v.biggest.amount }}</a><span class="meta">{{ v.biggest.when }} · {{ v.biggest.where }} · {{ v.biggest.who }}</span></dd></div>
+    <div><dt>Kiedy na zakupy</dt><dd><span class="mw-strong">{{ v.rhythm }}</span></dd></div>
+    {% if v.store %}<div><dt>Ulubiony sklep</dt><dd><span class="mw-strong">{{ v.store.name }}</span><span class="meta">{{ v.store.visits }}</span></dd></div>{% endif %}
+  </dl>
+  {% if v.accounts %}<div class="mw-col">
+    <h3 class="mw-h">Kto kupował</h3>
+    <div class="mw-split" aria-hidden="true">{% for a in v.accounts %}<span style="flex-grow: {{ a.share }}"></span>{% endfor %}</div>
+    <ul class="mw-who">{% for a in v.accounts %}<li><span class="mw-dot"></span><span class="mw-strong">{{ a.name }}</span> <span class="meta">{{ a.share }}% · {{ a.paid }} · {{ a.visits }}</span></li>{% endfor %}</ul>
+  </div>{% endif %}
+</section>
+
+<section class="card" aria-labelledby="mw-hist">
+  <h2 class="s" id="mw-hist">Na tle historii</h2>
+  <dl class="mw-rows">
+{% if v.rank %}    <div><dt>Miejsce wśród {{ v.months }} miesięcy</dt><dd><span class="mw-strong">{% if v.rank == 1 %}Najdroższy miesiąc w historii{% else %}{{ v.rank }}. najdroższy{% endif %}</span></dd></div>{% endif %}
+    <div><dt>Paragony w historii</dt><dd><span class="mw-strong">Nr {{ v.tickets_range }}</span></dd></div>
+    <div><dt>Razem od {{ v.since }}</dt><dd><span class="mw-strong">{{ v.all_time }}</span></dd></div>
+  </dl>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}

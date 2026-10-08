@@ -6,6 +6,10 @@ import unicodedata
 from datetime import date, datetime, timedelta
 
 SHORT_MONTHS = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
+_IN_MONTH = [
+    "w styczniu", "w lutym", "w marcu", "w kwietniu", "w maju", "w czerwcu",
+    "w lipcu", "w sierpniu", "we wrześniu", "w październiku", "w listopadzie", "w grudniu",
+]  # fmt: skip
 
 
 def _fold(text: str) -> str:
@@ -30,6 +34,11 @@ def plural(n: int, one: str, few: str, many: str) -> str:
 
 def count_text(n: int, one: str, few: str, many: str) -> str:
     return f"{n} {plural(n, one, few, many)}"
+
+
+def fmt_in_month(d: date, year: bool = False) -> str:
+    """„we wrześniu”, z rokiem: „we wrześniu 2025”."""
+    return f"{_IN_MONTH[d.month - 1]} {d.year}" if year else _IN_MONTH[d.month - 1]
 
 
 def fmt_day_month(d: date) -> str:

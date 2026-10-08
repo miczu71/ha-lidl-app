@@ -996,3 +996,32 @@ def test_products_ranking_and_prices_link_to_product_purchases(client: TestClien
     _seed_receipts(client)
     assert 'class="rk__name" href="/paragony/produkt/555"' in client.get("/produkty?zakres=all").text
     assert 'href="/paragony/produkt/555">Zakupy tego produktu' in client.get("/ceny/produkt/555").text
+
+
+def test_months_without_history_says_so(client: TestClient) -> None:
+    r = client.get("/miesiace")
+    assert r.status_code == 200 and "Brak historii zakupów" in r.text
+
+
+def test_months_shows_selected_month_with_navigation_and_links(client: TestClient) -> None:
+    _seed(client, ("2026-08-03", "2026-09-02"))
+    _connect(client)
+    text = client.get("/miesiace?m=2026-09", headers={"x-ingress-path": "/i"}).text
+    assert "Wrzesień 2026" in text and "We wrześniu zostawiliśmy" in text and "20,00 zł" in text
+    assert "niż w sierpniu" in text  # porównanie z poprzednim miesiącem
+    assert 'href="/i/miesiace?m=2026-08"' in text and 'aria-label="Następny miesiąc"' in text
+    assert 'href="/i/paragony?od=2026-09-01&amp;do=2026-09-30"' in text
+    assert 'href="/i/paragony/produkt/111"' in text and "Pierwszy raz w koszyku" not in text
+    assert "Nr 2" in text and "Razem od sierpnia 2026" in text
+
+
+def test_months_default_is_last_full_month_and_bad_param_falls_back(client: TestClient) -> None:
+    _seed(client, ("2026-08-03", "2026-09-02"))
+    assert "Wrzesień 2026" in client.get("/miesiace").text  # dziś po wrześniu 2026
+    assert "Wrzesień 2026" in client.get("/miesiace?m=zle").text
+
+
+def test_months_empty_month_keeps_navigation(client: TestClient) -> None:
+    _seed(client, ("2026-08-03",))
+    text = client.get("/miesiace?m=2026-07").text
+    assert "Lipiec 2026" in text and "nie było zakupów" in text and 'href="/miesiace?m=2026-08"' not in text
