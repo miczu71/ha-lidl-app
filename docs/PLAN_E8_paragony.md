@@ -59,6 +59,15 @@ bez zapisów w bazie, bez zapytań do Lidla.
 konsola bez błędów. Na żywo: liczba paragonów na liście = KPI w Produktach; suma pozycji po rabatach + kaucje
 = zapłacono na kilku paragonach (HTML i NATIVE); wyszukanie produktu ze starą i nową nazwą.
 
+## Wynik (2026-10-08)
+- E8.1 6e61d09, E8.2 0275016, E8.3 cff2d3d, porządki `simplify` 3c95b14 (zapytanie zakupów po indeksie, wspólne
+  helpery), wydanie 0.15.0 (release v0.15.0, Supervisor zaktualizowany).
+- Dev (dane demo `~/dev/lidl-spike/seed_receipts_demo.py`): 390/360/1280 px, konsola czysta, detektor impeccable bez uwag.
+- Na żywo: 524 paragony = KPI; rozliczenie do kwoty zapłaconej zgodne na 524/524; Szukaj „indyk” 24 produkty,
+  „winog” pokazuje stare nazwy przy produktach. Nawigacja: 5 zakładek w jednym rzędzie od 360 px.
+- Pominięte przy `simplify` (świadomie): wyszukiwanie w Produktach nadal tylko po bieżącej nazwie (zmiana zachowania
+  innej zakładki), makra `notice`/zakres dat (wzorzec sprzed E8).
+
 ## Cofnięcie
 Etap tylko dodaje widoki i zapytania (bez migracji), więc cofnięcie = poprzednia wersja add-onu (0.14.3)
 w Supervisorze albo `git revert` commitów E8.
