@@ -14,7 +14,7 @@ import sqlite3
 import zlib
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 SCHEMA_VERSION = 4
 CANDIDATE_MIN_PURCHASES = 3
+ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
+EFFECT_DAYS = 30
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tickets (
@@ -154,6 +156,27 @@ class SavingsKpi:
     coupons_used: int
     first_date: str | None
     last_date: str | None
+
+
+@dataclass(frozen=True)
+class CouponEffect:
+    """Rabaty z paragonów z ostatnich `EFFECT_DAYS` dni i średnia z takiego okresu sprzed add-onu."""
+
+    coupons: float
+    coupons_before: float
+    promotions: float
+    promotions_before: float
+    delta: float
+    delta_pct: float | None
+
+
+@dataclass(frozen=True)
+class ActivatedCoupon:
+    account: str
+    title: str
+    discount: str
+    valid_to: str
+    status: str  # used | lost | pending | unknown (brak kodów artykułów — nie rozstrzygamy)
 
 
 @dataclass(frozen=True)
@@ -633,6 +656,71 @@ class History:
             coupons_used=t[3],
             first_date=t[4],
             last_date=t[5],
+        )
+
+    def coupon_effect(self, today: date | None = None) -> CouponEffect:
+        """Kupony i promocje (zł, rabaty z pozycji) z ostatnich 30 dni vs średnia 30-dniowa z 365 dni przed
+        `ADDON_START`; bez paragonów w tamtym okresie nie ma procentu."""
+        today = today or date.today()
+        base_start = ADDON_START - timedelta(days=365)
+        row = self._db.execute(
+            "SELECT"
+            " SUM(CASE WHEN t.day > :s AND t.day <= :e THEN i.coupon END),"
+            " SUM(CASE WHEN t.day > :s AND t.day <= :e THEN i.discount END),"
+            " SUM(CASE WHEN t.day >= :b0 AND t.day < :b1 THEN i.coupon END),"
+            " SUM(CASE WHEN t.day >= :b0 AND t.day < :b1 THEN i.discount END)"
+            " FROM items i JOIN tickets t ON t.id = i.ticket_id",
+            {
+                "s": (today - timedelta(days=EFFECT_DAYS)).isoformat(),
+                "e": today.isoformat(),
+                "b0": base_start.isoformat(),
+                "b1": ADDON_START.isoformat(),
+            },
+        ).fetchone()
+        coupons, total, coupons_b, total_b = (0.0 - (v or 0.0) for v in row)
+        coupons_b, total_b = (v * EFFECT_DAYS / 365 for v in (coupons_b, total_b))
+        delta = coupons - coupons_b
+        return CouponEffect(
+            coupons=round(coupons, 2),
+            coupons_before=round(coupons_b, 2),
+            promotions=round(total - coupons, 2),
+            promotions_before=round(total_b - coupons_b, 2),
+            delta=round(delta, 2),
+            delta_pct=round(delta / coupons_b * 100, 1) if coupons_b > 0 else None,
+        )
+
+    def activated_coupons(self, now: datetime) -> list[ActivatedCoupon]:
+        """Aktywowane kupony (także z archiwum) ze statusem: kupon produktowy jest wykorzystany, gdy na
+        paragonie tego konta w oknie ważności jest pozycja z rabatem kuponowym i kodem z `article_ids`.
+        Bez kodów (ogólne, sprzed 0.9.2) status to `unknown`."""
+        out = []
+        rows = self._db.execute(
+            "SELECT account, title, discount, valid_from, valid_to, article_ids FROM coupons"
+            " WHERE activated = 1 ORDER BY valid_to DESC, title"
+        ).fetchall()
+        for account, title, discount, valid_from, valid_to, codes in rows:
+            ids = codes.split(",") if codes else []
+            end = datetime.fromisoformat(valid_to)
+            if not ids:
+                status = "unknown"
+            elif self._coupon_used(account, ids, valid_from, valid_to):
+                status = "used"
+            else:
+                status = "lost" if end <= now else "pending"
+            out.append(ActivatedCoupon(account, title, discount, valid_to, status))
+        return out
+
+    def _coupon_used(self, account: str, ids: list[str], valid_from: str, valid_to: str) -> bool:
+        first = datetime.fromisoformat(valid_from).astimezone().date().isoformat()
+        last = datetime.fromisoformat(valid_to).astimezone().date().isoformat()
+        marks = ",".join("?" * len(ids))
+        return (
+            self._db.execute(
+                "SELECT 1 FROM items i JOIN tickets t ON t.id = i.ticket_id"
+                f" WHERE t.account = ? AND i.coupon < 0 AND i.art_id IN ({marks}) AND t.day BETWEEN ? AND ?",
+                [account, *ids, first, last],
+            ).fetchone()
+            is not None
         )
 
     def purchase_totals(self, start: date | None = None, end: date | None = None) -> PurchaseTotals:
