@@ -150,11 +150,11 @@ def reward_cards(rewards: dict[str, Rewards], today: date) -> list[dict[str, Any
         if cp and cp.goals:
             top = cp.goals[-1].value or 1
             nxt = cp.next_goal
-            goals, shown = [], None
+            goals, shown = [], -LABEL_GAP
             for g in cp.goals:
                 pct = round(g.value / top * 100, 2)
                 # podpis kwoty pod progiem: zawsze najbliższy i ostatni, pozostałe tylko gdy nie nachodzą
-                roomy = (shown is None or pct - shown >= LABEL_GAP) and 100 - pct >= LABEL_GAP
+                roomy = pct - shown >= LABEL_GAP and 100 - pct >= LABEL_GAP
                 show = not g.won and (g is nxt or pct == 100 or roomy)
                 shown = pct if show else shown
                 goals.append({"pct": pct, "value": _pln(g.value), "won": g.won, "label": show})
