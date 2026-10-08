@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.3
+
+- **Ceny (E7):** „Najbardziej podrożały/potaniały” pokazują tylko produkty, na które wydajemy co najmniej
+  50 zł rocznie — sezonowe owoce i warzywa kupowane za kilka złotych nie zasłaniają już ważnych zmian.
+  Pełna lista porównanych produktów i inflacja koszyka bez zmian.
+
 ## 0.14.2
 
 - **Łączenie nazw (E21):** połączenia starych kodów produktów z nowymi (import jednorazowy,
