@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.3
+
+- **Ceny — porównanie z 6 miesięcy:** mediana ceny z ostatnich 6 miesięcy wobec tych samych 6 miesięcy rok wcześniej
+  (było: 3). Porównanie obejmuje więcej rzadziej kupowanych produktów, a sezonowe wahania warzyw i owoców mniej
+  zniekształcają listy podwyżek i obniżek.
+
 ## 0.13.2
 
 - **Ceny — „Co nie jest porównane”:** przy każdej grupie, ile wydatków jest pod kodami ze starych paragonów

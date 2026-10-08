@@ -148,8 +148,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     2026-10-08: zdrapki w porannym + przypomnienie 18:00 w ostatnim dniu, Coupon Plus graficznie w panelu;
     podetapy E20.2–E20.6 (wydanie 0.7.0) w `docs/PLAN_E20_nagrody.md`. E20 ✅ (0.7.0 i 0.7.1 na żywo 2026-10-08;
     przypomnienie 18:00 czeka na pierwszą zdrapkę).
-- **Pomysł:** łączenie produktów, którym Lidl zmienił nazwę i kod (np. „Banany Premium luz” → „Banany luz”) —
-  dziś most działa tylko przy identycznej nazwie.
+- **E21 Łączenie starych i nowych nazw** (z pomysłu; wywiad przed startem): łączenie produktów, którym zmieniła się
+  nazwa i kod (np. „Banany Premium luz” → „Banany luz”) — dziś most działa tylko przy identycznej nazwie. Diagnoza E7.5
+  (2026-10-08): 316 produktów ze starych paragonów (20 pp. wydatków z 12 mies.) nie łączy się z nowymi kodami, bo stare
+  paragony skracają nazwy inaczej („Winog.jas.bezp.500g” ↔ „Winogrono j.bezp.500”). Dotyczy też rankingu Produktów,
+  listy kuponowej E11 (zaniżone liczby zakupów) i porównania cen E7. Kierunek: propozycje par do potwierdzenia.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
@@ -183,7 +186,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   czasie (grupujemy po kodzie — zob. E2), minimalna liczba zakupów i okres do porównania, inflacja koszyka
   jako całości. **Wywiad 2026-10-08** (plan: `docs/PLAN_E7_ceny.md`): cena półkowa główna + zapłacona na wykresie,
   zmiana r/r (mediana 3 mies. vs te same 3 mies. rok wcześniej), koszyk ważony wydatkami 12 mies., nowa zakładka
-  „Ceny”, bez powiadomień. Podetapy: E7.0 rozpoznanie ✅, E7.1 obliczenia ✅, E7.2 zakładka ✅ (makieta zaakceptowana; wykresy z całej historii), E7.3 wydanie 0.13.0 ✅ (pokrycie r/r 30%), E7.4 diagnoza pokrycia ✅ (0.13.1: porównane 30%, niekupowane od 3 mies. 46%, nowe 14%), E7.5 udział starych kodów `n:` ✅ (0.13.2: 20 pp. wydatków to niepołączone stare kody, ~26 pp. rzadkie zakupy).
+  „Ceny”, bez powiadomień. Podetapy: E7.0 rozpoznanie ✅, E7.1 obliczenia ✅, E7.2 zakładka ✅ (makieta zaakceptowana; wykresy z całej historii), E7.3 wydanie 0.13.0 ✅ (pokrycie r/r 30%), E7.4 diagnoza pokrycia ✅ (0.13.1: porównane 30%, niekupowane od 3 mies. 46%, nowe 14%), E7.5 udział starych kodów `n:` ✅ (0.13.2: 20 pp. wydatków to niepołączone stare kody, ~26 pp. rzadkie zakupy), E7.6 okna 6 mies. (0.13.3); łączenie nazw → E21.
 - **E8 Moduł paragonów — przeglądarka historii** (zlecone 2026-10-07; w E2 świadomie pominięta, teraz dochodzi jako
   osobny moduł/zakładka obok Produktów i Kont): lista wszystkich paragonów wraz ze szczegółami do przeglądania.
   Dane już są w bazie (`tickets` + `items`: data, sklep, konto, kwota, pozycje z ilością i ceną, rabaty z podziałem

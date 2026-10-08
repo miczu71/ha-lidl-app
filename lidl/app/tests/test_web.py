@@ -861,4 +861,4 @@ def test_prices_split_shows_old_receipt_codes_and_examples(client: TestClient) -
     history.save_detail("nat", "S", ParsedReceipt(items=[ReceiptItem("n:5901", "Ser zolty", 1, 9.0, 9.0)]))
     text = client.get("/ceny").text
     assert "w tym ze starych paragonów: 9,00 zł · 1 produkt" in text
-    assert "Ze starych paragonów, niekupowane od 3 miesięcy, np.: Ser zolty." in text
+    assert "Ze starych paragonów, niekupowane od 6 miesięcy, np.: Ser zolty." in text

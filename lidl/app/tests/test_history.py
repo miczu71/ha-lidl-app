@@ -484,3 +484,14 @@ def test_price_overview_splits_spend_by_why_it_is_not_compared(tmp_path: Path) -
     }
     assert split["no_recent"].legacy_examples == ["Ser zolty plastry", "Kefir"]  # od największych wydatków
     assert split["no_history"].examples == ["Nowy"]
+
+
+def test_price_window_is_six_months(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    days = {"a_old": "2025-05-10", "a_new": "2026-05-10", "b_old": "2025-03-01", "b_new": "2026-03-01"}
+    h.upsert_tickets("a", [_ticket(t, d) for t, d in days.items()])
+    for t in ("a_old", "a_new"):  # ok. 5 mies. przed dniem porównania (i rok wcześniej): w oknie
+        h.save_detail(t, "S", _priced(("1", "W oknie", 1, 2.0 if t == "a_old" else 2.2, 0.0)))
+    for t in ("b_old", "b_new"):  # ok. 7 mies. przed: poza oknem
+        h.save_detail(t, "S", _priced(("2", "Poza oknem", 1, 2.0, 0.0)))
+    assert [c.name for c in h.price_changes(date(2026, 10, 8))] == ["W oknie"]

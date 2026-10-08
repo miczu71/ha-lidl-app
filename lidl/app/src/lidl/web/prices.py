@@ -16,7 +16,7 @@ DEAL = 0.9  # zapłacono najwyżej 90% ceny półkowej = zakup z rabatem
 _WORD = {"up": "drożej", "down": "taniej", "flat": "bez zmian"}
 _SPLIT = {
     "compared": "Porównane: kupione w obu okresach",
-    "no_recent": "Niekupowane w ostatnich 3 miesiącach",
+    "no_recent": "Niekupowane w ostatnich 6 miesiącach",
     "no_old_window": "Kupowane wcześniej, ale nie w tych samych miesiącach rok temu",
     "no_history": "Pierwszy zakup w ostatnim roku (nowy produkt albo zmieniony kod lub nazwa)",
 }

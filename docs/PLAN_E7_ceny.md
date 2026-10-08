@@ -81,3 +81,8 @@ kody `n:`** z paragonów NATIVE — most po identycznej nazwie ich nie łączy. 
 Reszta tej grupy (~26 pp., 221 produktów z nowymi kodami) to rzeczy naprawdę kupowane rzadziej niż raz na kwartał.
 Wniosek: dwie przyczyny podobnej wagi — (1) brak łączenia starych i nowych nazw (skróty, obcięcia), (2) za krótkie
 okna dla rzadkich zakupów. Pierwsza dotyczy też rankingu Produktów i listy E11 (zaniżone liczby zakupów).
+
+## E7.6 — okna 6 miesięcy, 0.13.3 (decyzja 2026-10-08)
+`PRICE_WINDOW_DAYS` 91 → 182: mediana z ostatnich 6 mies. vs te same 6 mies. rok wcześniej (zapisy wyżej o „3 mies.”
+dotyczą wersji 0.13.0–0.13.2). Więcej produktów w obu oknach, mniej szumu sezonowego; wolniejsza reakcja na świeże
+podwyżki. Niepołączone stare kody → osobny etap E21.

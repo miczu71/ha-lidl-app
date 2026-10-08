@@ -32,7 +32,7 @@ SCHEMA_VERSION = 4
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
-PRICE_WINDOW_DAYS = 91  # E7: okno mediany ceny (ok. 3 miesiące), porównywane z tym samym oknem rok wcześniej
+PRICE_WINDOW_DAYS = 182  # E7: okno mediany ceny (ok. 6 miesięcy), porównywane z tym samym oknem rok wcześniej
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS tickets (
