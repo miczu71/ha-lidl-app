@@ -85,3 +85,40 @@ olej Kujawski, jabłka) — tylko tekst gazetki, wymagałby AI.
   oferty sklepu 63 pozycje (16 ofert × kody); trafienie w listę E11: 1 (szynka, −20% przy 2 szt.).
   Wniosek: główna wartość promocji przyjdzie z gazetki (E4.2–E4.3).
 - Po restarcie lista jest pusta do 07:00 — pierwszy prawdziwy odczyt źródeł z hosta HA: 2026-10-09 07:00.
+
+## Wyniki E4.2 (2026-10-08, próba na gazetce 8.10, 20 stron, wzorzec: 10 pewnych + 23 niejednoznaczne)
+
+Skrypty poza repo: `~/dev/lidl-spike/probe_leaflet_ai.py` (tryb `text`: `pdftotext -layout`, paczki po 5 stron;
+tryb `image`: `pdftoppm` 100 dpi JPEG, strona na zapytanie), `score_leaflet_ai.py`; klucz: `secret-run freellmapi`.
+
+| Wejście / model | Pewne | Fałszywe | Kupon LP poprawnie | Uwagi |
+|---|---|---|---|---|
+| tekst / `gpt-oss-120b` | 6/10 | 0 | 6/9 | gubi strony z zepsutą czcionką (Pikok, Rzeźnik: „Par wki”, „P K K”); 97 s |
+| tekst / `llama-3.3-70b-fp8-fast` | 2/10 | 1 | 4/4 | słaby; 21 s |
+| obraz / `gemini-3.5-flash` | 8/10 | 0 | 13/13 | 100% na przetworzonych stronach; od ~13. obrazu `429` (limit darmowy), str. 52–74 nieprzetworzone |
+| obraz / `qwen3-vl-235b-a22b-instruct` | — | — | — | `503` na każdym zapytaniu (niedostępny w puli) |
+| obraz / `gemma-4-31b-it` | 2/10 | 0 | 2/2 | poprawnie na 5 przetworzonych stronach; 15/20 błędów: Google `500`/`503 high demand` → cooldown klucza we freellmapi → `502` (inni dostawcy Gemmy w puli bez obsługi obrazów); ~30 s/stronę |
+
+Wnioski: tekst PDF wystarcza na części stron, ale traci oferty na stronach z zepsutym tekstem; obraz + Gemini czyta
+wszystko (mechanika „1+1”, daty, kupon LP) bez fałszywych trafień, ograniczeniem jest limit zapytań. Zwykłe
+(niekuponowe) obniżki na nasze produkty w tej gazetce: parówki z szynki XXL, śliwki, salami — żadnej nie było w
+źródłach z kodami (E4.1).
+
+**Limity darmowe (tabela `models` we freellmapi, 2026-10-08; Google nie publikuje już liczb poza AI Studio):** Gemini
+Flash/Flash-Lite 3.x — 10–15 RPM, **20 RPD na model**, 250k TPM; Gemma 4 (26B, 31B) — 15 RPM, **1000 RPD**. RPD
+resetuje się o północy czasu pacyficznego, limity liczone per projekt. Dzisiejsze `429` Gemini = wyczerpane 20 RPD.
+
+## E4.3 — AI w add-onie (decyzja 2026-10-08: mieszane + kolejka modeli; wydanie 0.9.0)
+
+- **Która gazetka:** z `v4/overview` tylko pozycje o nazwie „Gazetka” (jedna na tydzień, oferty pon.–sob.); katalogi
+  pomijamy. Każdą gazetkę (`id`) przetwarzamy raz; postęp per strona w bazie, więc restart nie marnuje limitów.
+- **Tekst:** PDF → `pdftotext -layout` (pakiet `poppler-utils` z apk w obrazie Alpine) → paczki po 5 stron →
+  model tekstowy (`gpt-oss-120b`).
+- **Obraz tylko dla „trudnych” stron:** brak ceny/rabatu w tekście albo zepsuty tekst (duży udział 1–2-literowych
+  „słów”) → `pdftoppm` 100 dpi → kolejka modeli wizyjnych (`gemini-3.5-flash` → `gemini-3.6-flash` →
+  `gemini-3.7-flash` → `gemma-4-31b-it`); przy `429`/`5xx` następny model, strona wraca do kolejki na później.
+- **Tempo:** jedna operacja co ~2 min w tle, przez cały dzień po wyjściu gazetki.
+- **Wynik:** trafienia (`code` z listy E11, nazwa z gazetki, rabat, daty DD.MM → rok z gazetki, kupon LP) w tabeli;
+  kupony Lidl Plus pomijamy (E3); linia „Promocje od dziś” łączy źródła z kodami (E4.1) i gazetkę, bez powtórzeń.
+- **Opcje add-onu:** `llm_url`, `llm_key` (`password` — maskowane przez ha-mcp), `llm_text_model`,
+  `llm_vision_models` (lista). Puste `llm_url`/`llm_key` = gazetka wyłączona, reszta działa jak w 0.8.0.
