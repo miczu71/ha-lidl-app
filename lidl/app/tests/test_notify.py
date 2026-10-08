@@ -105,7 +105,7 @@ def test_promotions_line_before_scratch_cards() -> None:
         "",
     )
     assert body.splitlines()[-2:] == [
-        "Promocje od dziś: Produkt A −40% (do 10 paź) · Produkt B −20% przy 2 szt. (do jutra)",
+        "Nowe promocje: Produkt A −40% (do 10 paź) · Produkt B −20% przy 2 szt. (do jutra)",
         "Zdrapki: Osoba 1 do 9 paź",
     ]
 
@@ -113,7 +113,7 @@ def test_promotions_line_before_scratch_cards() -> None:
 def test_promotions_alone_still_send_morning_message() -> None:
     assert compose({}, dry_run=False, today=TODAY, promos=[_promo("Produkt A", "-40%", 10)]) == (
         "Lidl: 1 promocja na Wasze produkty",
-        "Promocje od dziś: Produkt A −40% (do 10 paź)",
+        "Nowe promocje: Produkt A −40% (do 10 paź)",
     )
 
 

@@ -59,7 +59,7 @@ def compose(
     today: date | None = None,
     promos: list[Promotion] | None = None,
 ) -> tuple[str, str] | None:
-    """Tytuł z rekomendacją karty i treść z kuponami per karta, promocjami od dziś i zdrapkami; None, gdy
+    """Tytuł z rekomendacją karty i treść z kuponami per karta, nowymi promocjami i zdrapkami; None, gdy
     żadna karta nie ma aktywnych kuponów na nasze produkty, a nie ma też promocji ani zdrapek."""
     today = today or date.today()
     prefix = "Lidl (tryb próbny): " if dry_run else "Lidl: "
@@ -69,7 +69,7 @@ def compose(
         for c in r.scratch_cards
     ]
     promo = " · ".join(_offer(p.title, _discount(p.discount), p.end, today) for p in promos or [])
-    tail = ([f"Promocje od dziś: {promo}"] if promo else []) + (
+    tail = ([f"Nowe promocje: {promo}"] if promo else []) + (
         [f"Zdrapki: {' · '.join(cards)}"] if cards else []
     )
     shown = {
@@ -128,14 +128,16 @@ def compose_expiring(rewards: dict[str, Rewards], today: date | None = None) -> 
 def compose_watched(
     coupons: list[tuple[str, WatchedCoupon]], promos: list[Promotion], today: date
 ) -> tuple[str, str] | None:
-    """Obserwowane produkty (E15): kupony (para etykieta konta, kupon) i promocje od dziś, linia na rzecz;
+    """Obserwowane produkty (E15): kupony (para etykieta konta, kupon) i trwające promocje, linia na rzecz;
     ten sam kupon na obu kontach to jedna linia. None, gdy nic."""
     who: dict[tuple[str, str, date], list[str]] = {}
     for label, c in coupons:
         who.setdefault((_name(c), _discount(c.discount), c.valid_to), []).append(label)
     rows = [(name, "kupon", disc, end, "obie karty" if len(labels) > 1 else labels[0])
             for (name, disc, end), labels in who.items()]  # fmt: skip
-    rows += [(p.title, "promocja", _discount(p.discount), p.end, "od dziś") for p in promos]
+    rows += [
+        (p.title, "promocja", _discount(p.discount), p.end, f"od {fmt_until(p.start, today)}") for p in promos
+    ]
     if not rows:
         return None
     if len(rows) == 1:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -148,7 +148,7 @@ async def test_runner_moves_to_next_model_on_rate_limit_and_saves_matches(tmp_pa
     assert await runner.step(NOW) is True  # paczka 2 od razu na model-b (model-a ma wyczerpany limit)
     assert await runner.step(NOW) is False  # nic nie czeka
     assert session.models == ["model-a", "model-b", "model-b"]
-    assert h.leaflet_matches_starting(START) == [
+    assert h.leaflet_matches_active(START) == [
         ("0000111", "Produkt A XXL", "-38%", "2026-10-08", "2026-10-10")
     ]
 
@@ -189,7 +189,7 @@ async def test_runner_retries_the_same_batch_later_on_overload(tmp_path: Path) -
     assert batch is not None and batch["batch"] == 0 and batch["attempts"] == 1
 
 
-def test_starting_merges_leaflet_matches_without_duplicates(tmp_path: Path) -> None:
+def test_active_merges_leaflet_matches_without_duplicates(tmp_path: Path) -> None:
     h = _history(tmp_path)
     h.add_leaflet("g1", [], START, END)
     h.save_leaflet_matches("g1", [
@@ -198,7 +198,7 @@ def test_starting_merges_leaflet_matches_without_duplicates(tmp_path: Path) -> N
     ])  # fmt: skip
     runner = PromotionRunner(None, h)  # type: ignore[arg-type]
     runner.latest = [Promotion("0000111", "Produkt A (lidl.pl)", "-38%", START, END)]
-    assert [p.title for p in runner.starting(START)] == ["Produkt A (lidl.pl)", "Produkt D"]
+    assert [p.title for p in runner.active(START)] == ["Produkt A (lidl.pl)", "Produkt D"]
 
 
 @pytest.mark.parametrize(
@@ -215,3 +215,13 @@ def test_llm_options(
     assert "llm_key" not in repr(s)  # klucz nie trafia do repr/logów
     if enabled:
         assert s.llm_url == "http://x/v1"
+
+
+def test_leaflet_match_started_earlier_is_still_active_until_its_end(tmp_path: Path) -> None:
+    """Gazetka przetworzona po 07:00 dnia startu: trafienie trafia do porannego dnia następnego."""
+    h = _history(tmp_path)
+    h.add_leaflet("g1", [], START, END)
+    h.save_leaflet_matches("g1", [Promotion("0000111", "Produkt A z gazetki", "-38%", START, END)])
+    runner = PromotionRunner(None, h)  # type: ignore[arg-type]
+    assert [p.title for p in runner.active(START + timedelta(days=1))] == ["Produkt A z gazetki"]
+    assert runner.active(END + timedelta(days=1)) == []

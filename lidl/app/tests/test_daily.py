@@ -89,7 +89,7 @@ class FakePromotions:
     async def refresh(self) -> None:
         self.log.append("promocje")
 
-    def starting(self, today: date) -> list[Promotion]:
+    def active(self, today: date) -> list[Promotion]:
         return [Promotion("0000111", "Produkt B", "-40%", today, today + timedelta(days=2))]
 
 
@@ -148,10 +148,27 @@ async def test_daily_job_runs_receipts_then_coupons_for_connected_and_notifies(
         "kupony [('osoba-1', 'Osoba 1')] próbnie=True",
         "nagrody [('osoba-1', 'Osoba 1')]",
         "powiadomienie Lidl (tryb próbny): dziś karta Osoba 1 (1 kupon na Wasze produkty)",
-        "Promocje od dziś: Produkt B −40% (do "
+        "Nowe promocje: Produkt B −40% (do "
         + fmt_until(date.today() + timedelta(days=2), date.today())
         + ")",
     ]
+
+
+async def test_morning_reports_each_promotion_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Promocja trwa kilka dni — w porannym tylko raz (klucz `m:` w `watched_sent`), poza trybem próbnym."""
+    bodies: list[str] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        bodies.append(message[1])
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    history = FakeHistory()
+    job = _job([], history=history, dry_run=False)
+    await job()
+    await job()  # następny dzień albo „Sprawdź teraz”: kupony zostają, promocji już nie ma
+    assert ["Nowe promocje" in b for b in bodies] == [True, False]
+    assert history.sent == {f"m:0000111:{date.today().isoformat()}"}
 
 
 def _watched_history() -> FakeHistory:

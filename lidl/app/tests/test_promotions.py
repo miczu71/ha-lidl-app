@@ -119,24 +119,37 @@ class FakeResponse:
 
 class FakeSession:
     def __init__(self, responses: dict[str, Any]) -> None:
-        self.responses, self.urls = responses, []  # type: ignore[var-annotated]
+        self.responses, self.urls, self.headers = responses, [], {}  # type: ignore[var-annotated]
 
     def get(self, url: str, **kwargs: Any) -> FakeResponse:
         self.urls.append(url)
+        self.headers[url] = kwargs.get("headers") or {}
         return FakeResponse(self.responses[url])
 
 
-async def test_runner_reads_both_sources_and_lists_our_products_starting_today(tmp_path: Path) -> None:
+async def test_runner_reads_both_sources_and_lists_our_products_active_today(tmp_path: Path) -> None:
     h = _history(tmp_path)
     store_url = OFFERS_URL.format(country="PL", store="PL0001")
     runner = PromotionRunner(FakeSession({WEB_URL: WEB, store_url: OFFERS}), h)  # type: ignore[arg-type]
     await runner.refresh()
     runner.latest.append(Promotion("0000111", "Produkt A", "-10%", date(2026, 10, 9), date(2026, 10, 10)))
     # Produkt A i Produkt D to nasze; 0000112 i 0000445 nie, a oferta D nie powtarza się dla drugiego kodu
-    assert [(p.title, p.art_id) for p in runner.starting(TODAY)] == [
+    assert [(p.title, p.art_id) for p in runner.active(TODAY)] == [
         ("Produkt A", "0000111"),
         ("Produkt D", "0000444"),
     ]
+    assert [p.art_id for p in runner.active(date(2026, 10, 10))] == ["0000111", "0000444"]  # trwa
+    assert runner.active(date(2026, 10, 11)) == []  # po końcu
+
+
+async def test_lidl_pl_is_asked_without_json_accept_header(tmp_path: Path) -> None:
+    """`Accept: application/json` → 401 z lidl.pl (sprawdzone 2026-10-08); oferty sklepu go przyjmują."""
+    h = _history(tmp_path)
+    store_url = OFFERS_URL.format(country="PL", store="PL0001")
+    session = FakeSession({WEB_URL: WEB, store_url: OFFERS})
+    await PromotionRunner(session, h).refresh()  # type: ignore[arg-type]
+    assert "Accept" not in session.headers[WEB_URL]
+    assert session.headers[store_url]["Accept"] == "application/json"
 
 
 async def test_runner_survives_a_failing_source(tmp_path: Path) -> None:

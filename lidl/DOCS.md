@@ -77,10 +77,11 @@ Zdrapki są też w porannym powiadomieniu (linia „Zdrapki”; powiadomienie pr
 add-on wysyła osobne przypomnienie, gdy któraś zdrapka wygasa tego dnia. Add-on niczego nie zdrapuje ani nie
 uruchamia — tylko odczytuje.
 
-## Promocje od dziś (poranne powiadomienie)
+## Nowe promocje (poranne powiadomienie)
 
-Gdy w sklepie startuje promocja na produkt z zakładki Kupony (ten sam przełącznik), poranne powiadomienie dostaje
-linię „Promocje od dziś” z rabatem i datą końca. Źródła: promocje z lidl.pl, oferty sklepu, w którym robicie
+Gdy w sklepie trwa promocja na produkt z zakładki Kupony (ten sam przełącznik), poranne powiadomienie dostaje
+linię „Nowe promocje” z rabatem i datą końca — każdą promocję raz, także gdy gazetka została przetworzona dopiero
+po porannym przebiegu (wtedy następnego dnia, o ile promocja jeszcze trwa). Źródła: promocje z lidl.pl, oferty sklepu, w którym robicie
 najwięcej zakupów, i — gdy ustawisz model językowy — cotygodniowa gazetka. Ceny kuponowe Lidl Plus pomijamy:
 te kupony add-on aktywuje sam.
 

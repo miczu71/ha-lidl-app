@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS ticket_coupons (
 );
 CREATE TABLE IF NOT EXISTS coupon_optout (art_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS watched (art_id TEXT PRIMARY KEY);
+-- wysłane powiadomienia: obserwowane (`c:`/`p:`, E15) i promocje w porannym (`m:`)
 CREATE TABLE IF NOT EXISTS watched_sent (key TEXT PRIMARY KEY, sent_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS coupons (
     account TEXT NOT NULL,
@@ -694,12 +695,13 @@ class History:
                 ],
             )
 
-    def leaflet_matches_starting(self, today: date) -> list[tuple[str, str, str, str, str]]:
-        """Promocje z gazetki zaczynające się `today` w kolejności pól `Promotion` (kod, nazwa, rabat, start,
+    def leaflet_matches_active(self, today: date) -> list[tuple[str, str, str, str, str]]:
+        """Promocje z gazetki trwające `today` w kolejności pól `Promotion` (kod, nazwa, rabat, start,
         koniec; daty ISO)."""
         cur = self._db.execute(
-            "SELECT art_id, title, discount, start, end FROM leaflet_matches WHERE start = ? ORDER BY title",
-            (today.isoformat(),),
+            "SELECT art_id, title, discount, start, end FROM leaflet_matches"
+            " WHERE start <= ? AND end >= ? ORDER BY title",
+            (today.isoformat(), today.isoformat()),
         )
         return list(cur)
 

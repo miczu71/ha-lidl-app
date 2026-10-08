@@ -35,6 +35,9 @@ WEB_PARAMS = {
 }
 OFFERS_URL = "https://offers.lidlplus.com/app/api/v4/{country}/{store}/offers"
 HEADERS = {"Accept": "application/json", "Accept-Language": LANGUAGE, "User-Agent": "Mozilla/5.0"}
+# lidl.pl odpowiada 401 na `Accept: application/json`; CDN trzyma 200 przez 5 min bez względu na Accept,
+# więc błąd bywał niewidoczny, gdy ktoś chwilę wcześniej otworzył ten adres inaczej
+WEB_HEADERS = {k: v for k, v in HEADERS.items() if k != "Accept"}
 
 
 @dataclass(frozen=True)
@@ -85,26 +88,30 @@ class PromotionRunner:
 
     async def refresh(self) -> None:
         """Pobiera oba źródła naraz; błąd jednego źródła nie blokuje drugiego."""
-        gets = [self._get("lidl.pl", WEB_URL, parse_web, WEB_PARAMS)]
+        gets = [self._get("lidl.pl", WEB_URL, parse_web, WEB_HEADERS, WEB_PARAMS)]
         store = self._history.main_store()
         if store:
             gets.append(
-                self._get("oferty sklepu", OFFERS_URL.format(country=COUNTRY, store=store), parse_offers)
+                self._get(
+                    "oferty sklepu", OFFERS_URL.format(country=COUNTRY, store=store), parse_offers, HEADERS
+                )
             )
         self.latest = [p for found in await asyncio.gather(*gets) for p in found]
         log.info("Promocje: %d pozycji", len(self.latest))
 
-    def starting(self, today: date) -> list[Promotion]:
-        """Promocje zaczynające się dziś na produkty z listy „Kupowane regularnie” (włączone). Każdy produkt
-        raz, wygrywa pierwsze źródło (lidl.pl, oferty sklepu, gazetka); oferta na kilka kodów też raz."""
+    def active(self, today: date) -> list[Promotion]:
+        """Promocje trwające dziś na produkty z listy „Kupowane regularnie” (włączone) — także zaczęte
+        wcześniej, bo gazetka bywa przetworzona dopiero po porannym przebiegu (co już zgłoszone, odsiewa
+        `DailyJob`). Każdy produkt raz, wygrywa pierwsze źródło (lidl.pl, oferty sklepu, gazetka); oferta na
+        kilka kodów też raz."""
         codes = self._history.enabled_codes(today)
         leaflet = [
             Promotion(a, t, d, date.fromisoformat(s), date.fromisoformat(e))
-            for a, t, d, s, e in self._history.leaflet_matches_starting(today)
+            for a, t, d, s, e in self._history.leaflet_matches_active(today)
         ]
         by_code: dict[str, Promotion] = {}
         for p in self.latest + leaflet:
-            if p.start == today and p.art_id in codes:
+            if p.start <= today <= p.end and p.art_id in codes:
                 by_code.setdefault(p.art_id, p)
         return list({(p.title, p.discount): p for p in by_code.values()}.values())
 
@@ -113,10 +120,11 @@ class PromotionRunner:
         name: str,
         url: str,
         parse: Callable[[dict[str, Any]], list[Promotion]],
+        headers: dict[str, str],
         params: dict[str, str] | None = None,
     ) -> list[Promotion]:
         try:
-            async with self._session.get(url, params=params, headers=HEADERS) as response:
+            async with self._session.get(url, params=params, headers=headers) as response:
                 response.raise_for_status()
                 return parse(await response.json(content_type=None))
         except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError) as err:

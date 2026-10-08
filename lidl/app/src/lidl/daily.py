@@ -48,6 +48,11 @@ async def at_time_loop(
             log.exception("Dzienny przebieg nieudany")
 
 
+def _unsent(prefix: str, promos: list[Promotion], sent: set[str]) -> dict[str, Promotion]:
+    """Promocje jeszcze niezgłoszone, po kluczu w `watched_sent` (`<prefix>:<kod>:<start>`)."""
+    return {k: p for p in promos if (k := f"{prefix}:{p.art_id}:{p.start.isoformat()}") not in sent}
+
+
 class DailyJob:
     """Nowe paragony i promocje, potem kupony i nagrody wszystkich połączonych kont i jedno powiadomienie."""
 
@@ -113,29 +118,27 @@ class DailyJob:
         finally:
             self.running = False
         self.last_check = datetime.now()
-        promos = self._promotions.starting(date.today())
-        message = notify.compose(results, rewards, dry_run=self.dry_run, promos=promos)
-        if message:
-            await notify.send(self._session, message)
-        await self._watched(dict(accounts), promos)
+        promos = self._promotions.active(date.today())
+        sent = self._history.watched_sent_keys()
+        fresh = _unsent("m", promos, sent)  # poranne: każda promocja raz, choć trwa kilka dni
+        message = notify.compose(results, rewards, dry_run=self.dry_run, promos=list(fresh.values()))
+        if message and await notify.send(self._session, message) and not self.dry_run:
+            self._history.mark_watched_sent(fresh, datetime.now().isoformat())
+        await self._watched(dict(accounts), promos, sent)
 
-    async def _watched(self, labels: dict[str, str], promos: list[Promotion]) -> None:
+    async def _watched(self, labels: dict[str, str], promos: list[Promotion], sent: set[str]) -> None:
         """Osobne powiadomienie o kuponach i promocjach na obserwowane produkty (E15); każdy kupon konta
         i każda promocja tylko raz (`watched_sent`; w trybie próbnym bez zapisu)."""
         watched = self._history.watched_codes()
         if not watched:
             return
-        today, sent = date.today(), self._history.watched_sent_keys()
+        today = date.today()
         coupons = {
             key: (labels[c.account], c)
             for c in self._history.watched_coupons(today)
             if c.account in labels and (key := f"c:{c.account}:{c.promotion_id}") not in sent
         }
-        found = {
-            key: p
-            for p in promos
-            if p.art_id in watched and (key := f"p:{p.art_id}:{p.start.isoformat()}") not in sent
-        }
+        found = _unsent("p", [p for p in promos if p.art_id in watched], sent)
         message = notify.compose_watched(list(coupons.values()), list(found.values()), today)
         if not message:
             return
