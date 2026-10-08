@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.13.0
+
+- **Nowa zakładka „Ceny”:** jak zmieniają się ceny tego, co kupujemy (cena z półki, rok do roku: mediana
+  z ostatnich 3 miesięcy wobec tych samych miesięcy rok wcześniej).
+  - **Nasz koszyk:** zmiana cen ważona tym, ile na produkt wydajemy, z wykresem miesięcznym od początku
+    historii i informacją, jaką część wydatków obejmuje porównanie.
+  - **Najbardziej podrożały / potaniały:** po 5 produktów.
+  - **Wszystkie porównane produkty:** wyszukiwanie na żywo, kolejność wg zmiany ceny albo wydatków.
+  - **Wykres ceny produktu:** cena na półce w czasie i cena zapłacona przy każdym zakupie (po kuponach
+    i promocjach), najtańszy zakup i liczba zakupów z rabatem.
+
 ## 0.12.2
 
 - **Promocje z lidl.pl znów działają:** lidl.pl odrzucał zapytanie add-onu (401) z powodu nagłówka `Accept`;
