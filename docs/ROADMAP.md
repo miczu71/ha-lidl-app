@@ -139,7 +139,10 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   - **E18 Shrinkflation:** mniejsza gramatura przy tej samej cenie — gramatura z nazwy produktu, porównanie ceny
     za kg/l w czasie. Rozszerzenie E7; do ustalenia: odczyt gramatury (reguły czy AI), produkty ze zmienionym kodem.
   - **E19 Miesięczne podsumowanie** (w stylu rocznego „Lidl Wrapped”): powiadomienie raz w miesiącu — wydatki,
-    oszczędności, top produkty, zmiana vs poprzedni miesiąc. Do ustalenia: dzień/godzina, komu, link do panelu.
+    oszczędności, top produkty, zmiana vs poprzedni miesiąc. **Wywiad 2026-10-09** (plan: `docs/PLAN_E19_podsumowanie.md`):
+    ciekawostka, nie narzędzie decyzji; push 1. dnia o 10:00 do obojga (tag `lidl-podsumowanie`) + nowa zakładka
+    „Miesiące” z archiwum; treść: liczby miesiąca, produkty, rekordy i rytm, historia. Podetapy: E19.0 docs ✅,
+    E19.1 dane, E19.2 strona (makieta przed kodem), E19.3 push, E19.4 wydanie 0.16.0.
   - **E20 Zdrapki, progi nagród, Pieczątka Plus:** postęp do progu („brakuje 23 zł do nagrody”), przypomnienie
     o niezdrapanych zdrapkach i ich ważności. **Najpierw rozpoznanie:** czy API (biblioteka upstream lub ruch
     aplikacji) udostępnia te dane; bez tego etap odpada. Wstępne rozpoznanie (2026-10-07): klienci open source tego
