@@ -673,3 +673,79 @@ def test_product_purchases_split_old_code_by_bridged_name(tmp_path: Path) -> Non
     assert [p.ticket.id for p in h.product_purchases("777")] == ["n1", "o2"]
     assert [(p.ticket.id, p.line.name) for p in h.product_purchases("n:7")] == [("o1", "Ser A")]
     assert h.product_purchases("n:999") == []
+
+
+def _month(tmp_path: Path) -> History:
+    """Wrzesień 2026 na dwóch kontach i dwóch sklepach, sierpień 2026 i wrzesień 2025 do porównań."""
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "osoba-1", [_ticket("a1", "2025-09-10", total=40.0), _ticket("a2", "2026-08-05", total=20.0)]
+    )
+    h.upsert_tickets(
+        "osoba-1", [_ticket("s1", "2026-09-07", total=30.0), _ticket("s2", "2026-09-14", total=12.0)]
+    )
+    h.upsert_tickets(
+        "osoba-2", [_ticket("s3", "2026-09-21", total=8.0), _ticket("o1", "2026-10-01", total=99.0)]
+    )
+    h.save_detail("a1", None, _receipt(("1", "Mleko", 2, 2.0)))
+    store_b = {"code": "PL0002", "name": "Sklep B", "address": "", "postal": "", "locality": ""}
+    h.save_detail(
+        "s1",
+        None,
+        ParsedReceipt(
+            items=[
+                ReceiptItem("1", "Mleko", 4, 2.5, 10.0),
+                ReceiptItem("2", "Ser", 1, 15.0, 15.0, discount=-5.0, coupon=-5.0),
+                ReceiptItem("3", "Banany", 1.2, 5.0, 6.0, is_weight=True),
+            ],
+            purchased_at="2026-09-07T18:10:00",
+            store=store_b,
+        ),
+    )
+    h.save_detail(
+        "s2",
+        None,
+        ParsedReceipt(
+            items=[ReceiptItem("4", "Chleb", 3, 4.0, 12.0, discount=-1.0)],
+            purchased_at="2026-09-14T18:40:00",
+            store=store_b,
+        ),
+    )
+    h.save_detail("s3", None, _receipt(("n:9", "Mleko", 1, 2.5)))
+    return h
+
+
+def test_month_summary_numbers_comparisons_and_history(tmp_path: Path) -> None:
+    s = _month(tmp_path).month_summary("2026-09")
+    assert s is not None
+    assert (s.totals.paid, s.totals.tickets, s.savings, s.coupons) == (50.0, 3, 6.0, 5.0)
+    assert (s.prev_paid, s.year_ago_paid) == (20.0, 40.0)
+    assert s.accounts == {"osoba-1": (2, 42.0), "osoba-2": (1, 8.0)}
+    assert (s.all_time_paid, s.first_no, s.rank, s.months) == (110.0, 3, 1, 3)  # październik się nie liczy
+    assert (s.biggest.id, s.weekday, s.hour) == ("s1", 0, 18)  # same poniedziałki
+    assert s.store is not None and (s.store.name, s.store.tickets) == ("Sklep B", 2)
+
+
+def test_month_summary_products(tmp_path: Path) -> None:
+    s = _month(tmp_path).month_summary("2026-09")
+    assert s is not None
+    assert [(p.name, p.value) for p in s.top_spend] == [
+        ("Mleko", 12.5),
+        ("Chleb", 11.0),
+        ("Ser", 10.0),
+        ("Banany", 6.0),
+    ]
+    assert [(p.name, p.quantity) for p in s.top_quantity] == [("Mleko", 5.0), ("Chleb", 3.0), ("Ser", 1.0)]
+    assert [p.name for p in s.new_products] == ["Chleb", "Ser", "Banany"]  # mleko kupione już w 2025
+    assert s.best_saving is not None and (s.best_saving.name, s.best_saving.value) == ("Ser", 5.0)
+
+
+def test_month_summary_empty_month_and_january(tmp_path: Path) -> None:
+    h = _month(tmp_path)
+    assert h.month_summary("2026-07") is None
+    h.upsert_tickets(
+        "osoba-1", [_ticket("j1", "2027-01-03", total=5.0), _ticket("d1", "2026-12-30", total=7.0)]
+    )
+    s = h.month_summary("2027-01")
+    assert s is not None and (s.prev_paid, s.year_ago_paid, s.hour) == (7.0, None, None)
+    assert s.store is not None and s.store.name == "PL0001"  # bez szczegółów: kod sklepu z listy API

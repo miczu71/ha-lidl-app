@@ -14,6 +14,7 @@ import sqlite3
 import statistics
 import zlib
 from bisect import bisect_right
+from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -32,6 +33,7 @@ SCHEMA_VERSION = 4
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
+MONTH_TOP = 5  # E19: długość list produktów w podsumowaniu miesiąca
 PRICE_WINDOW_DAYS = 182  # E7: okno mediany ceny (ok. 6 miesięcy), porównywane z tym samym oknem rok wcześniej
 
 _SCHEMA = """
@@ -336,6 +338,40 @@ class StoreCount:
     code: str
     name: str
     tickets: int
+
+
+@dataclass(frozen=True)
+class MonthProduct:
+    art_id: str
+    name: str
+    value: float  # zapłacono po rabatach (top, nowości) albo rabat (największa oszczędność)
+    quantity: float
+    is_weight: bool
+
+
+@dataclass(frozen=True)
+class MonthSummary:
+    """Podsumowanie miesiąca (E19), wspólne dla domu; porównania i historia liczone do końca miesiąca."""
+
+    month: str  # „2026-09”
+    totals: PurchaseTotals
+    savings: float  # rabaty pozycji (dodatnie), w tym kupony
+    coupons: float
+    prev_paid: float | None  # poprzedni miesiąc; None bez zakupów
+    year_ago_paid: float | None
+    top_spend: list[MonthProduct]
+    top_quantity: list[MonthProduct]  # tylko sztuki (bez ważonych)
+    new_products: list[MonthProduct]  # pierwszy zakup w historii w tym miesiącu
+    best_saving: MonthProduct | None
+    biggest: TicketSummary
+    weekday: int  # najczęstszy dzień tygodnia (0 = poniedziałek)
+    hour: int | None  # najczęstsza godzina; None, gdy paragony bez godziny
+    store: StoreCount | None
+    accounts: dict[str, tuple[int, float]]  # konto → (paragony, zapłacono)
+    all_time_paid: float  # od pierwszego paragonu do końca miesiąca
+    first_no: int  # numer pierwszego paragonu miesiąca w całej historii
+    rank: int  # miejsce miesiąca wg wydatków (1 = najdroższy)
+    months: int  # miesięcy z zakupami do końca tego miesiąca
 
 
 # kolumny `TicketSummary` (alias `t` = tickets)
@@ -702,18 +738,18 @@ class History:
             where += " AND t.day <= ?"
             args.append(end.isoformat())
         rows = self._db.execute(
-            "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day, i.discount, i.coupon"
-            f" FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE 1 = 1{where}"
+            "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day, i.discount, i.coupon,"
+            f" i.total, i.is_weight FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE 1 = 1{where}"
             " ORDER BY t.day, i.ticket_id, i.line",
             args,
         )
         acc: dict[str, dict[str, Any]] = {}
-        for art_id, name, qty, price, ticket_id, day, discount, coupon in rows:
+        for art_id, name, qty, price, ticket_id, day, discount, coupon, total, weight in rows:
             p = acc.setdefault(
                 resolve(art_id, name),
                 {
                     "tickets": set(), "days": set(), "names": set(), "qty": 0.0, "uses": 0,
-                    "discount": 0.0, "coupon": 0.0,
+                    "discount": 0.0, "coupon": 0.0, "spend": 0.0, "first": day,
                 },
             )  # fmt: skip
             p["names"].add(name)
@@ -723,7 +759,8 @@ class History:
             p["uses"] += coupon < 0
             p["discount"] += discount
             p["coupon"] += coupon
-            p["name"], p["price"], p["last"] = name, price, day
+            p["spend"] += total + discount
+            p["name"], p["price"], p["last"], p["weight"] = name, price, day, bool(weight)
         return acc
 
     def product_name(self, art_id: str) -> str | None:
@@ -1238,6 +1275,72 @@ class History:
             args,
         )
         return {m: (n, round(s, 2)) for m, n, s in rows}
+
+    def month_summary(self, month: str) -> MonthSummary | None:
+        """Podsumowanie miesiąca `2026-09` (E19); None, gdy w miesiącu nie było paragonów."""
+        start = date.fromisoformat(f"{month}-01")
+        end = (start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
+        totals = self.purchase_totals(start, end)
+        if not totals.tickets:
+            return None
+        where, args = _receipt_where(ReceiptFilter(start=start, end=end))
+        months = {m: paid for m, (_, paid) in self.ticket_months(ReceiptFilter(end=end)).items()}
+        products = self._products(start, end)
+        first = {k: p["first"] for k, p in self._products(None, end).items()}
+
+        def item(key: str, p: dict[str, Any], value: float) -> MonthProduct:
+            return MonthProduct(key, p["name"], round(value, 2), round(p["qty"], 3), p["weight"])
+
+        by_spend = sorted(products.items(), key=lambda kp: -kp[1]["spend"])
+        pieces = sorted(
+            ((k, p) for k, p in products.items() if not p["weight"]),
+            key=lambda kp: (-kp[1]["qty"], -kp[1]["spend"]),
+        )
+        saver = min(products.items(), key=lambda kp: kp[1]["discount"], default=None)
+        biggest = self._db.execute(
+            f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where} ORDER BY t.total DESC, t.day LIMIT 1",
+            args,
+        ).fetchone()
+        days = Counter(date.fromisoformat(d).weekday() for (d,) in self._db.execute(
+            f"SELECT t.day FROM tickets t WHERE 1 = 1{where}", args
+        ))  # fmt: skip
+        hours = Counter(int(at[11:13]) for (at,) in self._db.execute(
+            f"SELECT t.purchased_at FROM tickets t WHERE length(t.purchased_at) >= 13{where}", args
+        ))  # fmt: skip
+        store = self._db.execute(
+            f"SELECT {_STORE_KEY}, COUNT(*), MAX(NULLIF(t.store_name, '')) FROM tickets t"
+            f" WHERE {_STORE_KEY} != ''{where} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 1",
+            args,
+        ).fetchone()
+        accounts = {a: (n, round(s, 2)) for a, n, s in self._db.execute(
+            f"SELECT t.account, COUNT(*), SUM(t.total) FROM tickets t WHERE 1 = 1{where} GROUP BY 1", args
+        )}  # fmt: skip
+        before = self._db.execute(
+            "SELECT COUNT(*) FROM tickets WHERE day < ?", (start.isoformat(),)
+        ).fetchone()[0]
+        return MonthSummary(
+            month=month,
+            totals=totals,
+            savings=round(-sum(p["discount"] for p in products.values()), 2),
+            coupons=round(-sum(p["coupon"] for p in products.values()), 2),
+            prev_paid=months.get((start - timedelta(days=1)).strftime("%Y-%m")),
+            year_ago_paid=months.get(f"{start.year - 1}-{month[5:]}"),
+            top_spend=[item(k, p, p["spend"]) for k, p in by_spend[:MONTH_TOP]],
+            top_quantity=[item(k, p, p["spend"]) for k, p in pieces[:MONTH_TOP]],
+            new_products=[item(k, p, p["spend"]) for k, p in by_spend if first[k] >= start.isoformat()][
+                :MONTH_TOP
+            ],
+            best_saving=item(*saver, -saver[1]["discount"]) if saver and saver[1]["discount"] < 0 else None,
+            biggest=_summary(biggest),
+            weekday=days.most_common(1)[0][0],
+            hour=hours.most_common(1)[0][0] if hours else None,
+            store=StoreCount(store[0], store[2] or store[0], store[1]) if store else None,
+            accounts=accounts,
+            all_time_paid=round(sum(months.values()), 2),
+            first_no=before + 1,
+            rank=1 + sum(paid > months[month] for paid in months.values()),
+            months=len(months),
+        )
 
     def stores(self) -> list[StoreCount]:
         """Sklepy z paragonów (nazwa z najnowszego), od najczęstszych; bez kodu sklepu pomijane."""
