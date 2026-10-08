@@ -55,3 +55,14 @@ EAN) — eksport ich nie zawiera. Obserwacje do reguł w E21.3: (1) część kod
 Lidla bez zer wiodących (`n:80505` = `0080505`); (2) produkty ważone mają EAN zmienny przy każdym zakupie
 (`n:28…`, ta sama nazwa) — łączyć po nazwie, nie po kodzie; (3) ten sam EAN miewa kilka wariantów nazwy, z których
 tylko część łączy się po nazwie. Potrzebny eksport wszystkich nowych kodów z nazwami (E21.1b).
+
+## E21.2 — drugi przebieg (2026-10-08, eksport 0.14.1: 462 nowe kody, w tym 274 już zmostkowane)
+Przegląd wszystkich **316 starych kodów** kupowanych w ostatnich 12 mies. (po 3 najlepszych kandydatów z dopasowania
+skrótów nazw, typu ważony/sztuki i ceny; ocena ręczna). Wynik: **49 par** (22 pewne, 27 do potwierdzenia) dla 49 starych
+kodów — przybliżony udział w wydatkach tej grupy ~22% (pewne ~9%), czyli ok. 4–5 pp. wydatków z 12 mies.
+Reguła `zfill(7)` trafiła tylko 1 raz; ważone EAN `n:2…` w tej grupie to głównie produkty bez nowego odpowiednika.
+**Założenie podważone:** pozostałe ~267 starych kodów nie ma nowego odpowiednika, bo produktu po 27.03.2026 po prostu
+nie kupowano (np. napoje roślinne, cytrusy luz, przyprawy, mięso ważone) albo kupowano inną gramaturę/wariant (inna
+cena półkowa, nie do porównania r/r). Łączenie ich nie podniesie pokrycia Cen — luka 20 pp. to głównie zmiana
+koszyka, nie nazwy. Szacunek po E21.3: pokrycie ok. 45% → ~49%, poniżej progu sukcesu 50%.
+Pary z pierwszego przebiegu (88 poza tą grupą) dotyczą starszych zakupów — pomagają Produktom i liście E11, nie Cenom.
