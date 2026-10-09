@@ -14,7 +14,7 @@ import sqlite3
 import statistics
 import zlib
 from bisect import bisect_right
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -89,8 +89,9 @@ CREATE TABLE IF NOT EXISTS watched (art_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS merges (old TEXT PRIMARY KEY, new TEXT NOT NULL);
 -- wysłane powiadomienia: obserwowane (`c:`/`p:`, E15) i promocje w porannym (`m:`)
 CREATE TABLE IF NOT EXISTS watched_sent (key TEXT PRIMARY KEY, sent_at TEXT NOT NULL);
--- współrzędne naszych sklepów z publicznej listy Lidl Plus (E9, `geo.py`); zamknięte sklepy zostają
-CREATE TABLE IF NOT EXISTS store_geo (code TEXT PRIMARY KEY, lat REAL NOT NULL, lon REAL NOT NULL);
+-- współrzędne naszych sklepów z publicznej listy Lidl Plus (E9, `geo.py`); zamknięte sklepy zostają,
+-- sklep spoza listy ma NULL (żeby nie pobierać listy co dzień)
+CREATE TABLE IF NOT EXISTS store_geo (code TEXT PRIMARY KEY, lat REAL, lon REAL);
 CREATE TABLE IF NOT EXISTS coupons (
     account TEXT NOT NULL,
     promotion_id TEXT NOT NULL,
@@ -340,14 +341,16 @@ class StoreStats:
     code: str
     name: str
     address: str  # „ulica, kod miejscowość” z najnowszego paragonu ze szczegółami; pusty bez nich
-    tickets: int
     paid: float
     savings: float  # rabaty pozycji (dodatnie), jak w `TicketSummary`
     last_day: str
     accounts: dict[str, int]  # konto → paragony
-    location: (
-        tuple[float, float] | None
-    )  # (szerokość, długość) z `store_geo`; None przed pobraniem albo zamknięty
+    # (szerokość, długość) z `store_geo`; None przed pobraniem albo dla sklepu spoza listy Lidla
+    location: tuple[float, float] | None
+
+    @property
+    def tickets(self) -> int:
+        return sum(self.accounts.values())
 
     @property
     def average(self) -> float:
@@ -1391,25 +1394,24 @@ class History:
         return sorted(
             (
                 StoreStats(
-                    c, s["name"], s["address"], s["accounts"].total(), round(s["paid"], 2),
-                    round(s["savings"], 2), s["last_day"], dict(s["accounts"]), geo.get(c),
+                    c, s["name"], s["address"], round(s["paid"], 2), round(s["savings"], 2),
+                    s["last_day"], dict(s["accounts"]), geo.get(c),
                 )
                 for c, s in found.items()
             ),
             key=lambda s: (-s.tickets, s.name),
         )  # fmt: skip
 
-    def _store_geo(self) -> dict[str, tuple[float, float]]:
-        return {
-            code: (lat, lon) for code, lat, lon in self._db.execute("SELECT code, lat, lon FROM store_geo")
-        }
+    def _store_geo(self) -> dict[str, tuple[float, float] | None]:
+        rows = self._db.execute("SELECT code, lat, lon FROM store_geo")
+        return {code: None if lat is None else (lat, lon) for code, lat, lon in rows}
 
     def stores_without_geo(self) -> set[str]:
-        """Kody sklepów z paragonów bez współrzędnych (do pobrania w `geo.py`)."""
+        """Kody sklepów z paragonów jeszcze nie sprawdzone na liście Lidla (do pobrania w `geo.py`)."""
         rows = self._db.execute(f"SELECT DISTINCT {_STORE_KEY} FROM tickets t")
         return {code for (code,) in rows if code} - self._store_geo().keys()
 
-    def save_store_geo(self, rows: Iterable[tuple[str, float, float]]) -> None:
+    def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:
         with self._db:
             self._db.executemany("INSERT OR REPLACE INTO store_geo (code, lat, lon) VALUES (?, ?, ?)", rows)
 
@@ -1417,7 +1419,7 @@ class History:
         """Paragony wg dnia tygodnia i godziny z paragonu (E9); czas jest lokalny, bez przeliczania strefy."""
         where, args = _receipt_where(f or ReceiptFilter())
         visits: Counter[tuple[int, int]] = Counter()
-        spend: dict[tuple[int, int], float] = {}
+        spend: defaultdict[tuple[int, int], float] = defaultdict(float)
         tickets = 0
         for row in self._db.execute(f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where}", args):
             t = _summary(row)
@@ -1425,8 +1427,8 @@ class History:
             if t.time:
                 key = (date.fromisoformat(t.day).weekday(), int(t.time[:2]))
                 visits[key] += 1
-                spend[key] = round(spend.get(key, 0.0) + t.total, 2)
-        return Rhythm(dict(visits), spend, tickets)
+                spend[key] += t.total
+        return Rhythm(dict(visits), {k: round(v, 2) for k, v in spend.items()}, tickets)
 
     def ticket(self, ticket_id: str) -> TicketDetail | None:
         """Paragon z pozycjami (kod produktu po moście nazw) i użytymi kuponami."""

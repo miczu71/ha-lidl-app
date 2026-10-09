@@ -48,23 +48,25 @@ def heatmap(r: Rhythm, spend: bool) -> dict[str, Any] | None:
 def store_rows(
     stores: list[StoreStats], labels: Mapping[str, str], href: Callable[[str], str]
 ) -> list[dict[str, Any]]:
-    """Wiersze listy sklepów; podział na konta tylko przy więcej niż jednym koncie (zera zostają, żeby
-    kolory pasków odpowiadały kontom)."""
+    """Wiersze listy sklepów; podział na konta, gdy w wynikach kupowało więcej niż jedno konto (zera
+    zostają, żeby kolory pasków odpowiadały kontom)."""
+    shared = len({a for s in stores for a in s.accounts}) > 1
     rows = []
     for s in stores:
-        split = [(label, s.accounts.get(slug, 0)) for slug, label in labels.items()]
+        located = "" if s.location else "brak na mapie"
         rows.append(
             {
                 "name": s.name,
-                "address": s.address,
-                "located": s.location is not None,
+                "address": " · ".join(x for x in (s.address, located) if x),
                 "visits": s.tickets,
                 "visits_word": plural(s.tickets, "wizyta", "wizyty", "wizyt"),
                 "paid": fmt_pln(s.paid),
                 "average": fmt_pln(s.average),
                 "savings": fmt_pln(s.savings) if s.savings > 0 else None,
                 "last": fmt_recent(date.fromisoformat(s.last_day)),
-                "split": split if len(labels) > 1 else [],
+                "split": [(label, s.accounts.get(slug, 0)) for slug, label in labels.items()]
+                if shared
+                else [],
                 "href": href(s.code),
             }
         )

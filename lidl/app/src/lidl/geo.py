@@ -1,9 +1,9 @@
 """Współrzędne sklepów do mapy w zakładce Rytm (E9; rozpoznanie w docs/PLAN_E9_rytm.md).
 
 Publiczna lista sklepów Lidl Plus (bez logowania, ~1000 sklepów) ma `storeKey` = `store_code` z paragonów
-i `location`. Pobieramy ją tylko, gdy któryś sklep z paragonów nie ma jeszcze współrzędnych, i zapisujemy
-tylko nasze sklepy — zamknięty sklep znika z listy Lidla, ale zostaje na mapie. Błąd sieci nie przerywa
-przebiegu.
+i `location`. Pobieramy ją tylko, gdy pojawi się sklep jeszcze niesprawdzony, i zapisujemy tylko nasze
+sklepy — zamknięty sklep znika z listy Lidla, ale zostaje na mapie; sklep spoza listy dostaje wpis bez
+współrzędnych. Błąd sieci nie przerywa przebiegu.
 """
 
 from __future__ import annotations
@@ -36,7 +36,9 @@ async def refresh_store_geo(session: aiohttp.ClientSession, history: History) ->
     except (aiohttp.ClientError, TimeoutError, ValueError, KeyError, TypeError) as err:
         log.warning("Sklepy: lista Lidla nieosiągalna (%s)", err)
         return 0
-    rows = [(code, *found[code]) for code in sorted(missing) if code in found]
+    # sklep spoza listy zapisujemy bez współrzędnych — inaczej lista szłaby co dzień od nowa
+    rows = [(code, *found.get(code, (None, None))) for code in sorted(missing)]
     history.save_store_geo(rows)
-    log.info("Sklepy: współrzędne %d z %d brakujących", len(rows), len(missing))
-    return len(rows)
+    located = sum(code in found for code in missing)
+    log.info("Sklepy: współrzędne %d z %d nowych", located, len(missing))
+    return located

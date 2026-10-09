@@ -60,17 +60,17 @@ def _history(tmp_path: Path) -> History:
     return h
 
 
-async def test_saves_coordinates_of_our_stores_only_and_skips_when_complete(tmp_path: Path) -> None:
+async def test_saves_coordinates_of_our_stores_once_and_remembers_stores_off_the_list(tmp_path: Path) -> None:
     h = _history(tmp_path)
     session = FakeSession(STORES)
     assert await refresh_store_geo(session, h) == 1  # type: ignore[arg-type]
     assert {s.code: s.location for s in h.stores()} == {"PL0001": (51.1, 17.0), "PL0002": None}
     await refresh_store_geo(session, h)  # type: ignore[arg-type]
-    assert session.calls == 2  # PL0002 nadal bez współrzędnych → pytamy ponownie
+    assert session.calls == 1  # PL0002 spoza listy już sprawdzony → bez kolejnego pobrania
 
-    h.save_store_geo([("PL0002", 50.0, 19.0)])
-    await refresh_store_geo(session, h)  # type: ignore[arg-type]
-    assert session.calls == 2  # komplet → bez zapytania
+    h.upsert_tickets("a", [{"id": "t3", "date": "2026-02-01T10:00:00+00:00", "storeCode": "PL0009"}])
+    assert await refresh_store_geo(session, h) == 1  # type: ignore[arg-type]
+    assert session.calls == 2  # nowy sklep → lista jeszcze raz
 
 
 async def test_network_error_keeps_stores_without_coordinates(tmp_path: Path) -> None:

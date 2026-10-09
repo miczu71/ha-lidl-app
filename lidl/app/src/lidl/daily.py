@@ -85,9 +85,9 @@ class DailyJob:
     async def __call__(self) -> None:
         accounts = self._accounts()
         await self._sync.run_daily([slug for slug, _ in accounts])
-        await refresh_store_geo(self._session, self._history)  # nowy sklep z dzisiejszych paragonów
         await self._promotions.refresh()
         await self._coupons(accounts)
+        await refresh_store_geo(self._session, self._history)  # nowy sklep z dzisiejszych paragonów, na końcu
 
     async def refresh_rewards(self) -> dict[str, Rewards]:
         """Nagrody połączonych kont (też przy starcie add-onu, żeby panel nie czekał do rana)."""

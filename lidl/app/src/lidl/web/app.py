@@ -504,20 +504,19 @@ def create_app(settings: Settings) -> FastAPI:
         f = ReceiptFilter(account=konto if konto in labels else None, start=start)
 
         def store_href(code: str) -> str:  # Paragony z tym samym kontem i okresem
-            query = {"konto": f.account, "sklep": code, "od": start and start.isoformat()}
-            return f"{base(request)}/paragony?{urlencode({k: v for k, v in query.items() if v})}"
+            od = start.isoformat() if start else ""
+            return query_link(request, "/paragony", {}, (), konto=f.account or "", sklep=code, od=od)
 
-        r, stores = history.rhythm(f), history.stores(f)
+        r, stores, spend = history.rhythm(f), history.stores(f), miara == "wydatki"
         ctx: dict[str, Any] = {
             "section": "rytm",
             "accounts": labels,
             "f": f,
-            "okres": "all" if start is None else "",
-            "spend": miara == "wydatki",
+            "spend": spend,
             "tickets": r.tickets,
             "timed": r.timed,
-            "grid": heatmap(r, miara == "wydatki"),
-            "stores": store_rows(stores, {} if f.account else labels, store_href),  # podział tylko dla domu
+            "grid": heatmap(r, spend),
+            "stores": store_rows(stores, labels, store_href),
             "points": map_points(stores, store_href),
         }
         if request.headers.get("hx-target") == "rytm-wyniki":  # filtry na żywo: tylko wyniki

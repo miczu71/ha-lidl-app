@@ -9,8 +9,8 @@
   <h2 class="s" id="kiedy-h">Kiedy kupujemy</h2>
   {% if grid %}
   <div class="rt-head">
-    <p class="rt-say">{{ grid.say }} {{ grid.on }} <strong>{{ grid.day }}</strong> między <strong>{{ grid.between }}</strong></p>
-    <div class="seg" role="radiogroup" aria-label="Miara" hx-get="{{ base }}/rytm" hx-trigger="change" hx-include="#filtry-rytmu, [name='miara']" hx-target="#rytm-wyniki" hx-select="#rytm-wyniki" hx-swap="outerHTML" hx-indicator="#rytm-wyniki" hx-replace-url="true">
+    <p class="mw-say rt-say">{{ grid.say }} {{ grid.on }} <strong>{{ grid.day }}</strong> między <strong>{{ grid.between }}</strong></p>
+    <div class="seg" role="radiogroup" aria-label="Miara">
       <label><input type="radio" name="miara" value=""{% if not spend %} checked{% endif %}><span>Wizyty</span></label>
       <label><input type="radio" name="miara" value="wydatki"{% if spend %} checked{% endif %}><span>Wydatki</span></label>
     </div>
@@ -42,9 +42,9 @@
   <ol class="st-list">
     {% for s in stores %}<li><a class="st" href="{{ s.href }}">
       <span class="pos">{{ loop.index }}</span>
-      <span><span class="st__name">{{ s.name }}</span><span class="st__addr">{% if s.address %}{{ s.address }}{% endif %}{% if not s.located %}{% if s.address %} · {% endif %}brak na mapie{% endif %}</span></span>
+      <span><span class="st__name">{{ s.name }}</span><span class="st__addr">{{ s.address }}</span></span>
       <span class="st__visits">{{ s.visits }}<small>{{ s.visits_word }}</small></span>
-      <dl class="st__facts">
+      <dl class="facts st__facts">
         <div><dt>Wydatki</dt><dd>{{ s.paid }}</dd></div>
         <div><dt>Średnio</dt><dd>{{ s.average }}</dd></div>
         {% if s.savings %}<div><dt>Taniej o</dt><dd class="save">{{ s.savings }}</dd></div>{% endif %}

@@ -16,7 +16,9 @@
   <span>Brak historii zakupów. Pobierz ją w zakładce Produkty.</span>
 </p>
 {% else %}
-<form class="ctl" id="filtry-rytmu" method="get" action="{{ base }}/rytm" hx-get="{{ base }}/rytm" hx-trigger="change" hx-include="[name='miara']" hx-target="#rytm-wyniki" hx-select="#rytm-wyniki" hx-swap="outerHTML" hx-indicator="#rytm-wyniki" hx-replace-url="true" hx-sync="this:replace">
+{# filtry i przełącznik miary (w wynikach) odświeżają wyniki na żywo jednym zestawem atrybutów htmx #}
+<div class="stack" hx-get="{{ base }}/rytm" hx-trigger="change" hx-include="#filtry-rytmu, [name='miara']" hx-target="#rytm-wyniki" hx-select="#rytm-wyniki" hx-swap="outerHTML" hx-indicator="#rytm-wyniki" hx-replace-url="true" hx-sync="this:replace">
+<form class="ctl" id="filtry-rytmu" method="get" action="{{ base }}/rytm">
   {% if accounts|length > 1 %}
   <fieldset>
     <legend>Konto</legend>
@@ -29,13 +31,14 @@
   <fieldset>
     <legend>Okres</legend>
     <div class="seg seg--narrow">
-      <label><input type="radio" name="okres" value=""{% if not okres %} checked{% endif %}><span>Ostatnie 12 mies.</span></label>
-      <label><input type="radio" name="okres" value="all"{% if okres %} checked{% endif %}><span>Cała historia</span></label>
+      <label><input type="radio" name="okres" value=""{% if f.start %} checked{% endif %}><span>Ostatnie 12 mies.</span></label>
+      <label><input type="radio" name="okres" value="all"{% if not f.start %} checked{% endif %}><span>Cała historia</span></label>
     </div>
   </fieldset>
   <noscript><div><button class="ds-btn" type="submit">Pokaż</button></div></noscript>
 </form>
 {% include "_rhythm_results.html" %}
+</div>
 <script>
   // Mapa sklepów (Leaflet): punkty z #mapa-dane, rysowana od nowa po każdej podmianie wyników przez htmx.
   (() => {
