@@ -226,7 +226,10 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     heatmapa dzień × godzina (wizyty, przełącznik na wydatki), tabela sklepów z linkiem do Paragonów i mapa sklepów.
     Współrzędne z publicznej listy sklepów Lidl Plus (`stores.lidlplus.com/api/v2/PL`, anonimowo; Nominatim
     niepotrzebny); tabela `store_geo`. Podetapy: E9.0 docs ✅, E9.1 dane ✅, E9.2 rozpoznanie współrzędnych ✅, E9.3 współrzędne
-    w add-onie, E9.4 strona, E9.5 wydanie 0.17.0.
+    w add-onie ✅, E9.4 strona ✅ (makieta zaakceptowana), E9.5 wydanie 0.17.0 ✅. **E9 i E10 ZAKOŃCZONE 2026-10-09:**
+    na żywo 15 z 15 sklepów ze współrzędnymi, 524 z 524 paragonów z godziną, wizyty sklepu = liczba paragonów
+    w Paragonach z jego filtrem (262 = 262). Jeden paragon ma godzinę 01:46 (dane Lidla), więc heatmapa „Cała
+    historia” zaczyna się od 1:00. Do decyzji: nazwa sklepu powtarza adres („Miasto A, ul. X” + „X, kod Miasto A”).
   - **Analiza kuponów i promocji** (pierwotny opis E11; zakres E11 zmieniony 2026-10-07 na listę produktów
     kuponowych — poniższe zostaje jako opcjonalne rozszerzenie później): które kupony faktycznie wykorzystujemy i jak często (`ticket_coupons`: tytuł, opis, rabat),
     ile dają złotówek, jakie promocje cenowe łapiemy („Rabat grupowy”, „Taniej za 2”, opisy rabatów przy pozycjach `items.promo`),
