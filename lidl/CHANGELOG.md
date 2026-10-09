@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.0
+
+- **Rytm (E9/E10):** nowa zakładka. Heatmapa dzień tygodnia × godzina pokazuje, kiedy kupujemy
+  (wizyty albo wydatki, z najczęstszą porą wyróżnioną), z informacją, ile paragonów ma godzinę zakupu.
+  Mapa sklepów: wielkość punktu to liczba wizyt, dymek prowadzi do paragonów sklepu. Lista sklepów:
+  wizyty, wydatki, średni paragon, oszczędności, ostatnia wizyta i podział między konta; kliknięcie
+  otwiera Paragony z filtrem sklepu. Filtry konta i okresu (12 miesięcy albo cała historia) działają na żywo.
+- Współrzędne sklepów pochodzą z publicznej listy sklepów Lidl Plus (bez logowania), pobieranej tylko
+  przy nowym sklepie; kafelki mapy ładuje przeglądarka z OpenStreetMap.
+
 ## 0.16.0
 
 - **Miesiące (E19):** nowa zakładka z podsumowaniem miesiąca w stylu „Wrapped”: ile zostawiliśmy w Lidlu
