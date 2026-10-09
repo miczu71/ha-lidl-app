@@ -164,6 +164,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   `docs/PLAN_E21_laczenie.md`): pary stary `n:` ↔ nowy kod dopasowuje jednorazowo Claude z eksportu, pewne łączą się
   same, wątpliwe do potwierdzenia w Produktach. Podetapy: E21.0 docs ✅, E21.1 eksport (0.14.0, 0.14.1 wszystkie nowe kody) ✅, E21.2 dopasowanie ✅, E21.3 połączenia (uproszczone: import samych pewnych par, bez karty) ✅ 0.14.2.
   **ZAKOŃCZONE 2026-10-08:** 87 połączeń, pokrycie Cen 45% → 47% — luka to głównie zmiana koszyka, nie nazwy. Przegląd wątpliwych par: 18 z 39 przyjętych → 107 połączeń, pokrycie 48%.
+- **E22 Wydajność, domyślne Kupony, gazetka bez stron nie-spożywczych** (zlecone 2026-10-09; plan:
+  `docs/PLAN_E22_wydajnosc.md`): Kupony jako widok domyślny, bez „Sprawdź teraz”; zakładki < 300 ms (na żywo
+  Ceny ~2 s, Kupony ~1,1 s); gazetka pomija strony informacyjne, porównania cen, odzież, narzędzia, rośliny i znicze
+  (żywność + drogeria zostają). Podetapy: E22.0 docs, E22.1 Kupony domyślne, E22.2 cache i Ceny w jednym przejściu,
+  E22.3 lżejsze Kupony, E22.4 filtr stron gazetki, E22.5 wydanie 0.18.0 i pomiar.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
