@@ -488,7 +488,7 @@ def test_coupons_controls_update_in_place(client: TestClient, monkeypatch) -> No
     _seed_regular(client)
     _seed_coupons(client)
     text = client.get("/kupony").text
-    assert 'hx-post="/kupony/produkt/111"' in text and 'hx-select="#p-111"' in text
+    assert 'hx-post="/kupony/produkt/111"' in text and 'hx-target="closest li"' in text
     assert 'hx-post="/kupony/osoba-1/b/aktywuj"' in text
     assert 'hx-trigger="every 3s"' not in text and 'http-equiv="refresh"' not in text
     monkeypatch.setattr(client.app.state.job, "running", True)  # type: ignore[attr-defined]
@@ -760,6 +760,25 @@ def test_search_offers_rare_products_and_star_moves_them_onto_the_list(client: T
     assert "<dt>Produkty</dt><dd>2</dd>" in text and "<dt>Obserwowane</dt><dd>1</dd>" in text
     client.post("/kupony/produkt/333/obserwuj", data={"on": "0"})
     assert "Filet z indyka XXL" not in client.get("/kupony").text
+
+
+def test_toggles_answer_htmx_with_the_row_and_counts_only(client: TestClient) -> None:
+    _seed_regular(client)
+    hx = {"HX-Request": "true"}
+    part = client.post("/kupony/produkt/111", data={"enabled": "0"}, headers=hx).text
+    assert part.lstrip().startswith('<li class="cp" id="p-111"') and 'aria-checked="false"' in part
+    assert '<dl class="facts" id="cp-facts" hx-swap-oob="true">' in part and "<h1" not in part
+    assert "<dt>Z auto-aktywacją</dt><dd>0</dd>" in part
+    part = client.post("/kupony/produkt/111/obserwuj", data={"on": "1"}, headers=hx).text
+    assert 'aria-pressed="true"' in part and 'aria-checked="true"' in part
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "rare", "date": "2026-08-01T10:00:00+00:00"}])
+    history.save_detail(
+        "rare", "S", ParsedReceipt(items=[ReceiptItem("333", "Filet z indyka XXL", 1, 30, 30)])
+    )
+    client.post("/kupony/produkt/333/obserwuj", data={"on": "1"}, headers=hx)
+    part = client.post("/kupony/produkt/333/obserwuj", data={"on": "0"}, headers=hx).text
+    assert 'id="p-333"' in part and 'aria-pressed="false"' in part and 'role="switch"' not in part
 
 
 # --- Ceny (E7) -----------------------------------------------------------------

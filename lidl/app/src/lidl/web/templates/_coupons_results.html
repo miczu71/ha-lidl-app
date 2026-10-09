@@ -1,41 +1,11 @@
 {% from "_macros.html" import no_match, search_count %}
+{% from "_coupons_row.html" import row with context %}
 {# Lista produktów kuponowych; przy wyszukiwaniu na żywo serwer zwraca tylko ten blok. #}
-{% macro star(r) %}
-      <form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}/obserwuj" hx-post="{{ base }}/kupony/produkt/{{ r.id }}/obserwuj" hx-target="#p-{{ r.id }}" hx-select="#p-{{ r.id }}" hx-select-oob="#cp-facts" hx-swap="outerHTML">
-        <input type="hidden" name="on" value="{{ '0' if r.watched else '1' }}">
-        <button class="star" type="submit" aria-pressed="{{ 'true' if r.watched else 'false' }}" aria-label="Obserwuj: {{ r.name }}" title="{{ 'Obserwowany' if r.watched else 'Obserwuj' }}">
-          <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"/></svg>
-        </button>
-      </form>
-{%- endmacro %}
-{% macro product_txt(r) %}
-      <div class="cp__txt">
-        <span class="cp__name">{{ r.name }}</span>
-        <span class="cp__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}</span>
-      </div>
-{%- endmacro %}
 <div id="kupony-wyniki" class="live">
   {{ search_count(rows|length, regular_total, q, clear_href) }}
-  <ul class="cplist">
+  <ul class="cplist" hx-target="closest li" hx-swap="outerHTML">
     {% for r in rows %}
-    <li class="cp" id="p-{{ r.id }}">
-      {{ product_txt(r) }}
-      <div class="cp__side cp__side--ctl">
-      {% if r.matchable %}
-      {{ star(r) }}
-      {% if r.regular %}
-      <form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}" hx-post="{{ base }}/kupony/produkt/{{ r.id }}" hx-target="#p-{{ r.id }}" hx-select="#p-{{ r.id }}" hx-select-oob="#cp-facts" hx-swap="outerHTML">
-        <input type="hidden" name="enabled" value="{{ '0' if r.on else '1' }}">
-        <button class="sw" type="submit" role="switch" aria-checked="{{ 'true' if r.on else 'false' }}" aria-label="Auto-aktywacja kuponów: {{ r.name }}">
-          <span class="sw__track" aria-hidden="true"></span><span class="sw__txt">{{ 'Włączona' if r.on else 'Wyłączona' }}</span>
-        </button>
-      </form>
-      {% endif %}
-      {% else %}
-      <span class="status" title="Produkt znamy tylko ze starych paragonów, bez numeru artykułu z kuponów">bez kodu kuponu</span>
-      {% endif %}
-      </div>
-    </li>
+    {{ row(r) }}
     {% else %}
     {{ no_match(q, " na liście" if others else "") }}
     {% endfor %}
@@ -43,12 +13,9 @@
   {% if others %}
   <h3 class="cp-others">Inne kupowane produkty</h3>
   <p class="hint" style="margin: 0">Kupione rzadziej, niż wymaga lista. Gwiazdka dodaje produkt na górę listy, z auto-aktywacją kuponów.</p>
-  <ul class="cplist">
+  <ul class="cplist" hx-target="closest li" hx-swap="outerHTML">
     {% for r in others %}
-    <li class="cp" id="p-{{ r.id }}">
-      {{ product_txt(r) }}
-      <div class="cp__side cp__side--ctl">{{ star(r) }}</div>
-    </li>
+    {{ row(r) }}
     {% endfor %}
   </ul>
   {% endif %}

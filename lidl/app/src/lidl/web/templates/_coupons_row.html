@@ -1,0 +1,28 @@
+{# Wiersz listy kuponowej (też odpowiedź gwiazdki/przełącznika, E22.3). Cel i podmiana htmx są dziedziczone
+   z `<ul class="cplist">` (`hx-target="closest li"`), serwer zwraca sam wiersz i liczniki (`#cp-facts`, oob). #}
+{% macro star(r) %}
+<form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}/obserwuj" hx-post="{{ base }}/kupony/produkt/{{ r.id }}/obserwuj">
+<input type="hidden" name="on" value="{{ '0' if r.watched else '1' }}">
+<button class="star" type="submit" aria-pressed="{{ 'true' if r.watched else 'false' }}" aria-label="Obserwuj: {{ r.name }}" title="{{ 'Obserwowany' if r.watched else 'Obserwuj' }}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"/></svg></button>
+</form>
+{%- endmacro %}
+{% macro product_txt(r) %}
+<div class="cp__txt"><span class="cp__name">{{ r.name }}</span><span class="cp__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}</span></div>
+{%- endmacro %}
+{% macro row(r) %}
+<li class="cp" id="p-{{ r.id }}">
+{{ product_txt(r) }}
+<div class="cp__side cp__side--ctl">
+{%- if r.matchable %}{{ star(r) }}
+{%- if r.regular %}
+<form method="post" action="{{ base }}/kupony/produkt/{{ r.id }}" hx-post="{{ base }}/kupony/produkt/{{ r.id }}">
+<input type="hidden" name="enabled" value="{{ '0' if r.on else '1' }}">
+<button class="sw" type="submit" role="switch" aria-checked="{{ 'true' if r.on else 'false' }}" aria-label="Auto-aktywacja kuponów: {{ r.name }}"><span class="sw__track" aria-hidden="true"></span><span class="sw__txt">{{ 'Włączona' if r.on else 'Wyłączona' }}</span></button>
+</form>
+{%- endif %}
+{%- else %}
+<span class="status" title="Produkt znamy tylko ze starych paragonów, bez numeru artykułu z kuponów">bez kodu kuponu</span>
+{%- endif %}
+</div>
+</li>
+{%- endmacro %}

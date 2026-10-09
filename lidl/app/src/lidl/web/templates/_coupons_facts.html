@@ -1,0 +1,6 @@
+<dl class="facts" id="cp-facts"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div><dt>Produkty</dt><dd>{{ products }}</dd></div>
+  <div><dt>Z auto-aktywacją</dt><dd>{{ on }}</dd></div>
+  <div><dt>Obserwowane</dt><dd>{{ watched }}</dd></div>
+  {% if no_code %}<div><dt>Bez kodu kuponu</dt><dd>{{ no_code }}</dd></div>{% endif %}
+</dl>

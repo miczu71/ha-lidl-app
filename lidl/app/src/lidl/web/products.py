@@ -89,9 +89,26 @@ def coupon_rows(candidates: list[CouponCandidate]) -> list[dict[str, Any]]:
 def other_rows(products: list[RankedProduct]) -> list[dict[str, Any]]:
     """„Inne kupowane produkty” pod wynikami Szukaj: tylko gwiazdka (E15.4)."""
     return [
-        {"id": p.art_id, "name": p.name, "meta": purchases_meta(p.purchases, p.last_date), "watched": False}
+        {
+            "id": p.art_id,
+            "name": p.name,
+            "meta": purchases_meta(p.purchases, p.last_date),
+            "matchable": True,
+            "watched": False,
+            "regular": False,
+        }
         for p in products
     ]
+
+
+def coupon_facts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Liczniki nad listą „Kupowane regularnie” (też po gwiazdce/przełączniku, E22.3)."""
+    return {
+        "products": sum(r["regular"] for r in rows),
+        "on": sum(r["on"] for r in rows if r["regular"]),
+        "watched": sum(r["watched"] for r in rows),
+        "no_code": sum(not r["matchable"] for r in rows),
+    }
 
 
 def coupon_cards(accounts: list[Account], history: History, now: datetime) -> list[dict[str, Any]]:

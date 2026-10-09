@@ -46,6 +46,7 @@ from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_ch
 from .products import (
     MORE_STEP,
     coupon_cards,
+    coupon_facts,
     coupon_rows,
     effect_view,
     import_status,
@@ -577,11 +578,8 @@ def create_app(settings: Settings) -> FastAPI:
             effect=effect_view(history, service(request).store.list(), date.today(), datetime.now(UTC)),
             rows=[r for r in regular if matches(r["name"], q)],
             regular_total=len(regular),  # wiersze listy, też obserwowane spoza progu
-            products=sum(r["regular"] for r in regular),
             min_purchases=CANDIDATE_MIN_PURCHASES,
-            on=sum(r["on"] for r in regular if r["regular"]),
-            watched=sum(r["watched"] for r in regular),
-            no_code=sum(not r["matchable"] for r in regular),
+            **coupon_facts(regular),
             others=other_rows(history.other_products(q, {r["id"] for r in regular})) if q else [],
         )
         if target == "kupony-wyniki":  # wyszukiwanie na żywo: tylko wyniki
@@ -598,15 +596,28 @@ def create_app(settings: Settings) -> FastAPI:
             log.warning("Ręczna aktywacja kuponu na koncie %s nieudana: %s", slug, err)
         return go(request, f"/kupony#kupony-{quote(slug)}")
 
+    def toggled(request: Request, art_id: str) -> Response:
+        """Po gwiazdce/przełączniku: htmx dostaje sam wiersz i liczniki (E22.3), bez JS — powrót na listę."""
+        if not request.headers.get("hx-request"):
+            return go(request, f"/kupony#p-{quote(art_id)}")
+        history: History = request.app.state.history
+        regular = coupon_rows(history.coupon_candidates())
+        row = next((r for r in regular if r["id"] == art_id), None)
+        if row is None:  # gwiazdka zdjęta z produktu spoza listy: wraca do „Inne kupowane produkty”
+            row = next(iter(other_rows([p for p in history.ranking() if p.art_id == art_id])), None)
+        if row is None:
+            return go(request, f"/kupony#p-{quote(art_id)}")
+        return render(request, "_coupons_toggle.html", r=row, oob=True, **coupon_facts(regular))
+
     @app.post("/kupony/produkt/{art_id}")
     async def toggle_coupon(request: Request, art_id: str, enabled: str = Form(...)) -> Response:
         request.app.state.history.set_auto_activate(art_id, enabled == "1")
-        return go(request, f"/kupony#p-{quote(art_id)}")
+        return toggled(request, art_id)
 
     @app.post("/kupony/produkt/{art_id}/obserwuj")
     async def toggle_watched(request: Request, art_id: str, on: str = Form(...)) -> Response:
         request.app.state.history.set_watched(art_id, on == "1")
-        return go(request, f"/kupony#p-{quote(art_id)}")
+        return toggled(request, art_id)
 
     @app.post("/accounts/{slug}/history")
     async def start_history(request: Request, slug: str) -> Response:
