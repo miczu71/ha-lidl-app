@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.0
+
+- **Kupony na start (E22):** panel otwiera się na zakładce Kupony (pierwsza w menu); Konta są osobną
+  zakładką. Baner podsumowania miesiąca przeniesiony na Kupony. Przycisk „Sprawdź teraz” usunięty —
+  kupony sprawdzają się same codziennie.
+- **Szybsze zakładki:** wyniki liczone z historii (ranking, lista kuponowa, ceny, efekt kuponów) są
+  trzymane w pamięci do następnej zmiany paragonów i liczone z góry po starcie i po porannym imporcie.
+  Gwiazdka i przełącznik auto-aktywacji odświeżają tylko swój wiersz zamiast całej strony.
+- **Gazetka:** strony bez ofert spożywczych (informacje, porównania cen z konkurencją, odzież, narzędzia,
+  dom, rośliny, znicze) nie trafiają do modelu — ok. 25% mniej zapytań na gazetkę. Drogeria zostaje.
+
 ## 0.17.0
 
 - **Rytm (E9/E10):** nowa zakładka. Heatmapa dzień tygodnia × godzina pokazuje, kiedy kupujemy
