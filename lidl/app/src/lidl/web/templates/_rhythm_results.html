@@ -1,0 +1,61 @@
+<div id="rytm-wyniki" class="live stack">
+{% if not tickets %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>W tym okresie nie było zakupów. Wybierz „Cała historia”.</span>
+</p>
+{% else %}
+<section class="card" aria-labelledby="kiedy-h">
+  <h2 class="s" id="kiedy-h">Kiedy kupujemy</h2>
+  {% if grid %}
+  <div class="rt-head">
+    <p class="rt-say">{{ grid.say }} {{ grid.on }} <strong>{{ grid.day }}</strong> między <strong>{{ grid.between }}</strong></p>
+    <div class="seg" role="radiogroup" aria-label="Miara" hx-get="{{ base }}/rytm" hx-trigger="change" hx-include="#filtry-rytmu, [name='miara']" hx-target="#rytm-wyniki" hx-select="#rytm-wyniki" hx-swap="outerHTML" hx-indicator="#rytm-wyniki" hx-replace-url="true">
+      <label><input type="radio" name="miara" value=""{% if not spend %} checked{% endif %}><span>Wizyty</span></label>
+      <label><input type="radio" name="miara" value="wydatki"{% if spend %} checked{% endif %}><span>Wydatki</span></label>
+    </div>
+  </div>
+  <table class="hm">
+    <caption class="vh">{{ "Wydatki" if spend else "Liczba wizyt" }} według dnia tygodnia i godziny</caption>
+    <thead><tr><th scope="col"><span class="vh">Dzień</span></th>{% for h in grid.hours %}<th scope="col">{% if h %}<span>{{ h }}</span>{% endif %}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for row in grid.rows %}<tr><th scope="row">{{ row.day }}</th>{% for c in row.cells %}<td data-l="{{ c.level }}"{% if c.top %} class="hm--top"{% endif %} title="{{ c.label }}"><span class="vh">{{ c.label }}</span></td>{% endfor %}</tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="hm-foot">
+    <p class="sum"><strong>{{ timed }} z {{ tickets }}</strong> paragonów ma godzinę zakupu</p>
+    <div class="hm-key" aria-hidden="true"><span>mniej</span>{% for l in range(6) %}<i data-l="{{ l }}"></i>{% endfor %}<span>więcej</span></div>
+  </div>
+  {% else %}
+  <p class="sum">Paragony z tego okresu nie mają godziny zakupu (starsze paragony jej nie zapisują).</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="gdzie-h">
+  <h2 class="s" id="gdzie-h">Gdzie kupujemy</h2>
+  {% if points %}
+  <div class="map" id="mapa" role="img" aria-label="Mapa sklepów: wielkość punktu to liczba wizyt"></div>
+  <script type="application/json" id="mapa-dane">{{ points|tojson }}</script>
+  {% endif %}
+  {% if stores %}
+  <ol class="st-list">
+    {% for s in stores %}<li><a class="st" href="{{ s.href }}">
+      <span class="pos">{{ loop.index }}</span>
+      <span><span class="st__name">{{ s.name }}</span><span class="st__addr">{% if s.address %}{{ s.address }}{% endif %}{% if not s.located %}{% if s.address %} · {% endif %}brak na mapie{% endif %}</span></span>
+      <span class="st__visits">{{ s.visits }}<small>{{ s.visits_word }}</small></span>
+      <dl class="st__facts">
+        <div><dt>Wydatki</dt><dd>{{ s.paid }}</dd></div>
+        <div><dt>Średnio</dt><dd>{{ s.average }}</dd></div>
+        {% if s.savings %}<div><dt>Taniej o</dt><dd class="save">{{ s.savings }}</dd></div>{% endif %}
+        <div><dt>Ostatnio</dt><dd>{{ s.last }}</dd></div>
+      </dl>
+      {% if s.split %}<span class="st__split"><span class="mw-split" aria-hidden="true">{% for _, n in s.split %}<span style="flex-grow: {{ n }}{% if not n %}; min-width: 0{% endif %}"></span>{% endfor %}</span>{% for label, n in s.split %}{{ label }}: {{ n }}{% if not loop.last %} · {% endif %}{% endfor %}</span>{% endif %}
+    </a></li>{% endfor %}
+  </ol>
+  {% else %}
+  <p class="sum">Paragony z tego okresu nie mają kodu sklepu.</p>
+  {% endif %}
+</section>
+{% endif %}
+</div>

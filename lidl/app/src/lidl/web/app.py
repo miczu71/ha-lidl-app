@@ -13,7 +13,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -55,6 +55,7 @@ from .products import (
     reward_cards,
 )
 from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
+from .rhythm import heatmap, map_points, store_rows
 
 log = logging.getLogger(__name__)
 
@@ -494,6 +495,34 @@ def create_app(settings: Settings) -> FastAPI:
             nav=month_nav(known, month, href),
             receipts=f"{base(request)}/paragony?{urlencode(bounds)}",
         )
+
+    @app.get("/rytm")
+    async def rhythm(request: Request, konto: str = "", okres: str = "", miara: str = "") -> Response:
+        history: History = request.app.state.history
+        labels = account_labels(request)
+        start = None if okres == "all" else date.today() - timedelta(days=365)
+        f = ReceiptFilter(account=konto if konto in labels else None, start=start)
+
+        def store_href(code: str) -> str:  # Paragony z tym samym kontem i okresem
+            query = {"konto": f.account, "sklep": code, "od": start and start.isoformat()}
+            return f"{base(request)}/paragony?{urlencode({k: v for k, v in query.items() if v})}"
+
+        r, stores = history.rhythm(f), history.stores(f)
+        ctx: dict[str, Any] = {
+            "section": "rytm",
+            "accounts": labels,
+            "f": f,
+            "okres": "all" if start is None else "",
+            "spend": miara == "wydatki",
+            "tickets": r.tickets,
+            "timed": r.timed,
+            "grid": heatmap(r, miara == "wydatki"),
+            "stores": store_rows(stores, {} if f.account else labels, store_href),  # podział tylko dla domu
+            "points": map_points(stores, store_href),
+        }
+        if request.headers.get("hx-target") == "rytm-wyniki":  # filtry na żywo: tylko wyniki
+            return render(request, "_rhythm_results.html", **ctx)
+        return render(request, "rhythm.html", **ctx, has_history=history.ticket_count() > 0)
 
     @app.get("/paragony/produkt/{art_id}")
     async def receipt_product(request: Request, art_id: str, q: str = "") -> Response:

@@ -1034,3 +1034,64 @@ def test_accounts_page_links_to_last_month_summary_in_first_week() -> None:
     assert month_banner(lambda: months, date(2026, 10, 7)) == "września 2026"
     assert month_banner(lambda: months, date(2026, 10, 8)) is None
     assert month_banner(dict, date(2026, 10, 1)) is None
+
+
+def _seed_rhythm(client: TestClient) -> tuple[str, str]:
+    """Dwa konta, dwa sklepy (jeden ze współrzędnymi), paragon sprzed roku bez godziny."""
+    history = client.app.state.history  # type: ignore[attr-defined]
+    one, two = _connect(client, "Osoba 1"), _connect(client, "Osoba 2")
+    friday = date.today() - timedelta(days=(date.today().weekday() - 4) % 7 or 7)
+    rows = [
+        (one, "r1", friday, "17:10", "PL0001", 30.0),
+        (one, "r2", friday - timedelta(days=7), "17:40", "PL0001", 20.0),
+        (two, "r3", friday - timedelta(days=6), "10:05", "PL0002", 60.0),
+        (one, "r4", date.today() - timedelta(days=500), None, "PL0001", 9.0),
+    ]
+    for slug, tid, day, at, store, total in rows:
+        history.upsert_tickets(slug, [{"id": tid, "date": f"{day}T10:00:00+00:00", "totalAmount": total}])
+        history.save_detail(
+            tid,
+            None,
+            ParsedReceipt(
+                items=[ReceiptItem("111", "Produkt A", 1, total, total)],
+                purchased_at=f"{day}T{at}:00" if at else None,
+                store={
+                    "code": store,
+                    "name": f"Sklep {store[-1]}",
+                    "address": "Ulica A 1",
+                    "postal": "",
+                    "locality": "",
+                },
+            ),
+        )
+    history.save_store_geo([("PL0001", 51.1, 17.0)])
+    return one, two
+
+
+def test_rhythm_heatmap_says_busiest_slot_and_counts_timed_receipts(client: TestClient) -> None:
+    _seed_rhythm(client)
+    text = client.get("/rytm").text
+    assert 'aria-current="page">Rytm' in text
+    assert "Najczęściej kupujemy w <strong>piątek</strong> między <strong>17 a 18</strong>" in text
+    assert "<strong>3 z 3</strong> paragonów" in text  # paragon sprzed roku poza domyślnym okresem
+    assert "piątek 17:00–18:00: 2 wizyty" in text
+    spend = client.get("/rytm?miara=wydatki&okres=all").text
+    assert "Najwięcej wydajemy w <strong>sobotę</strong> między <strong>10 a 11</strong>" in spend
+    assert "<strong>3 z 4</strong> paragonów" in spend
+
+
+def test_rhythm_stores_link_to_receipts_and_map_skips_stores_without_coordinates(client: TestClient) -> None:
+    one, _ = _seed_rhythm(client)
+    text = client.get("/rytm?okres=all").text
+    assert '<span class="st__name">Sklep 1</span>' in text and "brak na mapie" in text
+    assert "Osoba 1: 3 · Osoba 2: 0" in text
+    assert 'href="/paragony?sklep=PL0002"' in text
+    assert '"lat": 51.1' in text and "PL0002" not in text.split('id="mapa-dane"')[1].split("</script>")[0]
+    live = client.get(f"/rytm?konto={one}", headers={"hx-target": "rytm-wyniki"}).text
+    assert 'id="rytm-wyniki"' in live and "<h1" not in live
+    assert "Sklep 2" not in live and f"konto={one}&amp;sklep=PL0001&amp;od=" in live
+    assert "st__split" not in live  # jedno konto: bez podziału
+
+
+def test_rhythm_without_history_says_where_to_import(client: TestClient) -> None:
+    assert "Pobierz ją w zakładce Produkty" in client.get("/rytm").text

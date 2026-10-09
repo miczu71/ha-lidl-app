@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Rytm — Lidl Plus{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="{{ base }}/static/leaflet.css?v={{ version }}">
+  <script src="{{ base }}/static/leaflet.js?v={{ version }}" defer></script>
+{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Rytm</h1>
+  <p class="lead">Kiedy i w których sklepach robimy zakupy.</p>
+</div>
+
+{% if not has_history %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Brak historii zakupów. Pobierz ją w zakładce Produkty.</span>
+</p>
+{% else %}
+<form class="ctl" id="filtry-rytmu" method="get" action="{{ base }}/rytm" hx-get="{{ base }}/rytm" hx-trigger="change" hx-include="[name='miara']" hx-target="#rytm-wyniki" hx-select="#rytm-wyniki" hx-swap="outerHTML" hx-indicator="#rytm-wyniki" hx-replace-url="true" hx-sync="this:replace">
+  {% if accounts|length > 1 %}
+  <fieldset>
+    <legend>Konto</legend>
+    <div class="seg seg--narrow">
+      <label><input type="radio" name="konto" value=""{% if not f.account %} checked{% endif %}><span>Wszystkie</span></label>
+      {% for slug, label in accounts.items() %}<label><input type="radio" name="konto" value="{{ slug }}"{% if f.account == slug %} checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  {% endif %}
+  <fieldset>
+    <legend>Okres</legend>
+    <div class="seg seg--narrow">
+      <label><input type="radio" name="okres" value=""{% if not okres %} checked{% endif %}><span>Ostatnie 12 mies.</span></label>
+      <label><input type="radio" name="okres" value="all"{% if okres %} checked{% endif %}><span>Cała historia</span></label>
+    </div>
+  </fieldset>
+  <noscript><div><button class="ds-btn" type="submit">Pokaż</button></div></noscript>
+</form>
+{% include "_rhythm_results.html" %}
+<script>
+  // Mapa sklepów (Leaflet): punkty z #mapa-dane, rysowana od nowa po każdej podmianie wyników przez htmx.
+  (() => {
+    let map = null;
+    function draw() {
+      if (map) { map.remove(); map = null; }
+      const el = document.getElementById("mapa"), data = document.getElementById("mapa-dane");
+      if (!el || !data || !window.L) return;
+      const points = JSON.parse(data.textContent), css = getComputedStyle(document.documentElement);
+      const blue = css.getPropertyValue("--blue").trim(), deep = css.getPropertyValue("--blue-deep").trim();
+      const top = Math.max(...points.map((p) => p.visits));
+      map = L.map(el, { scrollWheelZoom: false });
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      }).addTo(map);
+      for (const p of points) {
+        const pop = document.createElement("div"), name = document.createElement("span"),
+          meta = document.createElement("span"), link = document.createElement("a");
+        name.className = "pin__name"; name.textContent = p.name;
+        meta.className = "pin__meta"; meta.textContent = p.meta;
+        link.href = p.href; link.textContent = "Paragony z tego sklepu";
+        pop.append(name, meta, link);
+        L.circleMarker([p.lat, p.lon], {
+          radius: 7 + Math.sqrt(p.visits) * 1.6, color: "#fff", weight: 2,
+          fillColor: p.visits === top ? deep : blue, fillOpacity: 0.88,
+        }).addTo(map).bindPopup(pop);
+      }
+      map.fitBounds(points.map((p) => [p.lat, p.lon]), { padding: [28, 28], maxZoom: 15 });
+    }
+    document.addEventListener("DOMContentLoaded", draw);
+    document.addEventListener("htmx:afterSettle", (e) => { if (e.target.id === "rytm-wyniki") draw(); });
+  })();
+</script>
+{% endif %}
+{% endblock %}
