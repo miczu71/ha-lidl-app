@@ -1,8 +1,9 @@
 """Kupony Lidl Plus: odczyt listy, wybór do aktywacji i aktywacja (E3; rozpoznanie w docs/PLAN_E3_kupony.md).
 
-- Bierzemy tylko sekcje AllStores i SSC. Kupon ogólny (bez kodów artykułów) aktywujemy zawsze, produktowy —
-  gdy któryś kod jest na liście „Kupowane regularnie” (`History.coupon_candidates()`, włączone). Kupony
-  nadchodzące, wygasłe i już aktywne pomijamy; z ogólnych tylko jeden (najniższy rabat).
+- Bierzemy tylko sekcje AllStores i SSC. Aktywujemy kupon produktowy, gdy któryś kod jest na liście
+  „Kupowane regularnie” (`History.coupon_candidates()`, włączone). Kupony ogólne (bez kodów artykułów, np.
+  rabat od kwoty zakupów), tylko do sklepu online, nadchodzące, wygasłe i już aktywne pomijamy — ogólne
+  aktywuje się ręcznie w panelu albo w aplikacji.
 - Ocena karty: aktywne kupony ważone tym, jak często kupujemy trafione produkty (`AccountReport.score`).
 - Aktywacja jest dwuetapowa: pierwszy POST po `id` z listy może się nie udać, ale tworzy egzemplarz kuponu
   konta z nowym `id` (ten sam `promotionId`); wtedy ponawiamy raz z nowym `id`.
@@ -13,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -39,6 +39,7 @@ class Coupon:
     valid_to: datetime
     article_ids: tuple[str, ...]
     activated: bool
+    online: bool = False  # tylko sklep internetowy (`channels` bez `Store`)
 
 
 @dataclass(frozen=True)
@@ -104,6 +105,7 @@ def parse_coupons(payload: dict[str, Any]) -> list[Coupon]:
                     valid_to=_when(validity["end"]),
                     article_ids=tuple(str(a) for a in p.get("articleIds") or []),
                     activated=bool(p.get("isActivated")),
+                    online="Store" not in (p.get("channels") or ["Store"]),
                 )
             )
     return out
@@ -113,30 +115,10 @@ def _day(c: Coupon) -> str:
     return c.valid_to.date().isoformat()
 
 
-def _amount(discount: str) -> float:
-    match = re.search(r"\d+(?:[.,]\d+)?", discount)
-    return float(match.group().replace(",", ".")) if match else float("inf")
-
-
-def select(coupons: list[Coupon], codes: set[str], now: datetime) -> list[Coupon]:
-    """Kupony do aktywacji; z ogólnych (bez kodów artykułów) tylko ten z najniższą kwotą, a gdy któryś jest
-    już aktywny — żaden.
-
-    Ogólne to rabaty od kwoty zakupów: w SSC i pojedynczo w AllStores („min. 200 zł”). Lidl pozwala na
-    jeden aktywny naraz, także przy różnych progach i sekcjach (kolejne dostają 409, 2026-10-08).
-    """
-    chosen = [c for c in coupons if should_activate(c, codes, now)]
-    general = [c for c in chosen if not c.article_ids]
-    keep = None
-    if general and not any(c.activated for c in coupons if not c.article_ids):
-        keep = min(general, key=lambda c: _amount(c.discount))
-    return [c for c in chosen if c.article_ids or c is keep]
-
-
 def should_activate(coupon: Coupon, codes: set[str], now: datetime) -> bool:
-    if coupon.activated or not coupon.valid_from <= now < coupon.valid_to:
+    if coupon.activated or coupon.online or not coupon.valid_from <= now < coupon.valid_to:
         return False
-    return not coupon.article_ids or not codes.isdisjoint(coupon.article_ids)
+    return not codes.isdisjoint(coupon.article_ids)
 
 
 class CouponRunner:
@@ -175,7 +157,7 @@ class CouponRunner:
         candidates = self._history.coupon_candidates(now.date())
         codes = {c.art_id for c in candidates if c.enabled}
         weights = {c.art_id: c.purchases for c in candidates if c.matchable}
-        chosen = select(coupons, codes, now)
+        chosen = [c for c in coupons if should_activate(c, codes, now)]
         done = {} if dry_run else await self._activate(slug, [(c.promotion_id, c.coupon_id) for c in chosen])
         statuses = [
             (c.promotion_id, "would" if dry_run else "activated" if c.promotion_id in done else "failed")

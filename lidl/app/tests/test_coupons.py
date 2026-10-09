@@ -26,6 +26,7 @@ def _promo(
     end: str = LATER,
     active: bool = False,
     discount: str = "-30%",
+    channels: tuple[str, ...] = ("Store",),
 ) -> dict[str, Any]:
     return {
         "id": cid or pid,
@@ -35,6 +36,7 @@ def _promo(
         "validity": {"start": start, "end": end},
         "isActivated": active,
         "articleIds": codes,
+        "channels": list(channels),
     }
 
 
@@ -104,7 +106,7 @@ def test_parse_keeps_only_all_stores_and_ssc() -> None:
     ]
 
 
-async def test_selects_generic_and_matching_skips_rest(tmp_path: Path) -> None:
+async def test_selects_matching_skips_rest(tmp_path: Path) -> None:
     source = FakeSource(
         _payload(
             SSC=[_promo("g1", "Rabat od zakupów", [])],
@@ -119,9 +121,8 @@ async def test_selects_generic_and_matching_skips_rest(tmp_path: Path) -> None:
         )
     )
     result = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
-    assert source.activations == ["g1", "cat"]
+    assert source.activations == ["cat"]
     assert [(a.title, a.status, a.valid_to) for a in result.activations] == [
-        ("Rabat od zakupów", "activated", "2026-10-10"),
         ("Cała kategoria", "activated", "2026-10-10"),
     ]
 
@@ -158,7 +159,9 @@ async def test_failed_coupon_does_not_stop_the_rest(tmp_path: Path) -> None:
 
 
 async def test_rate_limit_stops_the_run(tmp_path: Path) -> None:
-    source = FakeSource(_payload(SSC=[_promo("g1", "Rabat 1", []), _promo("g2", "Rabat 2", [])]))
+    source = FakeSource(
+        _payload(AllStores=[_promo("g1", "Rabat 1", ["111"]), _promo("g2", "Rabat 2", ["111"])])
+    )
     source.fail["g1"] = LidlPlusError("http_429", status=429)
     with pytest.raises(LidlPlusError):
         await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
@@ -227,34 +230,25 @@ async def test_activate_one_uses_fresh_id_and_marks_manual(tmp_path: Path) -> No
     assert (saved["status"], saved["activated"], saved["coupon_id"]) == ("manual", 1, "01a1-x")
 
 
-async def test_ssc_group_activates_only_the_lowest_amount(tmp_path: Path) -> None:
-    source = FakeSource(
-        _payload(SSC=[_promo(f"g{n}", "Ogólny", [], discount=f"{n} zł rabatu*") for n in (30, 10, 20)])
-    )
-    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
-    assert source.activations == ["g10"]
-    assert [(a.discount, a.status) for a in report.activations] == [("10 zł rabatu*", "activated")]
-
-
-async def test_ssc_is_skipped_when_any_one_is_already_active(tmp_path: Path) -> None:
-    # Lidl pozwala na jeden aktywny SSC naraz, także przy innym progu zakupów (na żywo 409, 2026-10-08)
-    source = FakeSource(
-        _payload(SSC=[_promo("g10", "Min. 100 zł", [], active=True), _promo("g20", "Min. 200 zł", [])])
-    )
-    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
-    assert source.activations == [] and report.activations == []
-
-
-async def test_general_coupon_in_all_stores_is_skipped_when_ssc_is_active(tmp_path: Path) -> None:
-    # „min. 200 zł” leży w AllStores, nie w SSC — i też dostaje 409 przy aktywnym rabacie z SSC (2026-10-08)
+async def test_general_and_online_coupons_are_never_auto_activated(tmp_path: Path) -> None:
+    # rabaty od kwoty zakupów użytkownik aktywuje sam (2026-10-09); kupon online nie przyda się w sklepie
     source = FakeSource(
         _payload(
-            SSC=[_promo("g10", "Min. 100 zł", [], active=True)],
-            AllStores=[_promo("g20", "Min. 200 zł", [], discount="20 zł rabatu*")],
+            SSC=[_promo("g10", "Min. 100 zł", [], discount="10 zł rabatu*")],
+            AllStores=[
+                _promo("g20", "Min. 200 zł", [], discount="20 zł rabatu*"),
+                _promo("web", "Produkt A | winnicalidla.pl", ["111"], channels=("OnlineShop",)),
+            ],
         )
     )
-    report = await _runner(source, _history(tmp_path)).run("osoba-1", dry_run=False)
+    history = _history(tmp_path)
+    report = await _runner(source, history).run("osoba-1", dry_run=False)
     assert source.activations == [] and report.activations == []
+    assert {c["promotion_id"]: c["online"] for c in history.account_coupons("osoba-1")} == {
+        "g10": 0,
+        "g20": 0,
+        "web": 1,
+    }
 
 
 async def test_card_score_weights_active_coupons_by_purchase_frequency(tmp_path: Path) -> None:
@@ -272,7 +266,7 @@ async def test_card_score_weights_active_coupons_by_purchase_frequency(tmp_path:
     )
     report = await _runner(source, history).run("osoba-1", dry_run=False)
     weights = {a.title: a.weight for a in report.active}
-    assert weights == {"Rabat od zakupów": 0, "Produkt A": 3, "Kategoria": 3, "Obcy": 0}
+    assert weights == {"Produkt A": 3, "Kategoria": 3, "Obcy": 0}
     assert report.score == 6
 
 

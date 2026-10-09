@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 _T = TypeVar("_T")
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS coupons (
     seen_at TEXT NOT NULL,
     article_ids TEXT NOT NULL DEFAULT '',
     gone_at TEXT,
+    online INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (account, promotion_id)
 );
 CREATE TABLE IF NOT EXISTS ticket_raw (
@@ -570,6 +571,8 @@ class History:
             self._migrate_v2()
         if version < 4:
             self._migrate_v3()
+        if version < 5:
+            self._migrate_v4()
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
@@ -628,6 +631,13 @@ class History:
         with self._db:
             self._db.execute("ALTER TABLE coupons ADD COLUMN article_ids TEXT NOT NULL DEFAULT ''")
             self._db.execute("ALTER TABLE coupons ADD COLUMN gone_at TEXT")
+
+    def _migrate_v4(self) -> None:
+        """v4 → v5: kupon tylko do sklepu online (znacznik w panelu)."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'coupons'").fetchone():
+            return
+        with self._db:
+            self._db.execute("ALTER TABLE coupons ADD COLUMN online INTEGER NOT NULL DEFAULT 0")
 
     def upsert_tickets(self, account: str, tickets: list[dict[str, Any]]) -> int:
         """Dodaje nowe paragony z listy API (zwraca ich liczbę); istniejącym odświeża tylko `articles`."""
@@ -997,14 +1007,15 @@ class History:
         with self._db:
             self._db.executemany(
                 "INSERT INTO coupons (account, promotion_id, coupon_id, title, discount, valid_from,"
-                " valid_to, activated, seen_at, article_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " valid_to, activated, seen_at, article_ids, online) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT (account, promotion_id) DO UPDATE SET coupon_id = excluded.coupon_id,"
                 " title = excluded.title, discount = excluded.discount, valid_from = excluded.valid_from,"
                 " valid_to = excluded.valid_to, activated = excluded.activated, seen_at = excluded.seen_at,"
-                " article_ids = excluded.article_ids, gone_at = NULL",
+                " article_ids = excluded.article_ids, online = excluded.online, gone_at = NULL",
                 [
                     (account, c.promotion_id, c.coupon_id, c.title, c.discount, c.valid_from.isoformat(),
-                     c.valid_to.isoformat(), int(c.activated), seen_at, ",".join(c.article_ids))
+                     c.valid_to.isoformat(), int(c.activated), seen_at, ",".join(c.article_ids),
+                     int(c.online))
                     for c in coupons
                 ],
             )  # fmt: skip

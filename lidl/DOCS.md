@@ -40,12 +40,13 @@ dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz 
 ## Kupony (zakładka Kupony)
 
 Codziennie o godzinie dziennego przebiegu (domyślnie 7:00) add-on pobiera kupony Lidl Plus każdego konta
-(sekcje „wszystkie sklepy” i „Twój sklep”) i aktywuje:
+(sekcje „wszystkie sklepy” i „Twój sklep”) i aktywuje **kupony na produkty kupowane regularnie** — co najmniej
+3 razy w ostatnich 12 miesiącach, na wszystkich kontach razem (lista „Kupowane regularnie”; domyślnie zaznaczone są
+wszystkie, odznacz to, czego nie chcesz).
 
-- **kupony ogólne** (np. rabat od kwoty zakupów); z kuponów „Twój sklep” różniących się tylko kwotą (np. 10/20/30 zł
-  na zakupy od 100 zł) Lidl pozwala aktywować jeden — add-on bierze ten z najniższą kwotą,
-- **kupony na produkty kupowane regularnie** — co najmniej 3 razy w ostatnich 12 miesiącach, na wszystkich kontach
-  razem (lista „Kupowane regularnie”; domyślnie zaznaczone są wszystkie, odznacz to, czego nie chcesz).
+**Kuponów ogólnych** (np. 10 zł rabatu na zakupy od 100 zł) add-on nie aktywuje — Lidl pozwala na jeden aktywny
+naraz, więc wybierasz go sam przyciskiem **Aktywuj** w panelu albo w aplikacji. Kupony tylko do sklepu internetowego
+mają w panelu znacznik „online” i też nie są aktywowane automatycznie.
 
 Kupony, które jeszcze nie obowiązują, aktywuje w dniu ich startu; kuponów już aktywnych nie rusza.
 

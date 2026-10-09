@@ -145,6 +145,7 @@ def coupon_cards(accounts: list[Account], history: History, now: datetime) -> li
                     "until": "do " + fmt_day_month(end.astimezone().date()),
                     "kind": kind,
                     "label": label,
+                    "online": bool(c["online"]),
                 }
             )
         cards.append({"slug": a.slug, "label": a.label, "rows": rows})

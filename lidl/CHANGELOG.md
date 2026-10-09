@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.18.1
+
+- **Kupony ogólne bez auto-aktywacji:** rabaty od kwoty zakupów (np. 10 zł przy zakupach za 100 zł) nie są
+  już aktywowane automatycznie — aktywujesz je sam w panelu albo w aplikacji, gdy planujesz większe zakupy.
+- **Znacznik „online”:** kupony tylko do sklepu internetowego (wg kanału podanego przez Lidl Plus) mają
+  w panelu znacznik i nie są aktywowane automatycznie.
+
 ## 0.18.0
 
 - **Kupony na start (E22):** panel otwiera się na zakładce Kupony (pierwsza w menu); Konta są osobną

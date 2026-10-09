@@ -30,6 +30,7 @@
           <span class="cp__meta"><span>{{ r.discount }}</span><span>{{ r.until }}</span></span>
         </div>
         <div class="cp__side cp__side--stack">
+          {% if r.online %}<span class="tag tag--online">online</span>{% endif %}
           {% if r.shared %}<span class="tag">wspólny</span>{% elif r.shared is false %}<span class="tag tag--own">tylko {{ card.label }}</span>{% endif %}
           {% if r.label %}<span class="status{% if r.kind == 'on' %} status--on{% elif r.kind == 'err' %} status--err{% endif %}">{{ r.label }}</span>{% endif %}
           {% if r.kind in ('', 'would', 'err') %}
