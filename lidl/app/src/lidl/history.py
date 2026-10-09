@@ -19,7 +19,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
@@ -28,6 +28,8 @@ from .text import matches, month_bounds
 if TYPE_CHECKING:
     from .coupons import Coupon
     from .promotions import Promotion
+
+_T = TypeVar("_T")
 
 SCHEMA_VERSION = 4
 CANDIDATE_MIN_PURCHASES = 3
@@ -561,6 +563,20 @@ class History:
             self._migrate_v3()
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        self._rev = 0  # rośnie przy każdym zapisie pozycji albo połączeń — unieważnia `_cached`
+        self._memo: dict[tuple[Any, ...], Any] = {}
+        self._memo_stamp: tuple[int, date] | None = None
+
+    def _cached(self, key: tuple[Any, ...], compute: Callable[[], _T]) -> _T:
+        """Wynik liczony z pozycji paragonów, trzymany do następnego zapisu pozycji lub połączeń i do końca
+        dnia (zakładki nie liczą historii od nowa przy każdym wejściu, E22.2). Wyników nie modyfikować."""
+        stamp = (self._rev, date.today())
+        if stamp != self._memo_stamp:
+            self._memo, self._memo_stamp = {}, stamp
+        if key not in self._memo:
+            self._memo[key] = compute()
+        result: _T = self._memo[key]
+        return result
 
     def _migrate_v1(self) -> None:
         """v1 → v2: nowe kolumny, a pozycje i znacznik pobrania zerowane, więc szczegóły pobiorą się od nowa
@@ -658,6 +674,7 @@ class History:
         row = self._db.execute("SELECT articles FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
         parsed = bool(receipt.items) or (row is not None and row[0] == 0)
         st = receipt.store or {}
+        self._rev += 1
         with self._db:
             self._db.execute("DELETE FROM items WHERE ticket_id = ?", (ticket_id,))
             self._db.executemany(
@@ -730,6 +747,14 @@ class History:
     def _resolver(self) -> Callable[[str, str], str]:
         """Most kodu `n:` → kod HTML: najpierw połączenia z `merges`, potem nazwa pasująca do dokładnie
         jednego kodu HTML."""
+        return self._cached(("resolver",), self._build_resolver)
+
+    def warm(self) -> None:
+        """Liczy z góry najdroższe wyniki Kuponów i Cen (E22.2): po starcie i po porannym imporcie."""
+        self.coupon_candidates()
+        self.price_overview()
+
+    def _build_resolver(self) -> Callable[[str, str], str]:
         merges = dict(self._db.execute("SELECT old, new FROM merges").fetchall())
         names: dict[str, set[str]] = {}
         for art_id, name in self._db.execute(
@@ -748,20 +773,19 @@ class History:
     def set_merges(self, pairs: Iterable[tuple[str, str]]) -> int:
         """Zastępuje wszystkie połączenia E21 (pusta lista cofa całość); zwraca ich liczbę."""
         rows = {old: new for old, new in pairs if old.startswith("n:")}
+        self._rev += 1
         with self._db:
             self._db.execute("DELETE FROM merges")
             self._db.executemany("INSERT INTO merges VALUES (?, ?)", rows.items())
         return len(rows)
 
-    def _products(
-        self,
-        start: date | None = None,
-        end: date | None = None,
-        resolve: Callable[[str, str], str] | None = None,
-    ) -> dict[str, dict[str, Any]]:
+    def _products(self, start: date | None = None, end: date | None = None) -> dict[str, dict[str, Any]]:
         """Pozycje z paragonów z dni `start`–`end` (domknięty, bez zakresu: całość) zebrane per produkt
         (po moście nazw); nazwa i cena z ostatniego zakupu."""
-        resolve = resolve or self._resolver()
+        return self._cached(("products", start, end), lambda: self._collect_products(start, end))
+
+    def _collect_products(self, start: date | None, end: date | None) -> dict[str, dict[str, Any]]:
+        resolve = self._resolver()
         where = ""
         args: list[str] = []
         if start is not None:
@@ -1241,6 +1265,9 @@ class History:
         return series
 
     def _price_rows(self) -> list[_PriceRow]:
+        return self._cached(("price_rows",), self._collect_price_rows)
+
+    def _collect_price_rows(self) -> list[_PriceRow]:
         resolve = self._resolver()
         rows = self._db.execute(
             "SELECT i.art_id, i.name, t.day, i.unit_price, i.total + i.discount, i.quantity, i.is_weight"
@@ -1254,13 +1281,15 @@ class History:
 
     def price_changes(self, today: date | None = None) -> list[PriceChange]:
         """Zmiany ceny półkowej r/r (E7), od największej podwyżki."""
-        rows = self._price_rows()
-        return _price_changes(rows, [r[2] for r in rows], today or date.today())[0]
+        return self.price_overview(today).changes
 
     def price_overview(self, today: date | None = None) -> PriceOverview:
         """Zmiany cen r/r, inflacja koszyka (zmiany ważone wydatkami z 365 dni) i jej seria miesięczna od
         pierwszego miesiąca z rokiem historii (miesiące bez porównania pominięte), z jednego odczytu."""
         today = today or date.today()
+        return self._cached(("prices", today), lambda: self._price_overview(today))
+
+    def _price_overview(self, today: date) -> PriceOverview:
         rows = self._price_rows()
         days = [r[2] for r in rows]
         changes, total = _price_changes(rows, days, today)
@@ -1323,7 +1352,7 @@ class History:
         by_month = self.ticket_months(ReceiptFilter(end=end))
         paid = {m: total for m, (_, total) in by_month.items()}
         resolve = self._resolver()
-        products = self._products(start, end, resolve)
+        products = self._products(start, end)
         earlier = {resolve(art, name) for art, name in self._db.execute(
             "SELECT DISTINCT i.art_id, i.name FROM items i JOIN tickets t ON t.id = i.ticket_id"
             " WHERE t.day < ?",

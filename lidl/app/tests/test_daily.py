@@ -101,6 +101,9 @@ class FakeHistory:
     def __init__(self, watched: set[str] | None = None, coupons: list[WatchedCoupon] | None = None) -> None:
         self.watched, self.coupons, self.sent = watched or set(), coupons or [], set[str]()
 
+    def warm(self) -> None:
+        pass
+
     def watched_codes(self) -> set[str]:
         return self.watched
 

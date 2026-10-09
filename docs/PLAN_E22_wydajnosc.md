@@ -37,8 +37,11 @@ Ingress i sieć ~20 ms, statyki z cache. Czas to obliczenia serwera:
 - **E22.0** ten plan + ROADMAP.
 - **E22.1** `/` pokazuje Kupony (Konta pod `/konta`), baner podsumowania miesiąca na Kuponach; bez „Sprawdź teraz”
   i trasy `POST /kupony/sprawdz` (odświeżanie w trakcie porannego przebiegu zostaje).
-- **E22.2** cache wyników `History` do następnego zapisu (klucz `Connection.total_changes` + dzisiejsza data);
-  seria miesięczna Cen w jednym przejściu (test równoważności ze starym algorytmem).
+- **E22.2** cache wyników `History` (most nazw, produkty per zakres, wiersze i przegląd Cen) do następnego zapisu
+  pozycji lub połączeń i do końca dnia; rozgrzewanie po starcie i po porannym imporcie (`History.warm`).
+  Zmiana względem pierwotnego planu: zamiast `total_changes` (rośnie też przy zapisach kuponów i paczek gazetki
+  co 2 min, cache by nie żył) własny licznik `_rev`; zamiast przepisywać serię Cen na jedno przejście
+  (dokładna mediana w oknach przesuwnych = dużo kodu) — rozgrzewanie, więc 2 s liczy się raz dziennie w tle.
 - **E22.3** lżejsze wiersze „Kupowane regularnie” (mniej HTML i formularzy).
 - **E22.4** filtr stron gazetki + testy na zapisanym JSON gazetki 8.10.
 - **E22.5** wydanie 0.18.0, pomiar na żywo przed/po.

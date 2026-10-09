@@ -117,6 +117,7 @@ def create_app(settings: Settings) -> FastAPI:
                 asyncio.create_task(job.refresh_rewards()),
             ]
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
+                history.warm()
                 # promocje od razu po restarcie, nie dopiero rano
                 loops.append(asyncio.create_task(promotions.refresh()))
                 loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie

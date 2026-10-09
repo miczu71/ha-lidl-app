@@ -83,6 +83,7 @@ class DailyJob:
     async def __call__(self) -> None:
         accounts = self._accounts()
         await self._sync.run_daily([slug for slug, _ in accounts])
+        self._history.warm()  # nowe paragony unieważniły wyniki zakładek
         await self._promotions.refresh()
         await self._coupons(accounts)
         await refresh_store_geo(self._session, self._history)  # nowy sklep z dzisiejszych paragonów, na końcu

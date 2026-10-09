@@ -788,3 +788,14 @@ def test_month_summary_empty_month_and_january(tmp_path: Path) -> None:
     s = h.month_summary("2027-01")
     assert s is not None and (s.prev_paid, s.year_ago_paid, s.hour) == (7.0, None, None)
     assert s.store is not None and s.store.name == "PL0001"  # bez szczegółów: kod sklepu z listy API
+
+
+def test_cached_results_follow_new_items_and_merges(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("o1", "2025-11-02"), _ticket("n1", "2026-05-01")])
+    h.save_detail("o1", "S", _receipt(("n:2", "Winog.jas.bezp.500g", 1, 9.0)))
+    assert [r.art_id for r in h.ranking()] == ["n:2"]
+    h.save_detail("n1", "S", _receipt(("222", "Winogrono j.bezp.500", 1, 10.5)))
+    assert sorted(r.art_id for r in h.ranking()) == ["222", "n:2"]
+    h.set_merges([("n:2", "222")])
+    assert [(r.art_id, r.purchases) for r in h.ranking()] == [("222", 2)]
