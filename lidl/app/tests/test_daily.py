@@ -113,6 +113,9 @@ class FakeHistory:
     def mark_watched_sent(self, keys: list[str], sent_at: str) -> None:
         self.sent.update(keys)
 
+    def stores_without_geo(self) -> set[str]:
+        return set()  # współrzędne komplet → bez zapytania do Lidla
+
 
 def _job(
     log: list[str],

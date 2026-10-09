@@ -29,6 +29,7 @@ from lidl.accounts import AccountStore, slugify
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, MONTHLY, DailyJob, at_time_loop
+from lidl.geo import refresh_store_geo
 from lidl.history import CANDIDATE_MIN_PURCHASES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
@@ -108,7 +109,7 @@ def create_app(settings: Settings) -> FastAPI:
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
 
-            loops = [
+            loops: list[asyncio.Task[Any]] = [
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
                 asyncio.create_task(at_time_loop(EVENING, job.evening)),
                 asyncio.create_task(at_time_loop(MONTHLY, job.monthly)),
@@ -117,6 +118,7 @@ def create_app(settings: Settings) -> FastAPI:
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
                 # promocje od razu, żeby „Sprawdź teraz” po restarcie nie czekało do rana
                 loops.append(asyncio.create_task(promotions.refresh()))
+                loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
                 if settings.leaflet_enabled:
                     loops.append(asyncio.create_task(LeafletRunner(session, history, settings).run_forever()))
             try:

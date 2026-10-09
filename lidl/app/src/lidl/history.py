@@ -89,6 +89,8 @@ CREATE TABLE IF NOT EXISTS watched (art_id TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS merges (old TEXT PRIMARY KEY, new TEXT NOT NULL);
 -- wysłane powiadomienia: obserwowane (`c:`/`p:`, E15) i promocje w porannym (`m:`)
 CREATE TABLE IF NOT EXISTS watched_sent (key TEXT PRIMARY KEY, sent_at TEXT NOT NULL);
+-- współrzędne naszych sklepów z publicznej listy Lidl Plus (E9, `geo.py`); zamknięte sklepy zostają
+CREATE TABLE IF NOT EXISTS store_geo (code TEXT PRIMARY KEY, lat REAL NOT NULL, lon REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS coupons (
     account TEXT NOT NULL,
     promotion_id TEXT NOT NULL,
@@ -343,6 +345,9 @@ class StoreStats:
     savings: float  # rabaty pozycji (dodatnie), jak w `TicketSummary`
     last_day: str
     accounts: dict[str, int]  # konto → paragony
+    location: (
+        tuple[float, float] | None
+    )  # (szerokość, długość) z `store_geo`; None przed pobraniem albo zamknięty
 
     @property
     def average(self) -> float:
@@ -1382,16 +1387,31 @@ class History:
             s["savings"] += t.savings
             s["last_day"] = t.day
             s["accounts"][t.account] += 1
+        geo = self._store_geo()
         return sorted(
             (
                 StoreStats(
                     c, s["name"], s["address"], s["accounts"].total(), round(s["paid"], 2),
-                    round(s["savings"], 2), s["last_day"], dict(s["accounts"]),
+                    round(s["savings"], 2), s["last_day"], dict(s["accounts"]), geo.get(c),
                 )
                 for c, s in found.items()
             ),
             key=lambda s: (-s.tickets, s.name),
         )  # fmt: skip
+
+    def _store_geo(self) -> dict[str, tuple[float, float]]:
+        return {
+            code: (lat, lon) for code, lat, lon in self._db.execute("SELECT code, lat, lon FROM store_geo")
+        }
+
+    def stores_without_geo(self) -> set[str]:
+        """Kody sklepów z paragonów bez współrzędnych (do pobrania w `geo.py`)."""
+        rows = self._db.execute(f"SELECT DISTINCT {_STORE_KEY} FROM tickets t")
+        return {code for (code,) in rows if code} - self._store_geo().keys()
+
+    def save_store_geo(self, rows: Iterable[tuple[str, float, float]]) -> None:
+        with self._db:
+            self._db.executemany("INSERT OR REPLACE INTO store_geo (code, lat, lon) VALUES (?, ?, ?)", rows)
 
     def rhythm(self, f: ReceiptFilter | None = None) -> Rhythm:
         """Paragony wg dnia tygodnia i godziny z paragonu (E9); czas jest lokalny, bez przeliczania strefy."""
