@@ -168,7 +168,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   `docs/PLAN_E22_wydajnosc.md`): Kupony jako widok domyślny, bez „Sprawdź teraz”; zakładki < 300 ms (na żywo
   Ceny ~2 s, Kupony ~1,1 s); gazetka pomija strony informacyjne, porównania cen, odzież, narzędzia, rośliny i znicze
   (żywność + drogeria zostają). Podetapy: E22.0 docs, E22.1 Kupony domyślne, E22.2 cache i Ceny w jednym przejściu,
-  E22.3 lżejsze Kupony, E22.4 filtr stron gazetki, E22.5 wydanie 0.18.0 i pomiar.
+  E22.3 lżejsze Kupony, E22.4 filtr stron gazetki, E22.5 wydanie 0.18.0 i pomiar. **E22 ZAKOŃCZONE 2026-10-09
+  (0.18.0 na żywo):** Ceny 2,0 s → 31 ms, Kupony 1,1 s → 240 ms, Produkty/Miesiące ~200 ms; gazetka 8.10 = 15 paczek zamiast 20.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami

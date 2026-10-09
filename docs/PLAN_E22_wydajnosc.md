@@ -45,3 +45,19 @@ Ingress i sieć ~20 ms, statyki z cache. Czas to obliczenia serwera:
 - **E22.3** lżejsze wiersze „Kupowane regularnie” (mniej HTML i formularzy).
 - **E22.4** filtr stron gazetki + testy na zapisanym JSON gazetki 8.10.
 - **E22.5** wydanie 0.18.0, pomiar na żywo przed/po.
+
+## Wynik (0.18.0 na żywo, 2026-10-09, ten sam pomiar)
+
+| Zakładka | Przed | Po (kolejne wejścia) |
+|---|---|---|
+| Kupony (`/`) | ~1,1 s, 413 KB | ~240 ms, 341 KB |
+| Ceny | ~2,0–2,7 s | ~31 ms |
+| Produkty | ~350–600 ms | ~170–210 ms |
+| Miesiące | ~350 ms | ~205 ms |
+| Paragony | ~150 ms | ~110 ms |
+| Rytm | ~70 ms | ~65 ms |
+| Konta | ~25 ms | ~18 ms |
+
+Wyszukiwanie na żywo w Kuponach ~390 ms (ranking do „Inne kupowane produkty”) — do ewentualnej poprawki.
+Gwiazdka i przełącznik zwracają jeden wiersz (sprawdzone na dev; na żywo bez klikania, żeby nie zmieniać danych).
+Pierwsze wejście w zakładkę po restarcie bywa wolniejsze, dopóki rozgrzewanie (5 s po starcie) nie skończy liczenia.
