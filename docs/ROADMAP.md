@@ -224,8 +224,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     sklepów; decyzja otwarta. Dane: `tickets.store_*`.
   - **E9 + E10 razem: zakładka „Rytm”** (wywiad 2026-10-09; plan: `docs/PLAN_E9_rytm.md`): ciekawostka bez powiadomień;
     heatmapa dzień × godzina (wizyty, przełącznik na wydatki), tabela sklepów z linkiem do Paragonów i mapa sklepów.
-    Współrzędne najpierw z API Lidl Plus, a gdy go brak, jednorazowo z Nominatim (zgoda usera na wysyłkę publicznych
-    adresów sklepów); tabela `store_geo`. Podetapy: E9.0 docs ✅, E9.1 dane, E9.2 rozpoznanie współrzędnych, E9.3 współrzędne
+    Współrzędne z publicznej listy sklepów Lidl Plus (`stores.lidlplus.com/api/v2/PL`, anonimowo; Nominatim
+    niepotrzebny); tabela `store_geo`. Podetapy: E9.0 docs ✅, E9.1 dane ✅, E9.2 rozpoznanie współrzędnych ✅, E9.3 współrzędne
     w add-onie, E9.4 strona, E9.5 wydanie 0.17.0.
   - **Analiza kuponów i promocji** (pierwotny opis E11; zakres E11 zmieniony 2026-10-07 na listę produktów
     kuponowych — poniższe zostaje jako opcjonalne rozszerzenie później): które kupony faktycznie wykorzystujemy i jak często (`ticket_coupons`: tytuł, opis, rabat),

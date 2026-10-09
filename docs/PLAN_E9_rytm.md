@@ -50,7 +50,14 @@ Zakładka Miesiące pokazuje tylko „ulubiony dzień/godzinę/sklep” dla jedn
 - **E9.2 rozpoznanie współrzędnych:** szukam w znanych endpointach i APK 17.11.6 (z E20.0) usługi sklepów
   z `latitude`/`longitude` dla kodu sklepu, potem robię próbny GET skryptem w `~/dev/lidl-spike` (tylko odczyt; jeśli wymaga
   tokenu, uruchamia go user albo ja za wyraźną zgodą). Wynik w `docs/PLAN_E9_rytm.md` i wybór źródła: `lidl` albo `osm`.
-- **E9.3 współrzędne w add-onie:** `geo.py`, tabela `store_geo`, wywołanie w `DailyJob`, testy z mockiem HTTP.
+  **Wynik ✅ (2026-10-09): źródło `lidl`, Nominatim niepotrzebny.** `GET https://stores.lidlplus.com/api/v2/PL`
+  działa anonimowo (200, ~250 kB JSON) i zwraca listę 1015 sklepów: `storeKey` (= nasz `store_code`, np. `PL2399`), `name`,
+  `address`, `postalCode`, `locality`, `location.latitude/longitude`, `province`. Wszystkie 13 kodów sklepów z danych spike'a
+  są na liście. Na liście są tylko działające sklepy, więc zamknięte zostaną bez punktu. Inne ścieżki: `v3/PL/stores` daje 405,
+  a `v2/PL/stores?latitude=…` daje 204.
+- **E9.3 współrzędne w add-onie:** `geo.py`: pobranie listy (raz dziennie po imporcie i przy starcie, tylko gdy któryś kod
+  z paragonów nie ma jeszcze współrzędnych) i zapis współrzędnych naszych sklepów do `store_geo` (zamknięte sklepy nie
+  znikają z mapy). Testy z mockiem HTTP.
 - **E9.4 strona:** makieta, potem akceptacja, potem `/rytm` (heatmapa, mapa, tabela) + testy web; weryfikacja w Playwright na
   danych demo (`~/lidl_dev/receipts_demo` z `seed_receipts_demo.py`, serwer `LIDL_DEV=1`), screenshot + konsola.
 - **E9.5 wydanie 0.17.0:** `simplify`, potem skill `release` (bump `config.yaml` + `pyproject.toml`). Na żywo:
