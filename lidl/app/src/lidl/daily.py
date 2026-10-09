@@ -7,7 +7,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from contextlib import suppress
 from datetime import date, datetime, time, timedelta
 
 import aiohttp
@@ -76,8 +75,7 @@ class DailyJob:
         self._session = session
         self.dry_run = dry_run
         self.last_check: datetime | None = None
-        self.running = False  # kupony w toku (rano albo „Sprawdź teraz”)
-        self._task: asyncio.Task[None] | None = None
+        self.running = False  # kupony w toku (rano); panel odświeża się wtedy sam
 
     def _accounts(self) -> list[tuple[str, str]]:
         return [(a.slug, a.label) for a in self._store.list() if a.connected]
@@ -112,21 +110,6 @@ class DailyJob:
         summary = self._history.month_summary(month)
         if summary and await notify.send(self._session, notify.compose_month(summary), tag=notify.TAG_MONTH):
             self._history.mark_watched_sent([key], datetime.now().isoformat())
-
-    def start_coupons(self) -> bool:
-        """„Sprawdź teraz” w panelu: kupony w tle; False, gdy przebieg już trwa."""
-        if self.running:
-            return False
-        self.running = True  # panel od razu pokazuje „sprawdzam”, zanim zadanie ruszy
-        self._task = asyncio.create_task(self._coupons(self._accounts()))
-        return True
-
-    async def close(self) -> None:
-        """Przerywa kupony uruchomione z panelu (zamykanie add-onu)."""
-        if self._task and not self._task.done():
-            self._task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._task
 
     async def _coupons(self, accounts: list[tuple[str, str]]) -> None:
         self.running = True

@@ -5,6 +5,10 @@
   <p class="lead">Kupony Lidl Plus na każdym koncie. Kupony ogólne i na produkty, które kupujemy regularnie, add-on aktywuje sam; resztę aktywujesz tutaj.</p>
 </div>
 
+{% if month %}
+<a class="mw-banner" href="{{ base }}/miesiace"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Podsumowanie {{ month }} jest gotowe</span></a>
+{% endif %}
+
 {% if dry_run %}
 <p class="notice notice--info" role="status">
   <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>

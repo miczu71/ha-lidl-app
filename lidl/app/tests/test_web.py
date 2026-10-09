@@ -19,7 +19,7 @@ from lidl.web.products import coupon_rows, effect_view, reward_cards
 
 
 def test_index_empty_and_no_store(client: TestClient) -> None:
-    r = client.get("/")
+    r = client.get("/konta")
     assert r.status_code == 200
     assert "Brak kont" in r.text and f"?v={__version__}" in r.text
     assert r.headers["cache-control"] == "no-store"
@@ -40,7 +40,7 @@ def test_add_account_then_login_page_has_pkce_url(client: TestClient) -> None:
     page = client.get("/accounts/osoba-1/login")
     assert "accounts.lidl.com/connect/authorize" in page.text
     assert "code_challenge_method=S256" in page.text
-    assert "Osoba 1" in client.get("/").text
+    assert "Osoba 1" in client.get("/konta").text
 
 
 def test_failed_login_shows_error_and_fresh_url(client: TestClient, monkeypatch) -> None:
@@ -64,13 +64,13 @@ def test_successful_login_redirects(client: TestClient, monkeypatch) -> None:
 
     monkeypatch.setattr(LidlService, "finish_login", ok)
     r = client.post("/accounts/osoba-1/login", data={"pasted": "x"})
-    assert (r.status_code, r.headers["location"]) == (303, "/?m=connected")
+    assert (r.status_code, r.headers["location"]) == (303, "/konta?m=connected")
 
 
 def test_delete_removes_account(client: TestClient) -> None:
     client.post("/accounts", data={"label": "Osoba 1"})
     client.post("/accounts/osoba-1/delete")
-    assert "Brak kont" in client.get("/").text
+    assert "Brak kont" in client.get("/konta").text
 
 
 def test_non_ingress_peer_is_rejected(settings: Settings) -> None:
@@ -197,7 +197,7 @@ def test_start_history_import_redirects_and_starts_full_sync(client: TestClient,
 def test_start_history_import_for_unconnected_account_goes_to_accounts(client: TestClient) -> None:
     slug = client.app.state.service.store.create("Osoba 2").slug  # type: ignore[attr-defined]
     r = client.post(f"/accounts/{slug}/history")
-    assert r.status_code == 303 and r.headers["location"] == "/?m=expired"
+    assert r.status_code == 303 and r.headers["location"] == "/konta?m=expired"
 
 
 def test_resume_restarts_only_accounts_with_history(client: TestClient, monkeypatch) -> None:
@@ -214,7 +214,13 @@ def test_resume_restarts_only_accounts_with_history(client: TestClient, monkeypa
 
 def test_navigation_links_products_and_accounts(client: TestClient) -> None:
     text = client.get("/").text
-    assert 'href="/produkty"' in text and 'aria-current="page"' in text
+    assert 'href="/produkty"' in text and 'href="/konta"' in text and 'aria-current="page"' in text
+
+
+def test_root_is_coupons_without_check_now(client: TestClient) -> None:
+    text = client.get("/").text
+    assert '<h1 class="t">Kupony</h1>' in text and "Sprawdź teraz" not in text
+    assert client.post("/kupony/sprawdz").status_code == 404
 
 
 def test_products_warns_about_unparsed_receipts_and_partial_kpi(client: TestClient) -> None:
@@ -375,7 +381,7 @@ def test_coupons_page_lists_current_coupons_per_account(client: TestClient) -> N
     assert "Kupon do aktywacji" in text and "Aktywowałbym" in text
     assert 'action="/kupony/osoba-1/b/aktywuj"' in text
     assert "Kupon nadchodzący" in text and 'action="/kupony/osoba-1/c/aktywuj"' not in text
-    assert "Tryb próbny" in text and 'action="/kupony/sprawdz"' in text
+    assert "Tryb próbny" in text
 
 
 def test_manual_activation_redirects_back(client: TestClient, monkeypatch) -> None:
@@ -390,15 +396,6 @@ def test_manual_activation_redirects_back(client: TestClient, monkeypatch) -> No
     r = client.post("/kupony/osoba-1/b/aktywuj")
     assert r.status_code == 303 and r.headers["location"] == "/kupony#kupony-osoba-1"
     assert calls == [("osoba-1", "b")]
-
-
-def test_check_now_starts_coupon_run_once(client: TestClient, monkeypatch) -> None:
-    started: list[bool] = []
-    job = client.app.state.job  # type: ignore[attr-defined]
-    monkeypatch.setattr(job, "start_coupons", lambda: started.append(True) or True)
-    r = client.post("/kupony/sprawdz")
-    assert r.status_code == 303 and r.headers["location"] == "/kupony"
-    assert started == [True]
 
 
 def test_ranking_follows_chart_range_and_shows_year_for_old_purchases(client: TestClient) -> None:
@@ -492,17 +489,10 @@ def test_coupons_controls_update_in_place(client: TestClient, monkeypatch) -> No
     _seed_coupons(client)
     text = client.get("/kupony").text
     assert 'hx-post="/kupony/produkt/111"' in text and 'hx-select="#p-111"' in text
-    assert 'hx-post="/kupony/osoba-1/b/aktywuj"' in text and 'hx-post="/kupony/sprawdz"' in text
+    assert 'hx-post="/kupony/osoba-1/b/aktywuj"' in text
     assert 'hx-trigger="every 3s"' not in text and 'http-equiv="refresh"' not in text
     monkeypatch.setattr(client.app.state.job, "running", True)  # type: ignore[attr-defined]
     assert 'hx-trigger="every 3s"' in client.get("/kupony").text
-
-
-def test_check_now_keeps_the_search_phrase(client: TestClient, monkeypatch) -> None:
-    job = client.app.state.job  # type: ignore[attr-defined]
-    monkeypatch.setattr(job, "start_coupons", lambda: True)
-    r = client.post("/kupony/sprawdz", data={"q": "ser plastry"})
-    assert r.status_code == 303 and r.headers["location"] == "/kupony?q=ser+plastry"
 
 
 def test_polling_during_check_returns_only_account_cards(client: TestClient) -> None:

@@ -117,7 +117,7 @@ def create_app(settings: Settings) -> FastAPI:
                 asyncio.create_task(job.refresh_rewards()),
             ]
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
-                # promocje od razu, żeby „Sprawdź teraz” po restarcie nie czekało do rana
+                # promocje od razu po restarcie, nie dopiero rano
                 loops.append(asyncio.create_task(promotions.refresh()))
                 loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
                 if settings.leaflet_enabled:
@@ -128,7 +128,6 @@ def create_app(settings: Settings) -> FastAPI:
                 for loop in loops:
                     loop.cancel()
                 await asyncio.gather(*loops, return_exceptions=True)
-                await job.close()
                 await sync.close()
 
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
@@ -175,21 +174,19 @@ def create_app(settings: Settings) -> FastAPI:
     async def healthz() -> PlainTextResponse:
         return PlainTextResponse("ok")
 
-    @app.get("/")
+    @app.get("/konta")
     async def index(request: Request, m: str = "", a: str = "") -> Response:
         svc = service(request)
         msg = None
         if m in MESSAGES:
             kind, text = MESSAGES[m]
             msg = {"kind": kind, "text": text}
-        history: History = request.app.state.history
         return render(
             request,
             "index.html",
             section="konta",
             accounts=svc.store.list(),
             msg=msg,
-            month=month_banner(lambda: history.ticket_months(ReceiptFilter()), date.today()),
         )
 
     @app.post("/accounts")
@@ -197,7 +194,7 @@ def create_app(settings: Settings) -> FastAPI:
         try:
             slugify(label)
         except ValueError:
-            return go(request, "/")
+            return go(request, "/konta")
         account = service(request).store.create(label)
         return go(request, f"/accounts/{account.slug}/login")
 
@@ -207,7 +204,7 @@ def create_app(settings: Settings) -> FastAPI:
         try:
             account = svc.store.get(slug)
         except KeyError:
-            return go(request, "/")
+            return go(request, "/konta")
         return render(request, "login.html", account=account, auth_url=svc.begin_login(slug), error=None)
 
     @app.post("/accounts/{slug}/login")
@@ -216,7 +213,7 @@ def create_app(settings: Settings) -> FastAPI:
         try:
             account = svc.store.get(slug)
         except KeyError:
-            return go(request, "/")
+            return go(request, "/konta")
         try:
             await svc.finish_login(slug, pasted)
         except (LidlPlusError, LidlPlusAuthError) as err:
@@ -228,20 +225,20 @@ def create_app(settings: Settings) -> FastAPI:
                 auth_url=svc.begin_login(slug),
                 error=_login_error(err),
             )
-        return go(request, "/?m=connected")
+        return go(request, "/konta?m=connected")
 
     @app.post("/accounts/{slug}/check")
     async def check(request: Request, slug: str) -> Response:
         try:
             await service(request).check(slug)
         except KeyError:
-            return go(request, "/")
+            return go(request, "/konta")
         except LidlPlusCannotConnect:
-            return go(request, "/?m=offline")
+            return go(request, "/konta?m=offline")
         except LidlPlusError as err:
             log.warning("Sprawdzenie konta %s nieudane: %s", slug, type(err).__name__)
-            return go(request, "/?m=expired")
-        return go(request, "/?m=checked")
+            return go(request, "/konta?m=expired")
+        return go(request, "/konta?m=checked")
 
     @app.post("/accounts/{slug}/delete")
     async def delete(request: Request, slug: str) -> Response:
@@ -249,7 +246,7 @@ def create_app(settings: Settings) -> FastAPI:
             await service(request).delete(slug)
         except KeyError:
             pass
-        return go(request, "/?m=deleted")
+        return go(request, "/konta?m=deleted")
 
     def receipt_href(request: Request, ticket_id: str, product: str = "") -> str:
         query = f"?{urlencode({'produkt': product})}#szukany" if product else ""
@@ -554,6 +551,7 @@ def create_app(settings: Settings) -> FastAPI:
         view = detail_view(d, account_labels(request), produkt or None, lambda a: purchases_href(request, a))
         return render(request, "receipt.html", receipt=view, back=back, from_product=bool(produkt))
 
+    @app.get("/")  # widok domyślny panelu (E22.1)
     @app.get("/kupony")
     async def coupons(request: Request) -> Response:
         history: History = request.app.state.history
@@ -585,13 +583,11 @@ def create_app(settings: Settings) -> FastAPI:
             no_code=sum(not r["matchable"] for r in regular),
             others=other_rows(history.other_products(q, {r["id"] for r in regular})) if q else [],
         )
-        live = target == "kupony-wyniki"  # wyszukiwanie na żywo: tylko wyniki
-        return render(request, "_coupons_results.html" if live else "coupons.html", **ctx)
-
-    @app.post("/kupony/sprawdz")
-    async def check_coupons(request: Request, q: str = Form("")) -> Response:
-        request.app.state.job.start_coupons()
-        return go(request, f"/kupony?{urlencode({'q': q})}" if q else "/kupony")
+        if target == "kupony-wyniki":  # wyszukiwanie na żywo: tylko wyniki
+            return render(request, "_coupons_results.html", **ctx)
+        # push podsumowania miesiąca otwiera stronę główną panelu, więc baner jest tutaj
+        month = month_banner(lambda: history.ticket_months(ReceiptFilter()), date.today())
+        return render(request, "coupons.html", **ctx, month=month)
 
     @app.post("/kupony/{slug}/{promotion_id}/aktywuj")
     async def activate_coupon(request: Request, slug: str, promotion_id: str) -> Response:
@@ -616,9 +612,9 @@ def create_app(settings: Settings) -> FastAPI:
         try:
             account = service(request).store.get(slug)
         except KeyError:
-            return go(request, "/")
+            return go(request, "/konta")
         if not account.connected:
-            return go(request, "/?m=expired")
+            return go(request, "/konta?m=expired")
         request.app.state.sync.start(slug, full=True)
         return go(request, "/produkty")
 

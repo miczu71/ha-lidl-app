@@ -199,11 +199,10 @@ select.field { appearance: auto; }
 .cp__side--ctl { width: auto; display: grid; grid-template-columns: 44px 152px; align-items: center; }
 .cp__side--ctl > .status { grid-column: 2; justify-self: start; }
 h3.cp-others { margin: var(--space-5) 0 var(--space-1); font: 700 18px/24px var(--font-sans); }
-.cp form, .kt-run form { margin: 0; }
+.cp form { margin: 0; }
 .cp__side--stack { width: auto; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-1); }
 .cp__side--stack .status { margin-left: 0; white-space: nowrap; }
 .cp__side--stack .ds-btn--link { margin-right: calc(-1 * var(--space-3)); }
-.kt-run { justify-content: space-between; }
 .tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); border-bottom: 1.5px solid var(--line); }
 .tab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 64px; padding: var(--space-3) var(--space-4); border: 0; border-bottom: 3px solid transparent; margin-bottom: -1.5px; background: transparent; color: var(--ink); text-align: left; font: inherit; cursor: pointer; }
 .tab + .tab { border-left: 1.5px solid var(--line); }

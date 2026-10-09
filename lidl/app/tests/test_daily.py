@@ -225,14 +225,6 @@ async def test_nothing_watched_sends_no_extra_push(monkeypatch: pytest.MonkeyPat
     assert tags == [notify.TAG]
 
 
-async def test_start_coupons_reports_running_at_once_and_only_one_run() -> None:
-    log: list[str] = []
-    job = _job(log)
-    assert job.start_coupons() is True and job.running is True
-    assert job.start_coupons() is False
-    await job.close()
-
-
 @pytest.mark.parametrize(("days", "sent"), [(0, True), (1, False)])
 async def test_evening_reminds_only_about_cards_expiring_today(
     monkeypatch: pytest.MonkeyPatch, days: int, sent: bool
