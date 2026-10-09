@@ -189,10 +189,15 @@ class LeafletRunner:
                 continue
             async with self._session.get(f.json_url) as r:
                 r.raise_for_status()
-                batches = page_batches(await r.json(content_type=None))
+                flyer = await r.json(content_type=None)
+            batches = page_batches(flyer)
             self._history.add_leaflet(f.id, batches, f.start, f.end)
             pages = sum(map(len, batches))
-            log.info("Gazetka %s (%s–%s): %d stron w %d paczkach", f.id, f.start, f.end, pages, len(batches))
+            skipped = len((flyer.get("flyer") or {}).get("pages") or []) - pages
+            log.info(
+                "Gazetka %s (%s–%s): %d stron w %d paczkach, pominięte nie-spożywcze: %d",
+                f.id, f.start, f.end, pages, len(batches), skipped,
+            )  # fmt: skip
 
     async def _process(self, batch: dict[str, Any], now: datetime) -> None:
         fid, n, pages = batch["flyer_id"], batch["batch"], batch["pages"]

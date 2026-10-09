@@ -133,6 +133,15 @@ CREATE TABLE IF NOT EXISTS leaflet_matches (
     end TEXT NOT NULL,
     PRIMARY KEY (flyer_id, art_id, start)
 );
+-- licznik zmian pozycji i połączeń (E22.2): klucz cache wyników `History._cached`, liczony przez SQLite,
+-- więc żaden zapis nie omija unieważnienia
+CREATE TABLE IF NOT EXISTS revision (n INTEGER NOT NULL);
+INSERT INTO revision SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM revision);
+CREATE TRIGGER IF NOT EXISTS items_ins AFTER INSERT ON items BEGIN UPDATE revision SET n = n + 1; END;
+CREATE TRIGGER IF NOT EXISTS items_upd AFTER UPDATE ON items BEGIN UPDATE revision SET n = n + 1; END;
+CREATE TRIGGER IF NOT EXISTS items_del AFTER DELETE ON items BEGIN UPDATE revision SET n = n + 1; END;
+CREATE TRIGGER IF NOT EXISTS merges_ins AFTER INSERT ON merges BEGIN UPDATE revision SET n = n + 1; END;
+CREATE TRIGGER IF NOT EXISTS merges_del AFTER DELETE ON merges BEGIN UPDATE revision SET n = n + 1; END;
 """
 
 
@@ -563,20 +572,24 @@ class History:
             self._migrate_v3()
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-        self._rev = 0  # rośnie przy każdym zapisie pozycji albo połączeń — unieważnia `_cached`
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
 
     def _cached(self, key: tuple[Any, ...], compute: Callable[[], _T]) -> _T:
         """Wynik liczony z pozycji paragonów, trzymany do następnego zapisu pozycji lub połączeń i do końca
         dnia (zakładki nie liczą historii od nowa przy każdym wejściu, E22.2). Wyników nie modyfikować."""
-        stamp = (self._rev, date.today())
+        stamp = (self._db.execute("SELECT n FROM revision").fetchone()[0], date.today())
         if stamp != self._memo_stamp:
             self._memo, self._memo_stamp = {}, stamp
         if key not in self._memo:
             self._memo[key] = compute()
         result: _T = self._memo[key]
         return result
+
+    def warm(self) -> None:
+        """Liczy z góry najdroższe wyniki Kuponów i Cen (E22.2): po starcie i po porannym imporcie."""
+        self.coupon_candidates()
+        self.price_overview()
 
     def _migrate_v1(self) -> None:
         """v1 → v2: nowe kolumny, a pozycje i znacznik pobrania zerowane, więc szczegóły pobiorą się od nowa
@@ -674,7 +687,6 @@ class History:
         row = self._db.execute("SELECT articles FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
         parsed = bool(receipt.items) or (row is not None and row[0] == 0)
         st = receipt.store or {}
-        self._rev += 1
         with self._db:
             self._db.execute("DELETE FROM items WHERE ticket_id = ?", (ticket_id,))
             self._db.executemany(
@@ -749,11 +761,6 @@ class History:
         jednego kodu HTML."""
         return self._cached(("resolver",), self._build_resolver)
 
-    def warm(self) -> None:
-        """Liczy z góry najdroższe wyniki Kuponów i Cen (E22.2): po starcie i po porannym imporcie."""
-        self.coupon_candidates()
-        self.price_overview()
-
     def _build_resolver(self) -> Callable[[str, str], str]:
         merges = dict(self._db.execute("SELECT old, new FROM merges").fetchall())
         names: dict[str, set[str]] = {}
@@ -773,7 +780,6 @@ class History:
     def set_merges(self, pairs: Iterable[tuple[str, str]]) -> int:
         """Zastępuje wszystkie połączenia E21 (pusta lista cofa całość); zwraca ich liczbę."""
         rows = {old: new for old, new in pairs if old.startswith("n:")}
-        self._rev += 1
         with self._db:
             self._db.execute("DELETE FROM merges")
             self._db.executemany("INSERT INTO merges VALUES (?, ?)", rows.items())
@@ -1135,6 +1141,9 @@ class History:
         """Kupony i promocje (zł, rabaty z pozycji) z ostatnich 30 dni vs średnia 30-dniowa z 365 dni przed
         `ADDON_START`; bez paragonów w tamtym okresie nie ma procentu."""
         today = today or date.today()
+        return self._cached(("effect", today), lambda: self._coupon_effect(today))
+
+    def _coupon_effect(self, today: date) -> CouponEffect:
         base_start = ADDON_START - timedelta(days=365)
         row = self._db.execute(
             "SELECT"

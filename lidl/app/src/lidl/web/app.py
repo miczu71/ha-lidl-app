@@ -62,6 +62,7 @@ log = logging.getLogger(__name__)
 
 HERE = Path(__file__).parent
 INGRESS_PROXY = "172.30.32.2"
+WARM_DELAY = 5  # s
 PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
 RECEIPT_PARAMS = ("q", "konto", "sklep", "od", "do", "limit")
 
@@ -84,6 +85,12 @@ def _login_error(err: Exception) -> str:
     if isinstance(err, LidlPlusCannotConnect):
         return "Brak połączenia z Lidl. Zaloguj się od nowa, gdy sieć wróci."
     return LOGIN_ERRORS.get(str(err), "Logowanie nie powiodło się. Zaloguj się od nowa.")
+
+
+async def warm_later(history: History) -> None:
+    """Cache zakładek (E22.2) po starcie serwera, żeby panel odpowiadał od razu, a nie po ~3 s liczenia."""
+    await asyncio.sleep(WARM_DELAY)
+    history.warm()
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -118,7 +125,7 @@ def create_app(settings: Settings) -> FastAPI:
                 asyncio.create_task(job.refresh_rewards()),
             ]
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
-                history.warm()
+                loops.append(asyncio.create_task(warm_later(history)))
                 # promocje od razu po restarcie, nie dopiero rano
                 loops.append(asyncio.create_task(promotions.refresh()))
                 loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
@@ -368,12 +375,8 @@ def create_app(settings: Settings) -> FastAPI:
         def link(**over: object) -> str:
             return query_link(request, "/ceny", params, ("q", "kolejnosc", "limit"), **over)
 
-        overview = None
-        if request.headers.get("hx-target") == "ceny-wyniki":  # wyszukiwanie i kolejność na żywo: sama lista
-            changes = history.price_changes(today)
-        else:
-            overview = history.price_overview(today)
-            changes = overview.changes
+        overview = history.price_overview(today)
+        changes = overview.changes
         found = [c for c in changes if matches(c.name, q)] if q else changes
         if order == "wydatki":
             found = sorted(found, key=lambda c: (-c.spend, c.name))
@@ -387,7 +390,7 @@ def create_app(settings: Settings) -> FastAPI:
             "rows": price_rows(found[:limit], lambda a: prices_href(request, a)),
             "more_href": link(limit=limit + MORE_STEP) if len(found) > limit else None,
         }
-        if overview is None:
+        if request.headers.get("hx-target") == "ceny-wyniki":  # wyszukiwanie i kolejność na żywo: sama lista
             return render(request, "_prices_list.html", **ctx)
         ups, downs = top_changes(changes)
         ctx.update(
@@ -598,14 +601,12 @@ def create_app(settings: Settings) -> FastAPI:
 
     def toggled(request: Request, art_id: str) -> Response:
         """Po gwiazdce/przełączniku: htmx dostaje sam wiersz i liczniki (E22.3), bez JS — powrót na listę."""
-        if not request.headers.get("hx-request"):
-            return go(request, f"/kupony#p-{quote(art_id)}")
         history: History = request.app.state.history
         regular = coupon_rows(history.coupon_candidates())
         row = next((r for r in regular if r["id"] == art_id), None)
         if row is None:  # gwiazdka zdjęta z produktu spoza listy: wraca do „Inne kupowane produkty”
             row = next(iter(other_rows([p for p in history.ranking() if p.art_id == art_id])), None)
-        if row is None:
+        if row is None or not request.headers.get("hx-request"):
             return go(request, f"/kupony#p-{quote(art_id)}")
         return render(request, "_coupons_toggle.html", r=row, oob=True, **coupon_facts(regular))
 
