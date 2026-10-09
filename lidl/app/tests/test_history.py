@@ -629,6 +629,45 @@ def test_stores_most_frequent_first_with_latest_name(tmp_path: Path) -> None:
     ]
 
 
+def test_stores_totals_accounts_and_last_visit(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    b, a = _receipts(tmp_path).stores()
+    assert (b.paid, b.savings, b.average, b.last_day) == (13.5, 2.0, 6.75, "2026-05-20")
+    assert b.accounts == {"osoba-1": 1, "osoba-2": 1}
+    assert (a.paid, a.savings, a.last_day, a.address) == (19.0, 0.0, "2026-06-01", "")
+    only_2 = _receipts(tmp_path).stores(ReceiptFilter(account="osoba-2"))
+    assert [(s.code, s.tickets, s.paid) for s in only_2] == [("PL0002", 1, 4.0), ("PL0001", 1, 7.0)]
+
+
+def test_store_address_from_newest_receipt(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a", [_ticket("t1", "2026-01-01"), _ticket("t2", "2026-02-01"), _ticket("t3", "2026-03-01")]
+    )
+    for tid, street in (("t1", "Ulica A 1"), ("t2", "Ulica A 2")):
+        store = {
+            "code": "PL0001",
+            "name": "Sklep X",
+            "address": street,
+            "postal": "00-001",
+            "locality": "Miasto A",
+        }
+        h.save_detail(tid, None, ParsedReceipt(items=[ReceiptItem("1", "Mleko", 1, 2.0, 2.0)], store=store))
+    (s,) = h.stores()  # t3 bez szczegółów nie kasuje adresu
+    assert (s.name, s.address, s.tickets) == ("Sklep X", "Ulica A 2, 00-001 Miasto A", 3)
+
+
+def test_rhythm_counts_weekday_hour_and_untimed(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    h = _receipts(tmp_path)
+    r = h.rhythm()
+    assert (r.visits, r.spend, r.tickets, r.timed) == ({(4, 19): 1}, {(4, 19): 9.5}, 4, 1)  # n1: piątek 19:39
+    r2 = h.rhythm(ReceiptFilter(account="osoba-2"))
+    assert (r2.visits, r2.tickets, r2.timed) == ({}, 2, 0)
+
+
 def test_ticket_detail_lines_resolve_products(tmp_path: Path) -> None:
     h = _receipts(tmp_path)
     d = h.ticket("n1")

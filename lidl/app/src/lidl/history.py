@@ -334,10 +334,30 @@ class TicketDetail:
 
 
 @dataclass(frozen=True)
-class StoreCount:
+class StoreStats:
     code: str
     name: str
+    address: str  # „ulica, kod miejscowość” z najnowszego paragonu ze szczegółami; pusty bez nich
     tickets: int
+    paid: float
+    savings: float  # rabaty pozycji (dodatnie), jak w `TicketSummary`
+    last_day: str
+    accounts: dict[str, int]  # konto → paragony
+
+    @property
+    def average(self) -> float:
+        return round(self.paid / self.tickets, 2)
+
+
+@dataclass(frozen=True)
+class Rhythm:
+    visits: dict[tuple[int, int], int]  # (dzień tygodnia 0 = pon., godzina) → paragony
+    spend: dict[tuple[int, int], float]
+    tickets: int  # wszystkie w filtrze; starsze bez godziny są tylko tu
+
+    @property
+    def timed(self) -> int:
+        return sum(self.visits.values())
 
 
 @dataclass(frozen=True)
@@ -366,7 +386,7 @@ class MonthSummary:
     biggest: TicketSummary
     weekday: int  # najczęstszy dzień tygodnia (0 = poniedziałek)
     hour: int | None  # najczęstsza godzina; None, gdy paragony bez godziny
-    store: StoreCount | None
+    store: StoreStats | None
     accounts: dict[str, tuple[int, float]]  # konto → (paragony, zapłacono)
     all_time_paid: float  # od pierwszego paragonu do końca miesiąca
     first_no: int  # numer pierwszego paragonu miesiąca w całej historii
@@ -1339,21 +1359,54 @@ class History:
             months=len(paid),
         )
 
-    def stores(self, f: ReceiptFilter | None = None) -> list[StoreCount]:
-        """Sklepy z paragonów (nazwa z najnowszego), od najczęstszych; bez kodu sklepu pomijane."""
-        counts: dict[str, int] = {}
-        names: dict[str, str] = {}
+    def stores(self, f: ReceiptFilter | None = None) -> list[StoreStats]:
+        """Sklepy z paragonów (nazwa i adres z najnowszego), od najczęstszych; bez kodu sklepu pomijane."""
+        found: dict[str, dict[str, Any]] = {}
         where, args = _receipt_where(f or ReceiptFilter())
-        for code, name in self._db.execute(
-            f"SELECT {_STORE_KEY}, NULLIF(t.store_name, '') FROM tickets t WHERE 1 = 1{where} ORDER BY t.day",
+        for row in self._db.execute(
+            f"SELECT {_TICKET_COLS}, {_STORE_KEY}, NULLIF(t.store_name, ''), t.store_address, t.store_postal,"
+            f" t.store_locality FROM tickets t WHERE 1 = 1{where} ORDER BY t.day",
             args,
         ):
-            if code:
-                counts[code] = counts.get(code, 0) + 1
-                names[code] = name or names.get(code) or code
+            t = _summary(row[:_TICKET_N])
+            code, name, street, postal, locality = row[_TICKET_N:]
+            if not code:
+                continue
+            s = found.setdefault(
+                code, {"name": code, "address": "", "paid": 0.0, "savings": 0.0, "accounts": Counter()}
+            )
+            s["name"] = name or s["name"]
+            if street:
+                s["address"] = ", ".join(x for x in (street, f"{postal or ''} {locality or ''}".strip()) if x)
+            s["paid"] += t.total
+            s["savings"] += t.savings
+            s["last_day"] = t.day
+            s["accounts"][t.account] += 1
         return sorted(
-            (StoreCount(c, names[c], n) for c, n in counts.items()), key=lambda s: (-s.tickets, s.name)
-        )
+            (
+                StoreStats(
+                    c, s["name"], s["address"], s["accounts"].total(), round(s["paid"], 2),
+                    round(s["savings"], 2), s["last_day"], dict(s["accounts"]),
+                )
+                for c, s in found.items()
+            ),
+            key=lambda s: (-s.tickets, s.name),
+        )  # fmt: skip
+
+    def rhythm(self, f: ReceiptFilter | None = None) -> Rhythm:
+        """Paragony wg dnia tygodnia i godziny z paragonu (E9); czas jest lokalny, bez przeliczania strefy."""
+        where, args = _receipt_where(f or ReceiptFilter())
+        visits: Counter[tuple[int, int]] = Counter()
+        spend: dict[tuple[int, int], float] = {}
+        tickets = 0
+        for row in self._db.execute(f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where}", args):
+            t = _summary(row)
+            tickets += 1
+            if t.time:
+                key = (date.fromisoformat(t.day).weekday(), int(t.time[:2]))
+                visits[key] += 1
+                spend[key] = round(spend.get(key, 0.0) + t.total, 2)
+        return Rhythm(dict(visits), spend, tickets)
 
     def ticket(self, ticket_id: str) -> TicketDetail | None:
         """Paragon z pozycjami (kod produktu po moście nazw) i użytymi kuponami."""
