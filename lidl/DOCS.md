@@ -54,9 +54,9 @@ na `notify.family` jedno powiadomienie (gdy któraś karta ma aktywne kupony na 
 oceną (aktywne kupony na produkty z listy, ważone tym, jak często je kupujecie), w treści kupony każdej karty w skrócie,
 wspólne w linii „Obie:” i te, które kończą się dziś. Dotknięcie otwiera panel; nowe powiadomienie zastępuje poprzednie.
 
-Zakładka pokazuje
-kupony tego tygodnia na każdym koncie ze statusem; resztę aktywujesz przyciskiem **Aktywuj**, a **Sprawdź teraz**
-uruchamia sprawdzenie od razu. Pole **Szukaj** filtruje kupony i listę produktów w trakcie pisania.
+Zakładka Kupony otwiera się jako pierwsza i pokazuje
+kupony tego tygodnia na każdym koncie ze statusem; resztę aktywujesz przyciskiem **Aktywuj**. Kupony sprawdzają się
+same codziennie o `run_time`. Pole **Szukaj** filtruje kupony i listę produktów w trakcie pisania.
 
 **Tryb próbny:** dopóki opcja **Automatyczna aktywacja kuponów** jest wyłączona (domyślnie), add-on niczego nie
 aktywuje — panel i powiadomienie pokazują tylko, co zostałoby aktywowane.
