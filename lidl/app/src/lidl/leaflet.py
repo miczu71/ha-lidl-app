@@ -8,6 +8,9 @@
   przeciążenie (5xx), sieć albo zły klucz → następny model, a gdy żaden nie odpowie — ta sama paczka
   za `RETRY`. Postęp jest w bazie (restart nie marnuje limitów).
 - Kupony Lidl Plus z gazetki pomijamy — aktywuje je E3.
+- Strony bez spożywczych ofert (informacje, porównania cen z konkurencją, odzież, narzędzia, dom, rośliny,
+  znicze) odpadają po opisie strony `altText` przed wysłaniem — mniej zapytań do limitu (E22.4). Drogeria
+  zostaje (na liście są ręczniki, papier toaletowy). Wzorzec tylko z pewnych słów: wątpliwa strona zostaje.
 """
 
 from __future__ import annotations
@@ -32,6 +35,13 @@ log = logging.getLogger(__name__)
 OVERVIEW_URL = "https://endpoints.leaflets.schwarz/v4/overview"
 OVERVIEW_PARAMS = {"client_locale": "lidl/pl-PL"}
 LEAFLET_NAME = "Gazetka"
+NON_FOOD = re.compile(
+    r"^(informacja|reklama|kampania|ekologiczna inicjatywa)\b|^strona \d+ - "
+    r"|porówna|analiz\w* (porównawcz|cenow)|zestawienie cenowe"
+    r"|odzież|\bbut(y|ów)\b|doniczk|znicz|zabawk|bielizn|piżam|swet(er|r)|jeans|kurtk|skarpet|mebl|dekorac"
+    r"|parkside|silvercrest|livarno|crivit|esmara|ernesto|auriol|melinera|florabest|playtive|odkurzacz|narzędz",
+    re.IGNORECASE,
+)
 BATCH = 5
 PAUSE = 120  # s między zapytaniami do modelu
 IDLE = 3600  # s między sprawdzeniami nowej gazetki, gdy nic nie czeka
@@ -105,7 +115,9 @@ def find_flyers(overview: dict[str, Any]) -> list[Flyer]:
 
 def page_batches(flyer: dict[str, Any]) -> list[list[Any]]:
     pages = [
-        [p["number"], p["image"]] for p in (flyer.get("flyer") or {}).get("pages") or [] if p.get("image")
+        [p["number"], p["image"]]
+        for p in (flyer.get("flyer") or {}).get("pages") or []
+        if p.get("image") and not NON_FOOD.search(p.get("altText") or "")
     ]
     return [pages[i : i + BATCH] for i in range(0, len(pages), BATCH)]
 

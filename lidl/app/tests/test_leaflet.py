@@ -45,6 +45,23 @@ def test_page_batches_of_five() -> None:
     assert [[p[0] for p in b] for b in batches] == [[1, 2, 3, 4, 5], [6, 7]]
 
 
+def test_page_batches_skip_pages_without_food_offers() -> None:
+    alt = [
+        "Oferta promocyjna na masło ekstra 83% z kuponem w aplikacji",
+        "Informacja o zasadach promocji i regulaminie sklepów",
+        "Porównanie cen chleba żytniego w sklepach Lidl i u konkurencji",
+        "Oferta odzieży damskiej marki Esmara",
+        "Prezentacja odkurzacza do liści marki Parkside",
+        "Oferta zniczy i wkładów parafinowych",
+        "Artykuły chemii domowej, w tym ręcznik papierowy",  # drogeria zostaje
+        "Oferta napojów roślinnych i soków",
+        "Strona 96 - Gazetka - 8.10",
+        "",  # bez opisu: zostaje
+    ]
+    flyer = {"flyer": {"pages": [{"number": n, "image": "x", "altText": a} for n, a in enumerate(alt, 1)]}}
+    assert [p[0] for b in page_batches(flyer) for p in b] == [1, 7, 8, 10]
+
+
 def test_parse_matches_validates_and_skips_lidl_plus_coupons() -> None:
     payload = {
         "matches": [
