@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import Counter
 from collections.abc import Awaitable, Callable
 from datetime import date, datetime, time, timedelta
+from time import monotonic
+from typing import Any
 
 import aiohttp
 
@@ -24,6 +27,17 @@ log = logging.getLogger(__name__)
 
 EVENING = time(18, 0)
 MONTHLY = time(10, 0)  # po porannym imporcie paragonów (`run_time`)
+EVENTS_KEEP = timedelta(days=30)  # dziennik zakładki Status (E23)
+STATUS_LABELS = {"activated": "aktywowane", "would": "aktywowałbym", "failed": "nieudane"}
+
+
+def _ms(began: float) -> int:
+    return round((monotonic() - began) * 1000)
+
+
+def _counts(statuses: dict[str, int]) -> str:
+    """„aktywowane 5, nieudane 1” — nowe decyzje przebiegu; „bez zmian”, gdy żadnej."""
+    return ", ".join(f"{STATUS_LABELS.get(k, k)} {n}" for k, n in statuses.items()) or "bez zmian"
 
 
 def seconds_until(now: datetime, at: time) -> float:
@@ -76,17 +90,40 @@ class DailyJob:
         self.dry_run = dry_run
         self.last_check: datetime | None = None
         self.running = False  # kupony w toku (rano); panel odświeża się wtedy sam
+        self._step = ""  # krok przebiegu w toku i wyniki kroków — do wpisu w dzienniku (E23)
+        self._report: dict[str, Any] = {}
 
     def _accounts(self) -> list[tuple[str, str]]:
         return [(a.slug, a.label) for a in self._store.list() if a.connected]
 
     async def __call__(self) -> None:
+        """Przebieg z wpisem w dzienniku (E23): wynik kroków albo krok, na którym przerwał."""
+        began = monotonic()
+        self._history.prune_events(datetime.now() - EVENTS_KEEP)
         accounts = self._accounts()
-        await self._sync.run_daily([slug for slug, _ in accounts])
-        self._history.warm()  # nowe paragony unieważniły wyniki zakładek
-        await self._promotions.refresh()
-        await self._coupons(accounts)
-        await refresh_store_geo(self._session, self._history)  # nowy sklep z dzisiejszych paragonów, na końcu
+        self._report = {"accounts": len(accounts)}
+        try:
+            self._step = "paragony"
+            await self._sync.run_daily([slug for slug, _ in accounts])
+            self._history.warm()  # nowe paragony unieważniły wyniki zakładek
+            self._step = "promocje"
+            await self._promotions.refresh()
+            await self._coupons(accounts)
+            self._step = "sklepy"  # nowy sklep z dzisiejszych paragonów, na końcu
+            await refresh_store_geo(self._session, self._history)
+        except Exception as err:
+            self._history.log_event(
+                "daily", "error", f"Poranny przebieg przerwany ({self._step}): {type(err).__name__}: {err}",
+                {**self._report, "step": self._step}, duration_ms=_ms(began),
+            )  # fmt: skip
+            raise
+        r = self._report
+        self._history.log_event(
+            "daily", "ok",
+            f"Poranny przebieg: kupony {_counts(r['coupons'])}, promocje {r['promotions']}, "
+            + ("powiadomienie wysłane" if r["notified"] else "bez powiadomienia"),
+            r, duration_ms=_ms(began),
+        )  # fmt: skip
 
     async def refresh_rewards(self) -> dict[str, Rewards]:
         """Nagrody połączonych kont (też przy starcie add-onu, żeby panel nie czekał do rana)."""
@@ -95,8 +132,13 @@ class DailyJob:
     async def evening(self) -> None:
         """Zdrapki wygasające dziś — osobne powiadomienie (nie zastępuje porannego)."""
         message = notify.compose_expiring(await self.refresh_rewards(), date.today())
-        if message:
-            await notify.send(self._session, message, tag=notify.TAG_SCRATCH)
+        sent = await notify.send(self._session, message, tag=notify.TAG_SCRATCH) if message else False
+        summary = (
+            "przypomnienie wysłane" if sent else "nieudane" if message else "brak zdrapek wygasających dziś"
+        )
+        self._history.log_event(
+            "daily", "warn" if message and not sent else "ok", f"Zdrapki 18:00: {summary}"
+        )
 
     async def monthly(self, today: date | None = None) -> None:
         """1. dnia miesiąca podsumowanie poprzedniego; raz (klucz `s:<RRRR-MM>` w `watched_sent`), bez
@@ -111,20 +153,28 @@ class DailyJob:
         summary = self._history.month_summary(month)
         if summary and await notify.send(self._session, notify.compose_month(summary), tag=notify.TAG_MONTH):
             self._history.mark_watched_sent([key], datetime.now().isoformat())
+            self._history.log_event("daily", "ok", f"Podsumowanie {month}: powiadomienie wysłane")
 
     async def _coupons(self, accounts: list[tuple[str, str]]) -> None:
         self.running = True
         try:
+            self._step = "kupony"
             results = await self._runner.run_all(accounts, dry_run=self.dry_run)
+            self._step = "nagrody"
             rewards = await self._rewards.run_all(accounts)
         finally:
             self.running = False
         self.last_check = datetime.now()
+        self._step = "powiadomienie"
         promos = self._promotions.active(date.today())
+        statuses = Counter(a.status for r in results.values() for a in r.activations)
+        self._report.update(promotions=len(promos), coupons=dict(statuses), rewards=len(rewards))
         sent = self._history.watched_sent_keys()
         fresh = _unsent("m", promos, sent)  # poranne: każda promocja raz, choć trwa kilka dni
         message = notify.compose(results, rewards, dry_run=self.dry_run, promos=list(fresh.values()))
-        if message and await notify.send(self._session, message) and not self.dry_run:
+        notified = await notify.send(self._session, message) if message else False
+        self._report["notified"] = notified
+        if notified and not self.dry_run:
             self._history.mark_watched_sent(fresh, datetime.now().isoformat())
         await self._watched(dict(accounts), promos, sent)
 

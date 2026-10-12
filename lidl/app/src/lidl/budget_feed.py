@@ -14,13 +14,14 @@ import logging
 from datetime import date, timedelta
 from itertools import islice
 from pathlib import Path
+from time import monotonic
 from typing import Any
 
 import aiohttp
 
 from .accounts import write_json_atomic
 from .history import CATEGORIES, History
-from .llm import ModelRefused, TryLater, ask_json
+from .llm import ModelRefused, TryLater, ask_json, log_attempt
 from .settings import Settings
 
 log = logging.getLogger(__name__)
@@ -83,8 +84,12 @@ class BudgetFeed:
         try:
             count = write_export(self._history, self.path)
             log.info("Budżet: %d paragonów w %s", count, self.path)
-        except Exception:
+            self._history.log_event(
+                "budget", "ok", f"Plik dla Budżetu: {count} paragonów", {"receipts": count}
+            )
+        except Exception as err:
             log.exception("Budżet: eksport nieudany")
+            self._history.log_event("budget", "error", f"Plik dla Budżetu: eksport nieudany ({err})")
 
     async def classify_new(self, today: date) -> int:
         """Kategorie nowych produktów od modelu; zwraca liczbę zapisanych."""
@@ -94,13 +99,16 @@ class BudgetFeed:
         content = [{"type": "text", "text": PROMPT + "\n".join(f"{c}: {n}" for c, n in new.items())}]
         s = self._settings
         for model in s.llm_vision_models:
+            began = monotonic()
             try:
                 payload = await ask_json(
                     self._session, s.llm_url, s.llm_key, model, content, "categories", SCHEMA
                 )
+                log_attempt(self._history, "kategorie", model, began)
                 break
             except (ModelRefused, TryLater) as err:
                 log.info("Kategorie produktów: model %s: %s, następny", model, err)
+                log_attempt(self._history, "kategorie", model, began, err)
         else:
             log.info("Kategorie produktów: żaden model nie odpowiedział, %d produktów czeka", len(new))
             return 0

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from time import monotonic
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
+
+if TYPE_CHECKING:
+    from .history import History
 
 LLM_TIMEOUT = aiohttp.ClientTimeout(total=180)
 
@@ -16,6 +20,24 @@ class ModelRefused(Exception):
 
 class TryLater(Exception):
     """Przeciążenie albo sieć — spróbuj później."""
+
+
+class KeyRejected(TryLater):
+    """Zły klucz (401/403) — błąd konfiguracji, nie limit modelu; alert w zakładce Status (E23)."""
+
+
+def log_attempt(history: History, use: str, model: str, began: float, err: Exception | None = None) -> None:
+    """Wpis dziennika o jednym zapytaniu (E23): `use` = gazetka | kategorie."""
+    outcome, level = (
+        ("ok", "ok") if err is None
+        else ("key", "error") if isinstance(err, KeyRejected)
+        else ("refused", "warn") if isinstance(err, ModelRefused)
+        else ("overloaded", "warn")
+    )  # fmt: skip
+    history.log_event(
+        "ai", level, f"{use}: {model} — " + (str(err) if err else "OK"),
+        {"use": use, "model": model, "outcome": outcome}, duration_ms=round((monotonic() - began) * 1000),
+    )  # fmt: skip
 
 
 async def ask_json(
@@ -42,7 +64,7 @@ async def ask_json(
             if r.status >= 500:
                 raise TryLater(f"HTTP {r.status}")
             if r.status in (401, 403):  # zły klucz — to błąd konfiguracji, nie limit modelu
-                raise TryLater(f"klucz odrzucony (HTTP {r.status}), sprawdź opcję llm_key")
+                raise KeyRejected(f"klucz odrzucony (HTTP {r.status}), sprawdź opcję llm_key")
             if r.status >= 400:
                 raise ModelRefused(f"HTTP {r.status}")
             out = await r.json(content_type=None)

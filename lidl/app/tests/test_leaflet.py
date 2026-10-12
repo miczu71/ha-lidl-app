@@ -15,6 +15,7 @@ from lidl.settings import Settings, load_settings
 
 START, END = date(2026, 10, 8), date(2026, 10, 10)
 NOW = datetime(2026, 10, 7, 12, 0)
+START_DT = datetime(2026, 1, 1)
 FLYER_URL = "https://leaflets.example/v4/flyer?id=g1"
 
 OVERVIEW = {
@@ -242,3 +243,21 @@ def test_leaflet_match_started_earlier_is_still_active_until_its_end(tmp_path: P
     runner = PromotionRunner(None, h)  # type: ignore[arg-type]
     assert [p.title for p in runner.active(START + timedelta(days=1))] == ["Produkt A z gazetki"]
     assert runner.active(END + timedelta(days=1)) == []
+
+
+async def test_each_model_attempt_and_batch_lands_in_event_log(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    runner = LeafletRunner(FakeSession([(429, ""), _answer()]), h, _settings(tmp_path))  # type: ignore[arg-type]
+    await runner.step(NOW)
+    ai = [(e.detail["model"], e.detail["outcome"], e.level) for e in reversed(h.events(START_DT, area="ai"))]
+    assert ai == [("model-a", "refused", "warn"), ("model-b", "ok", "ok")]
+    leaflet = [e.summary for e in reversed(h.events(START_DT, area="leaflet"))]
+    assert leaflet[0].startswith("Nowa gazetka") and leaflet[1].startswith("Paczka 1 ")
+
+
+async def test_rejected_key_is_marked_in_event_log(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    runner = LeafletRunner(FakeSession([(401, ""), (401, "")]), h, _settings(tmp_path))  # type: ignore[arg-type]
+    await runner.step(NOW)
+    assert {e.detail["outcome"] for e in h.events(START_DT, area="ai")} == {"key"}
+    assert all(e.level == "error" for e in h.events(START_DT, area="ai"))

@@ -112,6 +112,7 @@ def create_app(settings: Settings) -> FastAPI:
             service = LidlService(AccountStore(settings.accounts_dir), session)
             history = History(settings.data_dir / "history.db")
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
+            history.log_event("system", "ok", f"Start add-onu {__version__}", {"version": __version__})
             feed = BudgetFeed(session, history, settings)
             sync = HistorySync(service, history, after=feed.refresh)
             runner = CouponRunner(service, history)
@@ -260,7 +261,14 @@ def create_app(settings: Settings) -> FastAPI:
             return go(request, "/konta?m=offline")
         except LidlPlusError as err:
             log.warning("Sprawdzenie konta %s nieudane: %s", slug, type(err).__name__)
+            request.app.state.history.log_event(
+                "account", "error", f"Sesja {slug}: sprawdzenie nieudane ({type(err).__name__})",
+                {"account": slug, "auth": isinstance(err, LidlPlusAuthError)},
+            )  # fmt: skip
             return go(request, "/konta?m=expired")
+        request.app.state.history.log_event(
+            "account", "ok", f"Sesja {slug}: działa", {"account": slug, "auth": False}
+        )
         return go(request, "/konta?m=checked")
 
     @app.post("/accounts/{slug}/delete")

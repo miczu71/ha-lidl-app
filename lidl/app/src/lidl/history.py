@@ -10,6 +10,7 @@ można przerwać i wznowić w dowolnym miejscu.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import statistics
 import zlib
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from .promotions import Promotion
 
 _T = TypeVar("_T")
+
+log = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 5
 CANDIDATE_MIN_PURCHASES = 3
@@ -155,6 +158,16 @@ CREATE TRIGGER IF NOT EXISTS items_upd AFTER UPDATE ON items BEGIN UPDATE revisi
 CREATE TRIGGER IF NOT EXISTS items_del AFTER DELETE ON items BEGIN UPDATE revision SET n = n + 1; END;
 CREATE TRIGGER IF NOT EXISTS merges_ins AFTER INSERT ON merges BEGIN UPDATE revision SET n = n + 1; END;
 CREATE TRIGGER IF NOT EXISTS merges_del AFTER DELETE ON merges BEGIN UPDATE revision SET n = n + 1; END;
+-- dziennik techniczny dla zakładki Status (E23): przebiegi, import, gazetka, AI, powiadomienia, sesje; 30 dni
+CREATE TABLE IF NOT EXISTS events (
+    ts TEXT NOT NULL,
+    area TEXT NOT NULL,
+    level TEXT NOT NULL CHECK (level IN ('ok', 'warn', 'error')),
+    summary TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '{}',
+    duration_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS events_ts ON events (ts);
 """
 
 
@@ -193,6 +206,18 @@ class WatchedCoupon:
     title: str
     discount: str
     valid_to: date
+
+
+@dataclass(frozen=True)
+class Event:
+    """Wpis dziennika technicznego (E23); `detail` bez tokenów i kluczy — liczby, kody HTTP, nazwy modeli."""
+
+    ts: datetime
+    area: str
+    level: str  # ok | warn | error
+    summary: str
+    detail: dict[str, Any]
+    duration_ms: int | None
 
 
 @dataclass(frozen=True)
@@ -1125,6 +1150,42 @@ class History:
 
     def watched_sent_keys(self) -> set[str]:
         return {r[0] for r in self._db.execute("SELECT key FROM watched_sent")}
+
+    def log_event(
+        self,
+        area: str,
+        level: str,
+        summary: str,
+        detail: dict[str, Any] | None = None,
+        *,
+        duration_ms: int | None = None,
+        at: datetime | None = None,
+    ) -> None:
+        """Wpis dziennika; błąd zapisu tylko w logu — dziennik nigdy nie przerywa przebiegu."""
+        ts = (at or datetime.now()).isoformat(timespec="seconds")
+        try:
+            with self._db:
+                self._db.execute(
+                    "INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)",
+                    (ts, area, level, summary, json.dumps(detail or {}, ensure_ascii=False), duration_ms),
+                )
+        except sqlite3.Error:
+            log.exception("Dziennik: zapis nieudany (%s: %s)", area, summary)
+
+    def events(self, since: datetime, area: str | None = None, limit: int = 500) -> list[Event]:
+        """Wpisy od `since`, najnowsze pierwsze."""
+        rows = self._db.execute(
+            "SELECT * FROM events WHERE ts >= ? AND (? IS NULL OR area = ?)"
+            " ORDER BY ts DESC, rowid DESC LIMIT ?",
+            (since.isoformat(timespec="seconds"), area, area, limit),
+        )
+        return [
+            Event(datetime.fromisoformat(ts), a, lvl, s, json.loads(d), ms) for ts, a, lvl, s, d, ms in rows
+        ]
+
+    def prune_events(self, before: datetime) -> None:
+        with self._db:
+            self._db.execute("DELETE FROM events WHERE ts < ?", (before.isoformat(timespec="seconds"),))
 
     def mark_watched_sent(self, keys: Iterable[str], sent_at: str) -> None:
         with self._db:

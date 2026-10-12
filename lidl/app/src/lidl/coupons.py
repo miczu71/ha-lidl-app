@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
 
-from .client.exceptions import LidlPlusError
+from .client.exceptions import LidlPlusAuthError, LidlPlusError
 from .history import History
 from .sync import is_fatal
 
@@ -142,9 +142,19 @@ class CouponRunner:
         out: dict[str, AccountReport] = {}
         for slug, label in accounts:
             try:
-                out[label] = await self.run(slug, dry_run=dry_run)
+                out[label] = report = await self.run(slug, dry_run=dry_run)
             except LidlPlusError as err:
                 log.warning("Kupony konta %s: przebieg przerwany (%s)", slug, err)
+                self._history.log_event(
+                    "coupons", "error", f"Kupony {slug}: przebieg przerwany ({err})",
+                    {"account": slug, "auth": isinstance(err, LidlPlusAuthError)},
+                )  # fmt: skip
+                continue
+            active, decisions = len(report.active), len(report.activations)
+            self._history.log_event(
+                "coupons", "ok", f"Kupony {slug}: {active} aktywnych, {decisions} nowych decyzji",
+                {"account": slug, "auth": False, "active": active, "decisions": decisions},
+            )  # fmt: skip
         return out
 
     async def run(self, slug: str, *, dry_run: bool) -> AccountReport:

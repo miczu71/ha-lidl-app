@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -123,6 +124,8 @@ class HistorySync:
         progress.running, progress.done, progress.total, progress.error = True, 0, 0, None
         new = details = skipped = unparsed = 0
         stopped: str | None = None
+        auth = False
+        began = time.monotonic()
         try:
             try:
                 new = await self._import_lists(slug, full)
@@ -147,6 +150,7 @@ class HistorySync:
                     progress.done = details
             except LidlPlusError as err:
                 stopped = str(err) or type(err).__name__
+                auth = isinstance(err, LidlPlusAuthError)
                 progress.error = stopped
                 log.warning("Import konta %s przerwany: %s", slug, stopped)
         finally:
@@ -155,6 +159,23 @@ class HistorySync:
             "Import konta %s: %d nowych, %d szczegółów, %d pominiętych, %d nierozpoznanych",
             slug, new, details, skipped, unparsed,
         )  # fmt: skip
+        self._history.log_event(
+            "sync",
+            "error" if stopped else "ok",
+            f"Import {slug}: {new} nowych, {details} szczegółów"
+            + (f", przerwany: {stopped}" if stopped else ""),
+            {
+                "account": slug,
+                "full": full,
+                "new": new,
+                "details": details,
+                "skipped": skipped,
+                "unparsed": unparsed,
+                "stopped": stopped,
+                "auth": auth,
+            },  # fmt: skip
+            duration_ms=round((time.monotonic() - began) * 1000),
+        )
         return SyncResult(new, details, skipped, stopped, unparsed)
 
     async def _import_lists(self, slug: str, full: bool) -> int:

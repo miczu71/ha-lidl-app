@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -216,3 +217,16 @@ async def test_after_hook_once_per_manual_import_and_once_per_daily_run(history:
     await sync.run_daily(["osoba-1", "osoba-2"])
     await asyncio.sleep(0)
     assert len(calls) == 2  # dwa konta, jeden hook
+
+
+async def test_import_result_lands_in_event_log(history: History) -> None:
+    src = FakeSource({0: ["a", "b"]})
+    src.fail_detail["a"] = LidlPlusAuthError("unauthorized")
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=False)
+    (event,) = history.events(datetime(2000, 1, 1), area="sync")
+    assert event.level == "error"
+    assert event.detail == {
+        "account": "osoba-1", "full": False, "new": 2, "details": 1, "skipped": 0, "unparsed": 0,
+        "stopped": "unauthorized", "auth": True,
+    }  # fmt: skip

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +70,9 @@ async def test_refresh_classifies_only_new_products_and_writes_file(
         feed = BudgetFeed(session, h, _settings(tmp_path))
         await feed.refresh(date(2026, 10, 12))
     assert asked == ["m1", "m2"]
+    since = datetime(2000, 1, 1)
+    assert [e.detail["outcome"] for e in reversed(h.events(since, area="ai"))] == ["refused", "ok"]
+    assert [e.detail for e in h.events(since, area="budget")] == [{"receipts": 2}]
     assert (h.category_of("0002"), h.category_of("0003")) == (("drugstore", "ai"), ("kids", "ai"))
     receipts = json.loads(feed.path.read_text(encoding="utf-8"))["receipts"]
     assert receipts[1]["parts"] == {"drugstore": 4.0, "kids": 8.0}

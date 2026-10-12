@@ -100,8 +100,15 @@ class FakeHistory:
 
     def __init__(self, watched: set[str] | None = None, coupons: list[WatchedCoupon] | None = None) -> None:
         self.watched, self.coupons, self.sent = watched or set(), coupons or [], set[str]()
+        self.events: list[tuple[str, str, str, dict[str, Any]]] = []
 
     def warm(self) -> None:
+        pass
+
+    def log_event(self, area: str, level: str, summary: str, detail: Any = None, **_: Any) -> None:
+        self.events.append((area, level, summary, detail or {}))
+
+    def prune_events(self, before: datetime) -> None:
         pass
 
     def watched_codes(self) -> set[str]:
@@ -279,3 +286,32 @@ async def test_monthly_summary_on_the_first_once_and_not_for_empty_month(
     ]
     await job.monthly(date(2026, 8, 1))  # lipiec bez zakupów
     assert len(sent) == 1
+
+
+async def test_morning_run_lands_in_event_log(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    history = FakeHistory()
+    await _job([], history=history)()
+    (event,) = [e for e in history.events if e[0] == "daily"]
+    assert event[1] == "ok"
+    assert event[3] == {
+        "accounts": 1, "promotions": 1, "coupons": {"would": 1}, "rewards": 1, "notified": True,
+    }  # fmt: skip
+
+
+async def test_failed_morning_step_is_logged_as_error_and_reraised() -> None:
+    history = FakeHistory()
+    job = _job([], history=history)
+
+    async def boom() -> None:
+        raise RuntimeError("lidl.pl leży")
+
+    job._promotions.refresh = boom  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError):
+        await job()
+    ((area, level, summary, detail),) = history.events
+    assert (area, level, detail["step"]) == ("daily", "error", "promocje")
+    assert "lidl.pl leży" in summary

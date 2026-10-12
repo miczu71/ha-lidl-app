@@ -214,8 +214,11 @@ async def test_run_all_collects_per_account_and_skips_failing_one(tmp_path: Path
         return await original(slug)
 
     source.promotions = promotions  # type: ignore[method-assign]
+    history = runner._history
     result = await runner.run_all([("osoba-2", "Osoba 2"), ("osoba-1", "Osoba 1")], dry_run=True)
     assert list(result) == ["Osoba 1"] and [a.title for a in result["Osoba 1"].activations] == ["Produkt A"]
+    events = {e.detail["account"]: (e.level, e.detail["auth"]) for e in history.events(datetime(2000, 1, 1))}
+    assert events == {"osoba-2": ("error", True), "osoba-1": ("ok", False)}
 
 
 async def test_activate_one_uses_fresh_id_and_marks_manual(tmp_path: Path) -> None:
