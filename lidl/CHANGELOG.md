@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.1
+
+- **Link do paragonu z Budżetu Domowego:** adres `/app/<add-on>/paragony/<id>` otwiera od razu ten paragon
+  (Home Assistant przekazuje do panelu tylko jego stronę startową, więc panel sam przechodzi do paragonu).
+
 ## 0.19.0
 
 - **Kategorie produktów dla Budżetu Domowego (E6):** każdy produkt ma kategorię — spożywcze, drogeria,
