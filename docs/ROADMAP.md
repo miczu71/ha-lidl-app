@@ -174,6 +174,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   przebiegi zaplanowane krok po kroku, import paragonów, gazetki i zapytania AI, sesje kont i system; dziennik
   zdarzeń 30 dni; kropka na chipie i push do Osoby 1 przy problemie. Podetapy: E23.0 docs, E23.1 dziennik
   zdarzeń, E23.2 strona (makieta przed kodem), E23.3 alerty, E23.4 wydanie 0.20.0.
+  **E23 ZAKOŃCZONE 2026-10-13 (0.20.0 na żywo):** wariant C makiety (werdykt + zakładki + oś czasu), dziennik
+  `events` 30 dni, alerty co 15 min (opcja `alert_notify`, pusta = tylko kropka); na żywo „Wszystko działa”.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
   (07:00) + „Sprawdź teraz”; jedno powiadomienie `notify.family` z datami ważności; panel z bieżącymi kuponami
