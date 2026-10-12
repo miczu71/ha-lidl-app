@@ -40,3 +40,15 @@ Kolejność zmieniona względem planu M29 (E6.2 po wydaniu): klasyfikacja histor
 jedno wydanie z całym kodem, a E6.2 to już tylko import danych.
 
 Cofnięcie: downgrade do 0.18.x (tabela zostaje, starsza wersja jej nie czyta); plik w `/share/lidl` można usunąć.
+
+## Wynik (2026-10-12)
+- **0.19.0 na żywo** (E6.1, E6.3–E6.5 + simplify + code-review). Start: kolejka modeli przeszła dwa 502, trzeci
+  model sklasyfikował 13 z 13 nowych produktów; plik `/share/lidl/receipts.json` — 529 paragonów.
+- **E6.2 klasyfikacja historii (Claude):** 3495 produktów bez kategorii; zaimportowane 3471 — spożywcze 3182
+  (94,7 tys. zł), drogeria 225 (4,8 tys. zł), dla dzieci 17 (0,3 tys. zł), inne 47 (0,8 tys. zł). Chemia domowa,
+  worki, folie i papier do pieczenia liczone jako drogeria; karma dla zwierząt i rośliny w doniczce jako spożywcze;
+  kwiaty cięte, reklamówki, narzędzia jako inne.
+- **Wniosek:** wydatki „dla dzieci” w Lidlu są małe (pieluszki kupowane rzadko); główny efekt podziału to
+  drogeria i chemia (ok. 5% wydatków), która dziś ląduje w Spożywczych.
+- **Do przeglądu użytkownika:** 24 produkty (odzież bez oznaczenia rozmiaru, gra planszowa, mazaki) zostają
+  „do sprawdzenia” (liczone jako spożywcze) — karta w Produktach.
