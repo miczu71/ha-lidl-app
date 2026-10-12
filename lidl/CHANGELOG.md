@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.19.0
+
+- **Kategorie produktów dla Budżetu Domowego (E6):** każdy produkt ma kategorię — spożywcze, drogeria,
+  dla dzieci, inne. Na stronie produktu karta „Kategoria w Budżecie” (jedno dotknięcie zmienia ją ręcznie;
+  ręczna wygrywa zawsze). Nowe produkty klasyfikuje model językowy po imporcie (jeśli skonfigurowany),
+  bez odpowiedzi zostają „do sprawdzenia” — lista w zakładce Produkty.
+- **Podział paragonu:** na paragonie sekcja „Podział dla Budżetu” — kwota zapłacona rozbita na kategorie
+  (po rabatach i kuponach; kaucja za butelki w spożywczych).
+- **Plik dla Budżetu:** po każdym imporcie add-on zapisuje `/share/lidl/receipts.json` (paragony z podziałem
+  na kategorie); Budżet Domowy dopasuje je do płatności kartą. Add-on dostaje dostęp do `/share`.
+
 ## 0.18.1
 
 - **Kupony ogólne bez auto-aktywacji:** rabaty od kwoty zakupów (np. 10 zł przy zakupach za 100 zł) nie są
