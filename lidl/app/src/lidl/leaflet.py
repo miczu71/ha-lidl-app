@@ -150,6 +150,11 @@ class LeafletRunner:
         self._refused: set[str] = set()  # modele z wyczerpanym limitem (limity są per model, nie per paczka)
         self._checked: datetime | None = None
 
+    @property
+    def refused(self) -> set[str]:
+        """Modele z wyczerpanym limitem (zakładka Status)."""
+        return set(self._refused)
+
     async def run_forever(self) -> None:
         while True:
             try:

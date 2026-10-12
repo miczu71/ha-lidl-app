@@ -221,6 +221,22 @@ class Event:
 
 
 @dataclass(frozen=True)
+class LeafletProgress:
+    flyer_id: str
+    start: date
+    end: date
+    done: int
+    pending: int
+    failed: int
+    next_try: datetime | None  # najbliższa próba czekającej paczki
+    matches: int
+
+    @property
+    def total(self) -> int:
+        return self.done + self.pending + self.failed
+
+
+@dataclass(frozen=True)
 class SavingsKpi:
     tickets: int
     with_details: int
@@ -710,6 +726,10 @@ class History:
             )
         )
         return int(self._db.execute(sql, args).fetchone()[0])
+
+    def last_ticket_date(self) -> str | None:
+        row = self._db.execute("SELECT MAX(day) FROM tickets").fetchone()
+        return str(row[0]) if row and row[0] else None
 
     def pending_details(self, account: str) -> list[str]:
         """Paragony bez pobranych pozycji albo zapisane starszym parserem, od najnowszych."""
@@ -1283,6 +1303,28 @@ class History:
         return (
             self._db.execute("SELECT 1 FROM leaflet_batches WHERE status = 'pending'").fetchone() is not None
         )
+
+    def leaflet_progress(self) -> list[LeafletProgress]:
+        """Stan paczek każdej zapisanej gazetki (zakładka Status, E23), najnowsza pierwsza."""
+        rows = self._db.execute(
+            "SELECT b.flyer_id, b.start, b.end, SUM(b.status = 'done'), SUM(b.status = 'pending'),"
+            " SUM(b.status = 'failed'), MIN(CASE WHEN b.status = 'pending' THEN b.next_try END),"
+            " (SELECT COUNT(*) FROM leaflet_matches m WHERE m.flyer_id = b.flyer_id)"
+            " FROM leaflet_batches b GROUP BY b.flyer_id ORDER BY b.start DESC"
+        )
+        return [
+            LeafletProgress(
+                fid,
+                date.fromisoformat(s),
+                date.fromisoformat(e),
+                done,
+                pending,
+                failed,
+                datetime.fromisoformat(nt) if nt else None,
+                matches,
+            )  # fmt: skip
+            for fid, s, e, done, pending, failed, nt, matches in rows
+        ]
 
     def set_leaflet_batch(self, flyer_id: str, batch: int, status: str, attempts: int, next_try: str) -> None:
         with self._db:

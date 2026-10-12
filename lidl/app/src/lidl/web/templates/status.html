@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Status · Lidl Plus{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Status</h1>
+  <p class="lead">Co add-on robi w tle i czy wszystko przeszło. Odświeża się sam, gdy coś trwa.</p>
+</div>
+{% include "_status_live.html" %}
+{% include "_status_timeline.html" %}
+{% endblock %}

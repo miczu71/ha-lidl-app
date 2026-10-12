@@ -1,0 +1,48 @@
+{# Stan bieżący zakładki Status (E23): werdykt, obszary, szczegóły w zakładkach. Gdy coś trwa (import, gazetka,
+   poranny przebieg), blok odświeża się co 5 s; gdy wszystko stoi, odpowiedź nie ma `hx-trigger` i odświeżanie staje. #}
+{% macro ic(level) -%}
+<svg viewBox="0 0 24 24" aria-hidden="true">{% if level == 'ok' %}<path d="M20 6 9 17l-5-5"/>{% elif level == 'busy' %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>{% elif level == 'warn' %}<path d="M12 3 2 21h20L12 3z"/><path d="M12 10v4M12 17.5h.01"/>{% else %}<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/>{% endif %}</svg>
+{%- endmacro %}
+{% macro lv(level, text) -%}<span class="lv lv--{{ level }}">{{ ic(level) }}{{ text }}</span>{%- endmacro %}
+<div id="status-live" class="stack"{% if view.busy %} hx-get="{{ base }}/status?part=live" hx-trigger="every 5s" hx-select="#status-live" hx-swap="outerHTML"{% endif %}>
+<section class="card" aria-labelledby="werdykt">
+  {% if view.problems %}
+  <h2 class="verdict verdict--err" id="werdykt">{{ view.problems|length }} {{ 'sprawa wymaga' if view.problems|length == 1 else 'sprawy wymagają' if view.problems|length < 5 else 'spraw wymaga' }} działania</h2>
+  {% for p in view.problems %}
+  <p class="notice notice--err" role="alert"><span class="notice__ic">{{ ic('err') }}</span><span><b>{{ p.text }}.</b>{% if p.fix_text %} {% if p.fix_href %}<a href="{{ base }}{{ p.fix_href }}">{{ p.fix_text }}</a>{% else %}{{ p.fix_text }}.{% endif %}{% endif %}</span></p>
+  {% endfor %}
+  {% else %}
+  <h2 class="verdict" id="werdykt">Wszystko działa</h2>
+  {% endif %}
+  <dl class="rest">
+    {% for a in view.areas if a.level != 'err' %}
+    <div>
+      <dt><span>{{ a.name }}</span>{{ lv(a.level, a.label) }}</dt>
+      <dd>{{ a.say }}{% if a.next %} · {{ a.next }}{% endif %}</dd>
+      {% if a.progress %}<dd><div class="prog prog--thin" role="progressbar" aria-label="{{ a.name }}: postęp" aria-valuenow="{{ a.progress[0] }}" aria-valuemax="{{ a.progress[1] }}"><div class="prog__fill" style="width: {{ (100 * a.progress[0] / (a.progress[1] or 1))|round }}%"></div></div></dd>{% endif %}
+    </div>
+    {% endfor %}
+  </dl>
+</section>
+
+<section class="card card--flush" aria-label="Szczegóły obszarów">
+  <div class="tabs tabs--status" role="tablist">
+    {% for a in view.areas %}<button class="tab" type="button" role="tab" data-tab aria-controls="st-{{ a.key }}" aria-expanded="{{ 'true' if loop.first else 'false' }}"><span class="tab__name">{{ a.name }}</span>{{ lv(a.level, a.label) }}</button>{% endfor %}
+  </div>
+  {% for a in view.areas %}
+  <div class="tabpanel stp" id="st-{{ a.key }}" role="tabpanel"{% if not loop.first %} hidden{% endif %}>
+    {% if a.progress %}<div><div class="prog" role="progressbar" aria-label="{{ a.name }}: postęp" aria-valuenow="{{ a.progress[0] }}" aria-valuemax="{{ a.progress[1] }}"><div class="prog__fill" style="width: {{ (100 * a.progress[0] / (a.progress[1] or 1))|round }}%"></div></div><p class="meta tnum stp__prog">{{ a.progress[0] }} z {{ a.progress[1] }}{% if a.next %} · {{ a.next }}{% endif %}</p></div>{% endif %}
+    {% for p in view.problems if p.area == a.key %}<p class="notice notice--err"><span class="notice__ic">{{ ic('err') }}</span><span>{{ p.text }}.{% if p.fix_href %} <a href="{{ base }}{{ p.fix_href }}">{{ p.fix_text }}</a>{% elif p.fix_text %} {{ p.fix_text }}.{% endif %}</span></p>{% endfor %}
+    {% if a.steps %}<ul class="stp__steps">{% for k, v in a.steps %}<li><span>{{ k }}</span><b>{{ v }}</b></li>{% endfor %}</ul>{% endif %}
+    {% if a.models %}
+    <table class="mt tnum">
+      <caption class="vh">Zapytania dziś według modelu</caption>
+      <thead><tr><th scope="col">Model</th><th scope="col" class="r">OK</th><th scope="col" class="r">Odmowy</th><th scope="col" class="r">Błędy</th><th scope="col" class="r">Śr. czas</th></tr></thead>
+      <tbody>{% for m, ok, ref, bad, t in a.models %}<tr><td>{{ m }}</td><td class="r">{{ ok }}</td><td class="r">{{ ref }}</td><td class="r">{{ bad }}</td><td class="r">{{ t }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+    {% if a.facts %}<dl class="kv">{% for k, v in a.facts %}<dt>{{ k }}</dt><dd>{{ v }}</dd>{% endfor %}</dl>{% endif %}
+  </div>
+  {% endfor %}
+</section>
+</div>

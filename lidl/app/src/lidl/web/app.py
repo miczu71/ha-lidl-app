@@ -29,7 +29,7 @@ from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
-from lidl.daily import EVENING, MONTHLY, DailyJob, at_time_loop
+from lidl.daily import EVENING, EVENTS_KEEP, MONTHLY, DailyJob, at_time_loop
 from lidl.geo import refresh_store_geo
 from lidl.history import CANDIDATE_MIN_PURCHASES, CATEGORIES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
@@ -58,6 +58,9 @@ from .products import (
 )
 from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
 from .rhythm import heatmap, map_points, store_rows
+from .status import FILTERS as STATUS_FILTERS
+from .status import Snapshot
+from .status import build as build_status
 
 log = logging.getLogger(__name__)
 
@@ -131,6 +134,8 @@ def create_app(settings: Settings) -> FastAPI:
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.feed = feed
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
+            leaflet = LeafletRunner(session, history, settings) if settings.llm_enabled else None
+            app.state.leaflet, app.state.started = leaflet, datetime.now()
 
             loops: list[asyncio.Task[Any]] = [
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
@@ -144,8 +149,8 @@ def create_app(settings: Settings) -> FastAPI:
                 loops.append(asyncio.create_task(promotions.refresh()))
                 loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
                 loops.append(asyncio.create_task(feed.refresh()))  # plik dla Budżetu po aktualizacji add-onu
-                if settings.llm_enabled:
-                    loops.append(asyncio.create_task(LeafletRunner(session, history, settings).run_forever()))
+                if leaflet is not None:
+                    loops.append(asyncio.create_task(leaflet.run_forever()))
             try:
                 yield
             finally:
@@ -193,6 +198,38 @@ def create_app(settings: Settings) -> FastAPI:
 
     def go(request: Request, path: str) -> RedirectResponse:
         return RedirectResponse(f"{base(request)}{path}", status_code=303)
+
+    def status_snapshot(request: Request) -> Snapshot:
+        state = request.app.state
+        history: History = state.history
+        sync: HistorySync = state.sync
+        accounts = service(request).store.list()
+        db = settings.data_dir / "history.db"
+        leaflet: LeafletRunner | None = state.leaflet
+        return Snapshot(
+            now=datetime.now(),
+            started=state.started,
+            version=__version__,
+            run_time=settings.run_time,
+            accounts=[(a.slug, a.label, a.connected) for a in accounts],
+            events=history.events(datetime.now() - EVENTS_KEEP),
+            progress={a.slug: sync.progress(a.slug) for a in accounts},
+            daily_running=state.job.running,
+            leaflets=history.leaflet_progress(),
+            refused=leaflet.refused if leaflet else set(),
+            llm_enabled=settings.llm_enabled,
+            tickets=history.ticket_count(),
+            last_ticket=history.last_ticket_date(),
+            db_bytes=db.stat().st_size if db.exists() else 0,
+        )
+
+    @app.get("/status")
+    async def status(request: Request, obszar: str = "", part: str = "") -> Response:
+        """Zakładka Status (E23); `part=live` — blok odświeżany, gdy coś trwa, `part=os` — sama oś czasu."""
+        area = obszar if obszar in STATUS_FILTERS else ""
+        view = build_status(status_snapshot(request), area)
+        name = {"live": "_status_live.html", "os": "_status_timeline.html"}.get(part, "status.html")
+        return render(request, name, section="status", view=view, filters=STATUS_FILTERS, area=area)
 
     @app.get("/healthz")
     async def healthz() -> PlainTextResponse:

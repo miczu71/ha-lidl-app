@@ -50,6 +50,10 @@ potem kod:
 - Na żywo: htmx poll co kilka sekund tylko, gdy coś trwa (wzorzec bloku live z Kuponów); oś czasu z filtrem
   obszaru (htmx), 30 dni.
 - Testy `tests/test_web.py`; dane demo przez seed w `~/dev/lidl-spike`; weryfikacja Playwright (zrzut + konsola).
+- **Wynik makiety (2026-10-12):** z trzech wariantów (A pas stanu + sekcje, B tablica obszarów + dziennik,
+  C najpierw problem + zakładki) wybrany **C**: werdykt „Wszystko działa” / „N spraw wymaga działania” z linkiem
+  naprawy, reszta obszarów w dwóch kolumnach, szczegóły w zakładkach, oś czasu z filtrem. Reguły problemów
+  w `web/status.py` (`build()`, czysta funkcja migawki) — te same posłużą kropce i alertom w E23.3.
 
 **E23.3 Alerty** — `src/lidl/alerts.py` (mało kodu):
 - `problems()` liczone ze stanu + dziennika (sesja z błędem autoryzacji, ostatni poranny `error` albo brak

@@ -1154,3 +1154,13 @@ def test_products_page_lists_products_pending_category(client: TestClient) -> No
     assert "Kategorie do sprawdzenia" in page and "Mleko UHT" in page
     history.set_categories([("555", "food"), ("111", "food")], "claude")
     assert "Kategorie do sprawdzenia" not in client.get("/produkty").text
+
+
+def test_status_page_shows_startup_and_partials(client: TestClient) -> None:
+    page = client.get("/status")
+    assert page.status_code == 200 and 'aria-current="page">Status<' in page.text
+    assert "Start add-onu" in page.text and 'id="status-live"' in page.text
+    timeline = client.get("/status?part=os&obszar=ai")
+    assert 'id="status-os"' in timeline.text and 'id="status-live"' not in timeline.text
+    assert "Brak wpisów w tym obszarze" in timeline.text
+    assert 'id="status-live"' in client.get("/status?part=live").text
