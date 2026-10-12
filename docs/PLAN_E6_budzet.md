@@ -50,5 +50,5 @@ Cofnięcie: downgrade do 0.18.x (tabela zostaje, starsza wersja jej nie czyta); 
   kwiaty cięte, reklamówki, narzędzia jako inne.
 - **Wniosek:** wydatki „dla dzieci” w Lidlu są małe (pieluszki kupowane rzadko); główny efekt podziału to
   drogeria i chemia (ok. 5% wydatków), która dziś ląduje w Spożywczych.
-- **Do przeglądu użytkownika:** 24 produkty (odzież bez oznaczenia rozmiaru, gra planszowa, mazaki) zostają
-  „do sprawdzenia” (liczone jako spożywcze) — karta w Produktach.
+- **Przegląd użytkownika:** 24 wątpliwe produkty (odzież bez oznaczenia rozmiaru, gra planszowa, mazaki,
+  gazetka) — decyzja: wszystkie „Inne”; zaimportowane, do sprawdzenia: 0. E6 zamknięte.
