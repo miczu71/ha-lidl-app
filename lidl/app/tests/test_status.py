@@ -57,6 +57,7 @@ def test_failed_morning_run_and_missed_run_are_problems() -> None:
     assert [p.key for p in build(_snap(events=[yesterday])).problems] == ["daily"]  # 12:00, dziś brak
     early = NOW.replace(hour=8)
     assert build(_snap(events=[yesterday], now=early)).problems == []  # jeszcze w tolerancji
+    assert build(_snap(events=[])).problems == []  # pierwszy dzień po aktualizacji: brak wpisów
 
 
 def test_rejected_key_is_a_problem_and_limit_only_a_warning() -> None:

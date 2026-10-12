@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from lidl import __version__
+from lidl import __version__, alerts
 from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
@@ -59,7 +59,7 @@ from .products import (
 from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
 from .rhythm import heatmap, map_points, store_rows
 from .status import FILTERS as STATUS_FILTERS
-from .status import Snapshot
+from .status import Problem, Snapshot
 from .status import build as build_status
 
 log = logging.getLogger(__name__)
@@ -136,12 +136,18 @@ def create_app(settings: Settings) -> FastAPI:
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
             leaflet = LeafletRunner(session, history, settings) if settings.llm_enabled else None
             app.state.leaflet, app.state.started = leaflet, datetime.now()
+            app.state.problems = []
+
+            def problems() -> list[Problem]:
+                app.state.problems = build_status(status_snapshot(app.state)).problems
+                return list(app.state.problems)
 
             loops: list[asyncio.Task[Any]] = [
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
                 asyncio.create_task(at_time_loop(EVENING, job.evening)),
                 asyncio.create_task(at_time_loop(MONTHLY, job.monthly)),
                 asyncio.create_task(job.refresh_rewards()),
+                asyncio.create_task(alerts.loop(session, history, problems, settings.alert_notify)),
             ]
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
                 loops.append(asyncio.create_task(warm_later(history)))
@@ -183,8 +189,12 @@ def create_app(settings: Settings) -> FastAPI:
         return request.headers.get("x-ingress-path", "").rstrip("/")
 
     def render(request: Request, name: str, status_code: int = 200, **ctx: Any) -> Response:
+        alert = bool(getattr(request.app.state, "problems", None))  # kropka przy zakładce Status (E23.3)
         return templates.TemplateResponse(
-            request, name, {"base": base(request), "version": __version__, **ctx}, status_code=status_code
+            request,
+            name,
+            {"base": base(request), "version": __version__, "alert": alert, **ctx},
+            status_code=status_code,
         )
 
     def query_link(
@@ -199,11 +209,10 @@ def create_app(settings: Settings) -> FastAPI:
     def go(request: Request, path: str) -> RedirectResponse:
         return RedirectResponse(f"{base(request)}{path}", status_code=303)
 
-    def status_snapshot(request: Request) -> Snapshot:
-        state = request.app.state
+    def status_snapshot(state: Any) -> Snapshot:
         history: History = state.history
         sync: HistorySync = state.sync
-        accounts = service(request).store.list()
+        accounts = state.service.store.list()
         db = settings.data_dir / "history.db"
         leaflet: LeafletRunner | None = state.leaflet
         return Snapshot(
@@ -227,7 +236,8 @@ def create_app(settings: Settings) -> FastAPI:
     async def status(request: Request, obszar: str = "", part: str = "") -> Response:
         """Zakładka Status (E23); `part=live` — blok odświeżany, gdy coś trwa, `part=os` — sama oś czasu."""
         area = obszar if obszar in STATUS_FILTERS else ""
-        view = build_status(status_snapshot(request), area)
+        view = build_status(status_snapshot(request.app.state), area)
+        request.app.state.problems = view.problems  # kropka przy zakładce od razu, nie po kwadransie
         name = {"live": "_status_live.html", "os": "_status_timeline.html"}.get(part, "status.html")
         return render(request, name, section="status", view=view, filters=STATUS_FILTERS, area=area)
 

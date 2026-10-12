@@ -28,6 +28,7 @@ options:
     - gemini-3.6-flash
     - gemini-3.7-flash
     - gemma-4-31b-it
+  alert_notify: ""
 schema:
   log_level: "list(debug|info|warning|error)"
   auto_activate: bool
@@ -36,3 +37,4 @@ schema:
   llm_key: "password?"
   llm_vision_models:
     - str
+  alert_notify: "match(^[a-z0-9_]*$)?"

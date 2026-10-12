@@ -32,7 +32,7 @@
       <a class="ds-chip{% if section == 'miesiace' %} ds-chip--on{% endif %}" href="{{ base }}/miesiace"{% if section == 'miesiace' %} aria-current="page"{% endif %}>Miesiące</a>
       <a class="ds-chip{% if section == 'rytm' %} ds-chip--on{% endif %}" href="{{ base }}/rytm"{% if section == 'rytm' %} aria-current="page"{% endif %}>Rytm</a>
       <a class="ds-chip{% if section == 'konta' %} ds-chip--on{% endif %}" href="{{ base }}/konta"{% if section == 'konta' %} aria-current="page"{% endif %}>Konta</a>
-      <a class="ds-chip{% if section == 'status' %} ds-chip--on{% endif %}" href="{{ base }}/status"{% if section == 'status' %} aria-current="page"{% endif %}>Status</a>
+      <a class="ds-chip{% if section == 'status' %} ds-chip--on{% endif %}" href="{{ base }}/status"{% if section == 'status' %} aria-current="page"{% endif %}>Status{% if alert %}<span class="dot" aria-hidden="true"></span><span class="vh"> — wymaga działania</span>{% endif %}</a>
     </nav>{% endif %}
     {% block main %}{% endblock %}
   </div></main>

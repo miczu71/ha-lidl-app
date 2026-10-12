@@ -20,13 +20,14 @@ from .text import count_text, fmt_in_month, fmt_pct, fmt_pln, fmt_until, month_b
 
 log = logging.getLogger(__name__)
 
-NOTIFY_URL = "http://supervisor/core/api/services/notify/family"
+NOTIFY_URL = "http://supervisor/core/api/services/notify/{}"  # usługa: family albo opcja alert_notify (E23)
 # panel add-onu w HA: Supervisor nadaje kontenerowi HOSTNAME = slug z „-” zamiast „_” (np. f0987e0f-lidl)
 PANEL = "/app/" + os.environ.get("HOSTNAME", "f0987e0f-lidl").replace("-", "_")
 TAG = "lidl-kupony"  # nowe powiadomienie zastępuje poprzednie
 TAG_SCRATCH = "lidl-zdrapki"  # wieczorne przypomnienie nie zastępuje porannego
 TAG_WATCHED = "lidl-obserwowane"  # obserwowane produkty (E15) obok porannego, nie zamiast niego
 TAG_MONTH = "lidl-podsumowanie"  # podsumowanie miesiąca (E19)
+TAG_ALERT = "lidl-alert"  # problem techniczny (E23.3), do usługi z opcji alert_notify
 
 
 def _name(c: ActiveCoupon | WatchedCoupon) -> str:
@@ -171,7 +172,9 @@ def compose_month(s: MonthSummary) -> tuple[str, str]:
     return "Lidl: podsumowanie miesiąca", "\n".join(lines)
 
 
-async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag: str = TAG) -> bool:
+async def send(
+    session: aiohttp.ClientSession, message: tuple[str, str], *, tag: str = TAG, service: str = "family"
+) -> bool:
     """True, gdy HA przyjął powiadomienie (w trybie dev — tylko log, też True)."""
     token = os.environ.get("SUPERVISOR_TOKEN")
     if not token:
@@ -181,7 +184,7 @@ async def send(session: aiohttp.ClientSession, message: tuple[str, str], *, tag:
     payload = {"title": title, "message": body, "data": {"clickAction": PANEL, "url": PANEL, "tag": tag}}
     try:
         async with session.post(
-            NOTIFY_URL, json=payload, headers={"Authorization": f"Bearer {token}"}
+            NOTIFY_URL.format(service), json=payload, headers={"Authorization": f"Bearer {token}"}
         ) as response:
             if response.status >= 400:
                 log.warning("Powiadomienie nieudane: HTTP %s", response.status)

@@ -152,7 +152,7 @@ async def test_send_posts_to_notify_family_with_tap_action_and_tag(monkeypatch: 
     session = FakeSession()
     await send(session, ("Tytuł", "Treść"))  # type: ignore[arg-type]
     url, body, headers = session.posts[0]
-    assert url == NOTIFY_URL and headers == {"Authorization": "Bearer t"}
+    assert url == NOTIFY_URL.format("family") and headers == {"Authorization": "Bearer t"}
     assert body == {
         "title": "Tytuł",
         "message": "Treść",

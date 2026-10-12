@@ -292,7 +292,8 @@ def _daily(s: Snapshot, problems: list[Problem]) -> Area:
         return Area(
             "daily", "Przebiegi zaplanowane", "err", f"Przerwany: {step}", nxt, steps=steps, facts=facts
         )
-    if s.now >= due + MISSED_AFTER and (morning is None or morning.ts < due):
+    # bez żadnego wpisu (pierwszy dzień po aktualizacji do E23) nie wiemy, czy przebieg miał być — bez alarmu
+    if s.now >= due + MISSED_AFTER and morning is not None and morning.ts < due:
         problems.append(
             Problem(
                 "daily", "daily", f"Poranny przebieg {s.run_time:%H:%M} się nie odbył (add-on nie działał?)"

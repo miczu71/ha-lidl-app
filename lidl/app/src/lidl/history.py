@@ -1207,6 +1207,10 @@ class History:
         with self._db:
             self._db.execute("DELETE FROM events WHERE ts < ?", (before.isoformat(timespec="seconds"),))
 
+    def unmark_watched_sent(self, keys: Iterable[str]) -> None:
+        with self._db:
+            self._db.executemany("DELETE FROM watched_sent WHERE key = ?", [(k,) for k in keys])
+
     def mark_watched_sent(self, keys: Iterable[str], sent_at: str) -> None:
         with self._db:
             self._db.executemany(

@@ -25,6 +25,7 @@ class Settings:
     llm_key: str = field(default="", repr=False)
     llm_vision_models: tuple[str, ...] = DEFAULT_VISION_MODELS
     share_dir: Path = Path("/share")  # E6: plik dla Budżetu Domowego
+    alert_notify: str = ""  # E23.3: usługa notify na alerty techniczne; puste = tylko kropka w panelu
 
     @property
     def llm_enabled(self) -> bool:
@@ -55,6 +56,7 @@ def load_settings() -> Settings:
         ),
         llm_url=str(options.get("llm_url") or "").rstrip("/"),
         llm_key=str(options.get("llm_key") or ""),
+        alert_notify=str(options.get("alert_notify") or ""),
         llm_vision_models=tuple(str(m) for m in models)
         if isinstance(models, list) and models
         else DEFAULT_VISION_MODELS,
