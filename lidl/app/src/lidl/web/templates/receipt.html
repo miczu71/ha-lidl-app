@@ -27,6 +27,18 @@
 </p>
 {% endif %}
 
+{% if split %}
+<section class="card" aria-labelledby="bud-h">
+  <div>
+    <h2 class="s" id="bud-h">Podział dla Budżetu</h2>
+    <p class="sum">Po rabatach i kuponach; kaucja w największej części</p>
+  </div>
+  <dl class="bill bill--split">
+    {% for label, amount in split %}<div><dt>{{ label }}</dt><dd>{{ amount }}</dd></div>{% endfor %}
+  </dl>
+</section>
+{% endif %}
+
 {% if receipt.lines %}
 <section class="card" aria-labelledby="poz-h">
   <div>

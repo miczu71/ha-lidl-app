@@ -66,6 +66,15 @@ INGRESS_PROXY = "172.30.32.2"
 WARM_DELAY = 5  # s
 PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
 RECEIPT_PARAMS = ("q", "konto", "sklep", "od", "do", "limit")
+# E6: kategorie produktu dla Budżetu Domowego i skąd się wzięły (brak = spożywcze do sprawdzenia)
+PENDING_SHOWN = 30
+CATEGORY_LABELS = {"food": "Spożywcze", "drugstore": "Drogeria", "kids": "Dla dzieci", "nonfood": "Inne"}
+CATEGORY_SOURCES = {
+    None: "do sprawdzenia",
+    "ai": "nadana przez AI",
+    "claude": "z przeglądu historii",
+    "manual": "ręcznie",
+}
 
 LOGIN_ERRORS = {
     "token_rejected": "Lidl odrzucił kod: wygasł albo został już użyty. Zaloguj się od nowa.",
@@ -306,6 +315,19 @@ def create_app(settings: Settings) -> FastAPI:
                 clear_href=link(q=""),
                 rows=ranking_rows(found, limit, link, lambda a: purchases_href(request, a)),
                 more_href=link(limit=limit + MORE_STEP) if len(found) > limit else None,
+            )
+            pending = [c for c in history.category_candidates() if c["source"] is None]
+            # E6.4: produkty bez kategorii (w Budżecie jako spożywcze), od największych wydatków
+            ctx.update(
+                cat_pending=len(pending),
+                cat_rows=[
+                    {
+                        "name": c["names"][-1],
+                        "spend": fmt_pln(c["spend"], 2),
+                        "href": purchases_href(request, c["code"]),
+                    }
+                    for c in pending[:PENDING_SHOWN]
+                ],
             )
             if request.headers.get("hx-target") == "wyniki":  # wyszukiwanie na żywo: tylko wyniki rankingu
                 return render(request, "_ranking.html", **ctx)
@@ -564,7 +586,19 @@ def create_app(settings: Settings) -> FastAPI:
             back=back,
             prices_href=prices_href(request, art_id) if priced else None,
             spend_href=spend_href(request, art_id),
+            category=history.category_of(art_id),
+            category_labels=CATEGORY_LABELS,
+            category_sources=CATEGORY_SOURCES,
+            category_href=purchases_href(request, art_id).split("?")[0] + "/kategoria",
         )
+
+    @app.post("/paragony/produkt/{art_id}/kategoria")
+    async def set_product_category(request: Request, art_id: str, category: str = Form(...)) -> Response:
+        """E6.4: ręczna kategoria produktu; wygrywa z klasyfikacją historii i AI."""
+        history: History = request.app.state.history
+        if category in CATEGORY_LABELS and history.product_purchases(art_id):
+            history.set_categories([(art_id, category)], "manual")
+        return go(request, f"/paragony/produkt/{quote(art_id, safe=':')}#kategoria")
 
     @app.get("/paragony/{ticket_id}")
     async def receipt(request: Request, ticket_id: str, produkt: str = "") -> Response:
@@ -574,7 +608,11 @@ def create_app(settings: Settings) -> FastAPI:
         if d is None:
             return render(request, "receipt.html", receipt=None, back=back, status_code=404)
         view = detail_view(d, account_labels(request), produkt or None, lambda a: purchases_href(request, a))
-        return render(request, "receipt.html", receipt=view, back=back, from_product=bool(produkt))
+        parts = history.receipts_export(ticket_id)[0]["parts"] if d.lines else {}
+        split = [(CATEGORY_LABELS[c], fmt_pln(v, 2)) for c, v in sorted(parts.items(), key=lambda p: -p[1])]
+        return render(
+            request, "receipt.html", receipt=view, back=back, from_product=bool(produkt), split=split
+        )
 
     @app.get("/")  # widok domyślny panelu (E22.1)
     @app.get("/kupony")

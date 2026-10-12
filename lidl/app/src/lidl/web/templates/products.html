@@ -165,6 +165,19 @@
   {% endif %}
 </section>
 
+{% if cat_pending %}
+<details class="card cat-pend" id="do-sprawdzenia">
+  <summary>
+    <h2 class="s">Kategorie do sprawdzenia</h2>
+    <span class="status">{{ cat_pending }}</span>
+  </summary>
+  <p class="sum">Produkty bez kategorii Budżet liczy jako spożywcze. Dotknij produktu, żeby wybrać kategorię{% if cat_pending > cat_rows|length %}; pokazujemy {{ cat_rows|length }} z największymi wydatkami{% endif %}.</p>
+  <ul class="pend-list">
+    {% for r in cat_rows %}<li><a href="{{ r.href }}#kategoria">{{ r.name }}</a><span>{{ r.spend }}</span></li>{% endfor %}
+  </ul>
+</details>
+{% endif %}
+
 <section class="card" aria-labelledby="rank-h" id="rank">
   <div>
     <h2 class="s" id="rank-h">Najczęściej kupowane</h2>
@@ -174,6 +187,7 @@
   {{ search_input(q, "Szukaj produktu", "np. banany, ser, mleko", base ~ "/produkty", "wyniki", form="filtry") }}
   {% include "_ranking.html" %}
 </section>
+
 </div>
 {% endif %}
 {% endblock %}

@@ -1119,3 +1119,31 @@ def test_category_candidates_and_import(client: TestClient) -> None:
     assert r.json() == {"saved": 1} and history.category_of("0009") == ("drugstore", "claude")
     r = client.post("/produkty/kategorie/import", json=[{"art_id": "0009", "category": "toys"}])
     assert r.status_code == 422 and history.category_of("0009") == ("drugstore", "claude")
+
+
+def test_product_category_card_manual_choice_and_receipt_split(client: TestClient) -> None:
+    _seed_receipts(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    page = client.get("/paragony/produkt/555").text
+    assert "Kategoria w Budżecie" in page and "Do sprawdzenia" in page
+    assert 'value="food" aria-pressed="true"' in page
+    r = client.post("/paragony/produkt/555/kategoria", data={"category": "drugstore"}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("/paragony/produkt/555#kategoria")
+    assert history.category_of("555") == ("drugstore", "manual")
+    client.post("/paragony/produkt/555/kategoria", data={"category": "toys"})
+    client.post("/paragony/produkt/nie-ma/kategoria", data={"category": "kids"})
+    assert history.category_of("555") == ("drugstore", "manual") and history.category_of("nie-ma")[1] is None
+    receipt = client.get("/paragony/t-new").text
+    # filet 8,50 po rabatach + kaucja 0,50 → drogeria 9,00; mleko 4,00 → spożywcze
+    assert "Podział dla Budżetu" in receipt
+    assert "<dt>Drogeria</dt><dd>9,00 zł</dd>" in receipt and "<dt>Spożywcze</dt><dd>4,00 zł</dd>" in receipt
+    assert "Podział dla Budżetu" not in client.get("/paragony/t-wait").text
+
+
+def test_products_page_lists_products_pending_category(client: TestClient) -> None:
+    _seed_receipts(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    page = client.get("/produkty").text
+    assert "Kategorie do sprawdzenia" in page and "Mleko UHT" in page
+    history.set_categories([("555", "food"), ("111", "food")], "claude")
+    assert "Kategorie do sprawdzenia" not in client.get("/produkty").text

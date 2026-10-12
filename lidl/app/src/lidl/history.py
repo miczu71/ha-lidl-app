@@ -841,37 +841,40 @@ class History:
             if code not in known and (since is None or min(p["days"]) >= since.isoformat())
         }
 
-    def receipts_export(self) -> list[dict[str, Any]]:
+    def receipts_export(self, ticket_id: str | None = None) -> list[dict[str, Any]]:
         """E6.5: paragony dla Budżetu Domowego z kwotą zapłaconą podzieloną na kategorie produktów. Część =
         suma pozycji po rabatach i kuponach; kaucja i różnica groszy idą do największej części, więc
         `sum(parts) == paid`. Paragon bez pozycji (niepobrany, nierozpoznany) = całość `food`."""
         resolve, known = self._resolver(), self._categories()
+        one = ("", ()) if ticket_id is None else (" WHERE ticket_id = ?", (ticket_id,))
         sums: dict[str, dict[str, float]] = {}
-        for ticket_id, art_id, name, total, discount in self._db.execute(
-            "SELECT ticket_id, art_id, name, total, discount FROM items"
+        for tid, art_id, name, total, discount in self._db.execute(
+            f"SELECT ticket_id, art_id, name, total, discount FROM items{one[0]}", one[1]
         ):
             category = known.get(resolve(art_id, name), ("food", ""))[0]
-            parts = sums.setdefault(ticket_id, {})
+            parts = sums.setdefault(tid, {})
             parts[category] = parts.get(category, 0.0) + total + discount
         out = []
-        for ticket_id, account, day, purchased_at, paid, payment in self._db.execute(
-            "SELECT id, account, day, purchased_at, total, payment FROM tickets ORDER BY day, id"
+        where = "" if ticket_id is None else " WHERE id = ?"
+        for tid, account, day, purchased_at, paid, payment in self._db.execute(
+            f"SELECT id, account, day, purchased_at, total, payment FROM tickets{where} ORDER BY day, id",
+            one[1],
         ):
             paid = round(paid, 2)
-            parts = {c: round(v, 2) for c, v in sums.get(ticket_id, {}).items() if round(v, 2)}
+            parts = {c: round(v, 2) for c, v in sums.get(tid, {}).items() if round(v, 2)}
             if parts:
                 largest = max(parts, key=lambda c: abs(parts[c]))
                 parts[largest] = round(parts[largest] + paid - sum(parts.values()), 2)
             parts = {c: v for c, v in parts.items() if v} or {"food": paid}
             out.append(
                 {
-                    "id": ticket_id,
+                    "id": tid,
                     "account": account,
                     "day": day,
                     "purchased_at": purchased_at,
                     "paid": paid,
                     "payment": payment,
-                    "url_path": f"/paragony/{ticket_id}",
+                    "url_path": f"/paragony/{tid}",
                     "parts": parts,
                 }
             )

@@ -478,3 +478,17 @@ a.st:hover .st__name { color: var(--blue); text-decoration: underline; text-unde
 .st__facts dd { font-weight: 600; }
 .st__split { grid-column: 2 / -1; display: flex; align-items: center; gap: var(--space-2); color: var(--ink-muted); font: 400 13px/18px var(--font-sans); }
 .st__split .mw-split { flex: 1; max-width: 200px; height: 8px; }
+
+/* E6.4: kategoria produktu dla Budżetu Domowego */
+.cat-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.cat-pick .ds-chip { justify-content: center; }
+@media (min-width: 480px) { .cat-pick { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.bill--split { padding-top: 0; border-top: 0; }
+.bill--split div { color: var(--ink); font-size: 16px; line-height: 22px; }
+.cat-pend summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 44px; }
+.cat-pend summary::-webkit-details-marker { display: none; }
+.cat-pend[open] summary { margin-bottom: var(--space-2); }
+.pend-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; }
+.pend-list li { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); min-height: 44px; border-top: 1.5px solid var(--line); font: 400 15px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.pend-list a { color: var(--blue); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.pend-list span { color: var(--ink-muted); white-space: nowrap; }

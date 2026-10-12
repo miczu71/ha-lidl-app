@@ -23,6 +23,17 @@
   {% if prices_href %}<a class="ds-btn ds-btn--secondary" href="{{ prices_href }}">Cena w czasie</a>{% endif %}
   <a class="ds-btn ds-btn--secondary" href="{{ spend_href }}">Wydatki na ten produkt</a>
 </div>
+<section class="card" aria-labelledby="kat-h" id="kategoria">
+  <div>
+    <h2 class="s" id="kat-h">Kategoria w Budżecie</h2>
+    <p class="sum">{{ category_sources[category[1]] | capitalize }} · w tej kategorii Budżet Domowy liczy ten produkt z paragonu</p>
+  </div>
+  <form class="cat-pick" method="post" action="{{ category_href }}">
+    {% for value, label in category_labels.items() %}{% set on = category[0] == value %}
+    <button class="ds-chip{% if on %} ds-chip--on{% endif %}" name="category" value="{{ value }}" aria-pressed="{{ 'true' if on else 'false' }}">{{ label }}</button>
+    {% endfor %}
+  </form>
+</section>
 <section class="card" aria-labelledby="zak-h">
   <div>
     <h2 class="s" id="zak-h">Zakupy</h2>
