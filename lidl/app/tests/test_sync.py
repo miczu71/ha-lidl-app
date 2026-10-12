@@ -198,7 +198,7 @@ async def test_import_stores_envelope_and_a_sanitized_raw_copy(history: History)
     assert raw is not None and raw["ticketType"] == "NATIVE" and "operatorId" not in raw
 
 
-async def test_after_hook_runs_once_per_import(history: History) -> None:
+async def test_after_hook_once_per_manual_import_and_once_per_daily_run(history: History) -> None:
     calls: list[int] = []
 
     async def after() -> None:
@@ -208,5 +208,9 @@ async def test_after_hook_runs_once_per_import(history: History) -> None:
         return None
 
     sync = HistorySync(FakeSource({0: ["a"]}), history, sleep=no_sleep, after=after)
-    await sync.import_account("osoba-1", full=False)
+    assert sync.start("osoba-1", full=True)
+    await sync.wait("osoba-1")
     assert calls == [1]  # po zapisaniu paragonów
+    history.upsert_tickets("osoba-2", [{"id": "b", "date": "2026-01-01T10:00:00+00:00"}])
+    await sync.run_daily(["osoba-1", "osoba-2"])
+    assert len(calls) == 2  # dwa konta, jeden hook

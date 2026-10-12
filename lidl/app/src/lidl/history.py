@@ -37,6 +37,10 @@ ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; gra
 EFFECT_DAYS = 30
 MONTH_TOP = 5  # E19: długość list produktów w podsumowaniu miesiąca
 CATEGORIES = ("food", "drugstore", "kids", "nonfood")  # E6: kategorie produktu dla Budżetu Domowego
+UNSET: tuple[str, str | None] = (
+    "food",
+    None,
+)  # produkt bez kategorii: liczony jako spożywczy, „do sprawdzenia”
 PRICE_WINDOW_DAYS = 182  # E7: okno mediany ceny (ok. 6 miesięcy), porównywane z tym samym oknem rok wcześniej
 
 _SCHEMA = """
@@ -808,9 +812,9 @@ class History:
         row = self._db.execute(
             "SELECT category, source FROM product_category WHERE art_id = ?", (art_id,)
         ).fetchone()
-        return (row[0], row[1]) if row else ("food", None)
+        return (row[0], row[1]) if row else UNSET
 
-    def _categories(self) -> dict[str, tuple[str, str]]:
+    def _categories(self) -> dict[str, tuple[str, str | None]]:
         """Kod → (kategoria, źródło)."""
         return {
             a: (c, s) for a, c, s in self._db.execute("SELECT art_id, category, source FROM product_category")
@@ -831,6 +835,13 @@ class History:
             )
             return self._db.total_changes - before
 
+    def pending_categories(self) -> list[tuple[str, str, float]]:
+        """Produkty bez kategorii (Budżet liczy je jako spożywcze): kod, ostatnia nazwa, wydatek; od
+        największego wydatku (karta „Kategorie do sprawdzenia”, E6.4)."""
+        known = self._categories()
+        rows = [(c, p["name"], round(p["spend"], 2)) for c, p in self._products().items() if c not in known]
+        return sorted(rows, key=lambda r: (-r[2], r[0]))
+
     def uncategorized(self, since: date | None = None) -> dict[str, str]:
         """Produkty (po moście) bez kategorii, pierwszy raz kupione od `since` — kod → ostatnia nazwa; do
         klasyfikacji AI (E6.3). Historię sprzed E6 klasyfikuje jednorazowo Claude (E6.2), nie AI."""
@@ -841,24 +852,32 @@ class History:
             if code not in known and (since is None or min(p["days"]) >= since.isoformat())
         }
 
+    def receipt_parts(self, ticket_id: str) -> dict[str, float]:
+        """Kwota zapłacona paragonu podzielona na kategorie produktów (jak w pliku dla Budżetu)."""
+        parts: dict[str, float] = self.receipts_export(ticket_id)[0]["parts"]
+        return parts
+
     def receipts_export(self, ticket_id: str | None = None) -> list[dict[str, Any]]:
         """E6.5: paragony dla Budżetu Domowego z kwotą zapłaconą podzieloną na kategorie produktów. Część =
         suma pozycji po rabatach i kuponach; kaucja i różnica groszy idą do największej części, więc
         `sum(parts) == paid`. Paragon bez pozycji (niepobrany, nierozpoznany) = całość `food`."""
         resolve, known = self._resolver(), self._categories()
-        one = ("", ()) if ticket_id is None else (" WHERE ticket_id = ?", (ticket_id,))
+        args = () if ticket_id is None else (ticket_id,)
         sums: dict[str, dict[str, float]] = {}
         for tid, art_id, name, total, discount in self._db.execute(
-            f"SELECT ticket_id, art_id, name, total, discount FROM items{one[0]}", one[1]
+            "SELECT ticket_id, art_id, name, total, discount FROM items"
+            + (" WHERE ticket_id = ?" if args else ""),
+            args,
         ):
-            category = known.get(resolve(art_id, name), ("food", ""))[0]
+            category = known.get(resolve(art_id, name), UNSET)[0]
             parts = sums.setdefault(tid, {})
             parts[category] = parts.get(category, 0.0) + total + discount
         out = []
-        where = "" if ticket_id is None else " WHERE id = ?"
         for tid, account, day, purchased_at, paid, payment in self._db.execute(
-            f"SELECT id, account, day, purchased_at, total, payment FROM tickets{where} ORDER BY day, id",
-            one[1],
+            "SELECT id, account, day, purchased_at, total, payment FROM tickets"
+            + (" WHERE id = ?" if args else "")
+            + " ORDER BY day, id",
+            args,
         ):
             paid = round(paid, 2)
             parts = {c: round(v, 2) for c, v in sums.get(tid, {}).items() if round(v, 2)}
@@ -885,7 +904,7 @@ class History:
         jednorazowej klasyfikacji historii; od największego wydatku."""
         known, out = self._categories(), []
         for code, p in self._products().items():
-            category, source = known.get(code, ("food", None))
+            category, source = known.get(code, UNSET)
             out.append(
                 {
                     "code": code,

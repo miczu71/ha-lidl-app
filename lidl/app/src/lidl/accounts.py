@@ -19,6 +19,17 @@ from .client.auth import jwt_payload
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 
 
+def write_json_atomic(path: Path, data: Any, mode: int = 0o600) -> None:
+    """Zapis przez plik `.tmp` + rename (czytelnik nigdy nie widzi połowy pliku), z fsync."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+
+
 @dataclass(frozen=True)
 class Account:
     slug: str
@@ -57,14 +68,7 @@ class AccountStore:
 
     def _write(self, slug: str, data: dict[str, Any]) -> None:
         self._dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-        path = self._path(slug)
-        tmp = path.with_suffix(".json.tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, path)
+        write_json_atomic(self._path(slug), data)
 
     def get(self, slug: str) -> Account:
         path = self._path(slug)

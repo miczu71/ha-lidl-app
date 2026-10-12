@@ -10,17 +10,17 @@ potem plik `/share/lidl/receipts.json` z paragonami podzielonymi na kategorie pr
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import os
 from datetime import date, timedelta
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
 import aiohttp
 
+from .accounts import write_json_atomic
 from .history import CATEGORIES, History
-from .leaflet import ModelRefused, TryLater, ask_json
+from .llm import ModelRefused, TryLater, ask_json
 from .settings import Settings
 
 log = logging.getLogger(__name__)
@@ -57,25 +57,20 @@ def write_export(history: History, path: Path) -> int:
     """Zapisuje paragony dla Budżetu; zwraca ich liczbę."""
     receipts = history.receipts_export()
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps({"version": 1, "receipts": receipts}, ensure_ascii=False), encoding="utf-8")
-    os.replace(tmp, path)
+    write_json_atomic(path, {"version": 1, "receipts": receipts}, 0o644)  # czyta inny add-on
     return len(receipts)
 
 
 class BudgetFeed:
     def __init__(self, session: aiohttp.ClientSession, history: History, settings: Settings) -> None:
         self._session, self._history, self._settings = session, history, settings
+        self.path = settings.share_dir / "lidl" / "receipts.json"
         self._lock = asyncio.Lock()  # import ręczny i poranny mogą skończyć się naraz
-
-    @property
-    def path(self) -> Path:
-        return self._settings.share_dir / "lidl" / "receipts.json"
 
     async def refresh(self, today: date | None = None) -> None:
         async with self._lock:
             try:
-                if self._settings.leaflet_enabled:
+                if self._settings.llm_enabled:
                     await self.classify_new(today or date.today())
                 count = await asyncio.to_thread(write_export, self._history, self.path)
                 log.info("Budżet: %d paragonów w %s", count, self.path)
@@ -84,7 +79,7 @@ class BudgetFeed:
 
     async def classify_new(self, today: date) -> int:
         """Kategorie nowych produktów od modelu; zwraca liczbę zapisanych."""
-        new = dict(list(self._history.uncategorized(today - timedelta(days=NEW_DAYS)).items())[:MAX_ITEMS])
+        new = dict(islice(self._history.uncategorized(today - timedelta(days=NEW_DAYS)).items(), MAX_ITEMS))
         if not new:
             return 0
         content = [{"type": "text", "text": PROMPT + "\n".join(f"{c}: {n}" for c, n in new.items())}]

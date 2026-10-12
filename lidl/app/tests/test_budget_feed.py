@@ -11,7 +11,7 @@ import pytest
 from lidl import budget_feed
 from lidl.budget_feed import BudgetFeed, write_export
 from lidl.history import History
-from lidl.leaflet import ModelRefused
+from lidl.llm import ModelRefused
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.settings import Settings
 

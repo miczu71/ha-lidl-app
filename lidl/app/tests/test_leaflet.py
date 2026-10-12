@@ -228,7 +228,7 @@ def test_llm_options(
     options.write_text(json.dumps({"llm_url": url, "llm_key": key, "llm_vision_models": ["m1"]}))
     monkeypatch.setenv("LIDL_OPTIONS_PATH", str(options))
     s = load_settings()
-    assert (s.leaflet_enabled, s.llm_vision_models) == (enabled, ("m1",))
+    assert (s.llm_enabled, s.llm_vision_models) == (enabled, ("m1",))
     assert "llm_key" not in repr(s)  # klucz nie trafia do repr/logów
     if enabled:
         assert s.llm_url == "http://x/v1"

@@ -31,7 +31,7 @@ from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, Lid
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, MONTHLY, DailyJob, at_time_loop
 from lidl.geo import refresh_store_geo
-from lidl.history import CANDIDATE_MIN_PURCHASES, History, ReceiptFilter
+from lidl.history import CANDIDATE_MIN_PURCHASES, CATEGORIES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
@@ -69,6 +69,7 @@ RECEIPT_PARAMS = ("q", "konto", "sklep", "od", "do", "limit")
 # E6: kategorie produktu dla Budżetu Domowego i skąd się wzięły (brak = spożywcze do sprawdzenia)
 PENDING_SHOWN = 30
 CATEGORY_LABELS = {"food": "Spożywcze", "drugstore": "Drogeria", "kids": "Dla dzieci", "nonfood": "Inne"}
+assert tuple(CATEGORY_LABELS) == CATEGORIES
 CATEGORY_SOURCES = {
     None: "do sprawdzenia",
     "ai": "nadana przez AI",
@@ -141,7 +142,7 @@ def create_app(settings: Settings) -> FastAPI:
                 loops.append(asyncio.create_task(promotions.refresh()))
                 loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
                 loops.append(asyncio.create_task(feed.refresh()))  # plik dla Budżetu po aktualizacji add-onu
-                if settings.leaflet_enabled:
+                if settings.llm_enabled:
                     loops.append(asyncio.create_task(LeafletRunner(session, history, settings).run_forever()))
             try:
                 yield
@@ -280,6 +281,9 @@ def create_app(settings: Settings) -> FastAPI:
     def prices_href(request: Request, art_id: str) -> str:
         return f"{base(request)}/ceny/produkt/{quote(art_id, safe=':')}"
 
+    def category_href(request: Request, art_id: str) -> str:
+        return f"{base(request)}/paragony/produkt/{quote(art_id, safe=':')}#kategoria"
+
     def spend_href(request: Request, art_id: str) -> str:
         return f"{base(request)}/produkty?{urlencode({'produkt': art_id, 'zakres': 'all'})}#wykres"
 
@@ -316,21 +320,16 @@ def create_app(settings: Settings) -> FastAPI:
                 rows=ranking_rows(found, limit, link, lambda a: purchases_href(request, a)),
                 more_href=link(limit=limit + MORE_STEP) if len(found) > limit else None,
             )
-            pending = [c for c in history.category_candidates() if c["source"] is None]
-            # E6.4: produkty bez kategorii (w Budżecie jako spożywcze), od największych wydatków
+            if request.headers.get("hx-target") == "wyniki":  # wyszukiwanie na żywo: tylko wyniki rankingu
+                return render(request, "_ranking.html", **ctx)
+            pending = history.pending_categories()  # E6.4: w Budżecie liczone jako spożywcze
             ctx.update(
                 cat_pending=len(pending),
                 cat_rows=[
-                    {
-                        "name": c["names"][-1],
-                        "spend": fmt_pln(c["spend"], 2),
-                        "href": purchases_href(request, c["code"]),
-                    }
-                    for c in pending[:PENDING_SHOWN]
+                    {"name": name, "spend": fmt_pln(spend, 2), "href": category_href(request, code)}
+                    for code, name, spend in pending[:PENDING_SHOWN]
                 ],
             )
-            if request.headers.get("hx-target") == "wyniki":  # wyszukiwanie na żywo: tylko wyniki rankingu
-                return render(request, "_ranking.html", **ctx)
             chart = None
             range_totals = None
             if query.error is None:
@@ -589,16 +588,16 @@ def create_app(settings: Settings) -> FastAPI:
             category=history.category_of(art_id),
             category_labels=CATEGORY_LABELS,
             category_sources=CATEGORY_SOURCES,
-            category_href=purchases_href(request, art_id).split("?")[0] + "/kategoria",
+            category_action=purchases_href(request, art_id) + "/kategoria",
         )
 
     @app.post("/paragony/produkt/{art_id}/kategoria")
     async def set_product_category(request: Request, art_id: str, category: str = Form(...)) -> Response:
         """E6.4: ręczna kategoria produktu; wygrywa z klasyfikacją historii i AI."""
         history: History = request.app.state.history
-        if category in CATEGORY_LABELS and history.product_purchases(art_id):
+        if category in CATEGORIES and history.product_purchases(art_id):
             history.set_categories([(art_id, category)], "manual")
-        return go(request, f"/paragony/produkt/{quote(art_id, safe=':')}#kategoria")
+        return RedirectResponse(category_href(request, art_id), status_code=303)
 
     @app.get("/paragony/{ticket_id}")
     async def receipt(request: Request, ticket_id: str, produkt: str = "") -> Response:
@@ -608,7 +607,7 @@ def create_app(settings: Settings) -> FastAPI:
         if d is None:
             return render(request, "receipt.html", receipt=None, back=back, status_code=404)
         view = detail_view(d, account_labels(request), produkt or None, lambda a: purchases_href(request, a))
-        parts = history.receipts_export(ticket_id)[0]["parts"] if d.lines else {}
+        parts = history.receipt_parts(ticket_id) if d.lines else {}
         split = [(CATEGORY_LABELS[c], fmt_pln(v, 2)) for c, v in sorted(parts.items(), key=lambda p: -p[1])]
         return render(
             request, "receipt.html", receipt=view, back=back, from_product=bool(produkt), split=split

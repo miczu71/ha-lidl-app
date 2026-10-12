@@ -27,7 +27,8 @@ class Settings:
     share_dir: Path = Path("/share")  # E6: plik dla Budżetu Domowego
 
     @property
-    def leaflet_enabled(self) -> bool:
+    def llm_enabled(self) -> bool:
+        """Model językowy skonfigurowany: gazetki (E4) i kategorie nowych produktów (E6)."""
         return bool(self.llm_url and self.llm_key)
 
     @property

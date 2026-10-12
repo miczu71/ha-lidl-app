@@ -65,7 +65,7 @@ class HistorySync:
     ) -> None:
         self._source = source
         self._history = history
-        self._after = after  # po każdym imporcie konta (E6: kategorie i plik dla Budżetu)
+        self._after = after  # po imporcie (E6: kategorie i plik dla Budżetu): ręcznym konta, porannym raz
         self._pause = pause
         self._sleep = sleep
         self._progress: dict[str, SyncProgress] = {}
@@ -78,14 +78,20 @@ class HistorySync:
     def progress(self, slug: str) -> SyncProgress:
         return self._progress.setdefault(slug, SyncProgress())
 
-    def start(self, slug: str, *, full: bool) -> bool:
-        """Uruchamia import w tle; False, jeśli to konto już się synchronizuje."""
+    def start(self, slug: str, *, full: bool, after: bool = True) -> bool:
+        """Uruchamia import w tle (potem hook `after`); False, jeśli to konto już się synchronizuje."""
         progress = self.progress(slug)
         if progress.running:
             return False
         progress.running = True
-        self._tasks[slug] = asyncio.create_task(self.import_account(slug, full=full))
+        self._tasks[slug] = asyncio.create_task(self._import(slug, full, after))
         return True
+
+    async def _import(self, slug: str, full: bool, after: bool) -> SyncResult:
+        result = await self.import_account(slug, full=full)
+        if after and self._after is not None:
+            await self._after()
+        return result
 
     async def close(self) -> None:
         """Przerywa trwające importy (zamykanie add-onu); postęp zostaje w bazie."""
@@ -102,8 +108,10 @@ class HistorySync:
     async def run_daily(self, slugs: list[str]) -> None:
         """Dzienny przebieg; konta, których nikt jeszcze ręcznie nie zaimportował, pomija."""
         for slug in slugs:
-            if self._history.ticket_count(slug) > 0 and self.start(slug, full=False):
+            if self._history.ticket_count(slug) > 0 and self.start(slug, full=False, after=False):
                 await self.wait(slug)
+        if self._after is not None:  # raz po wszystkich kontach
+            await self._after()
 
     async def import_account(self, slug: str, *, full: bool) -> SyncResult:
         progress = self.progress(slug)
@@ -142,8 +150,6 @@ class HistorySync:
             "Import konta %s: %d nowych, %d szczegółów, %d pominiętych, %d nierozpoznanych",
             slug, new, details, skipped, unparsed,
         )  # fmt: skip
-        if self._after is not None:
-            await self._after()
         return SyncResult(new, details, skipped, stopped, unparsed)
 
     async def _import_lists(self, slug: str, full: bool) -> int:
