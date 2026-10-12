@@ -21,13 +21,12 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from time import monotonic
 from typing import Any
 
 import aiohttp
 
 from .history import History
-from .llm import ModelRefused, TryLater, ask_json, log_attempt
+from .llm import KeyRejected, ModelRefused, TryLater, ask_logged
 from .promotions import Promotion
 from .settings import Settings
 
@@ -198,7 +197,7 @@ class LeafletRunner:
             self._history.log_event(
                 "leaflet", "ok",
                 f"Nowa gazetka {f.start:%d.%m}–{f.end:%d.%m}: {pages} stron w {len(batches)} paczkach",
-                {"flyer": f.id, "pages": pages, "batches": len(batches), "skipped": skipped},
+                {"flyer": f.id},
             )  # fmt: skip
 
     async def _process(self, batch: dict[str, Any], now: datetime) -> None:
@@ -211,20 +210,24 @@ class LeafletRunner:
             return
         overloaded: TryLater | None = None
         for model in [m for m in self._models if m not in self._refused]:
-            began = monotonic()
             try:
-                payload = await ask_json(
-                    self._session, self._url, self._key, model, content, "matches", SCHEMA
-                )
-                log_attempt(self._history, "gazetka", model, began)
+                payload = await ask_logged(
+                    self._history, "gazetka", self._session, self._url, self._key, model, content, "matches",
+                    SCHEMA,
+                )  # fmt: skip
                 break
+            except (
+                KeyRejected
+            ) as err:  # błąd konfiguracji, nie paczki: bez kolejnych modeli i bez liczenia próby
+                later = now + RETRY
+                self._history.set_leaflet_batch(fid, n, "pending", batch["attempts"], later.isoformat())
+                log.warning("Gazetka %s/%d: %s, ponowię o %s", fid, n, err, later.strftime("%H:%M"))
+                return
             except ModelRefused as err:
                 log.info("Gazetka %s/%d: model %s odmówił (%s), następny", fid, n, model, err)
-                log_attempt(self._history, "gazetka", model, began, err)
                 self._refused.add(model)
             except TryLater as err:  # przeciążenie jednego modelu — inny może być wolny
                 log.info("Gazetka %s/%d: model %s: %s, następny", fid, n, model, err)
-                log_attempt(self._history, "gazetka", model, began, err)
                 overloaded = err
         else:
             if overloaded:
@@ -244,7 +247,7 @@ class LeafletRunner:
         log.info("Gazetka %s/%d (%s): %d trafień", fid, n, model, len(promos))
         self._history.log_event(
             "leaflet", "ok", f"Paczka {n + 1} gazetki: {len(promos)} trafień ({model})",
-            {"flyer": fid, "batch": n, "matches": len(promos), "model": model},
+            {"flyer": fid},
         )  # fmt: skip
 
     def _retry(self, batch: dict[str, Any], now: datetime, err: TryLater) -> None:
@@ -256,7 +259,7 @@ class LeafletRunner:
             self._history.log_event(
                 "leaflet", "error",
                 f"Paczka {batch['batch'] + 1} gazetki porzucona po {attempts} próbach: {err}",
-                {"flyer": batch["flyer_id"], "batch": batch["batch"], "attempts": attempts},
+                {"flyer": batch["flyer_id"]},
             )  # fmt: skip
         self._history.set_leaflet_batch(
             batch["flyer_id"], batch["batch"], status, attempts, later.isoformat()

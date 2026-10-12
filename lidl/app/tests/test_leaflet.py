@@ -184,7 +184,7 @@ async def test_bad_key_is_retried_not_treated_as_a_rate_limit(tmp_path: Path) ->
     session = FakeSession([(401, ""), (401, "")])
     runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
     await runner.step(NOW)
-    assert session.models == ["model-a", "model-b"] and runner._refused == set()
+    assert session.models == ["model-a"] and runner._refused == set()
     assert h.has_pending_leaflet()
 
 
@@ -261,3 +261,6 @@ async def test_rejected_key_is_marked_in_event_log(tmp_path: Path) -> None:
     await runner.step(NOW)
     assert {e.detail["outcome"] for e in h.events(START_DT, area="ai")} == {"key"}
     assert all(e.level == "error" for e in h.events(START_DT, area="ai"))
+    assert len(h.events(START_DT, area="ai")) == 1  # zły klucz: bez kolejnych modeli
+    batch = h.next_leaflet_batch("2026-10-07T12:10:00")
+    assert batch is not None and batch["attempts"] == 0  # i bez zużycia próby paczki

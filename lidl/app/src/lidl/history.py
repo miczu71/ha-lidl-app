@@ -20,6 +20,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from time import monotonic
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from .receipt import PARSER_VERSION
@@ -33,6 +34,12 @@ if TYPE_CHECKING:
 _T = TypeVar("_T")
 
 log = logging.getLogger(__name__)
+
+
+def elapsed_ms(began: float) -> int:
+    """Czas od `began` (`time.monotonic()`) w ms — do `log_event(duration_ms=…)`."""
+    return round((monotonic() - began) * 1000)
+
 
 SCHEMA_VERSION = 5
 CANDIDATE_MIN_PURCHASES = 3
@@ -727,9 +734,9 @@ class History:
         )
         return int(self._db.execute(sql, args).fetchone()[0])
 
-    def last_ticket_date(self) -> str | None:
+    def last_ticket_date(self) -> date | None:
         row = self._db.execute("SELECT MAX(day) FROM tickets").fetchone()
-        return str(row[0]) if row and row[0] else None
+        return date.fromisoformat(str(row[0])[:10]) if row and row[0] else None
 
     def pending_details(self, account: str) -> list[str]:
         """Paragony bez pobranych pozycji albo zapisane starszym parserem, od najnowszych."""

@@ -8,7 +8,7 @@ from typing import Any
 import aiohttp
 import pytest
 
-from lidl import budget_feed
+from lidl import llm
 from lidl.budget_feed import BudgetFeed, write_export
 from lidl.history import History
 from lidl.llm import ModelRefused
@@ -64,7 +64,7 @@ async def test_refresh_classifies_only_new_products_and_writes_file(
         pairs = [("0002", "drugstore"), ("0003", "kids"), ("9999", "food"), ("0002", "toys")]
         return {"items": [{"code": c, "category": k} for c, k in pairs]}
 
-    monkeypatch.setattr(budget_feed, "ask_json", fake_ask)
+    monkeypatch.setattr(llm, "ask_json", fake_ask)
     h = _history(tmp_path)
     async with aiohttp.ClientSession() as session:
         feed = BudgetFeed(session, h, _settings(tmp_path))
@@ -84,7 +84,7 @@ async def test_refresh_without_models_answer_keeps_products_pending(
     async def refuse(*_: Any) -> Any:
         raise ModelRefused("HTTP 429")
 
-    monkeypatch.setattr(budget_feed, "ask_json", refuse)
+    monkeypatch.setattr(llm, "ask_json", refuse)
     h = _history(tmp_path)
     async with aiohttp.ClientSession() as session:
         feed = BudgetFeed(session, h, _settings(tmp_path))
@@ -99,7 +99,7 @@ async def test_classification_error_does_not_block_export(
     async def broken(*_: Any) -> Any:
         raise AttributeError("'list' object has no attribute 'get'")
 
-    monkeypatch.setattr(budget_feed, "ask_json", broken)
+    monkeypatch.setattr(llm, "ask_json", broken)
     async with aiohttp.ClientSession() as session:
         feed = BudgetFeed(session, _history(tmp_path), _settings(tmp_path))
         await feed.refresh(date(2026, 10, 12))

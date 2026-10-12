@@ -490,11 +490,11 @@ a.st:hover .st__name { color: var(--blue); text-decoration: underline; text-unde
 /* E23: zakładka Status — werdykt, obszary, szczegóły w zakładkach, oś czasu */
 .tnum { font-variant-numeric: tabular-nums; }
 .lv { display: inline-flex; align-items: center; gap: 6px; font: 600 13px/18px var(--font-sans); white-space: nowrap; }
-.lv svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.lv .ic { width: 18px; height: 18px; stroke-width: 2; }
 .lv--ok { color: var(--green-deep); }
 .lv--busy { color: var(--blue); }
 .lv--warn { color: var(--amber-deep); }
-.lv--err { color: var(--red-deep); }
+.lv--error { color: var(--red-deep); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red-deep); box-shadow: 0 0 0 2px var(--surface); }
 .ds-chip--on .dot { background: var(--surface); box-shadow: none; }
 .verdict { margin: 0; font: 800 24px/30px var(--font-sans); }

@@ -153,7 +153,7 @@ class CouponRunner:
             active, decisions = len(report.active), len(report.activations)
             self._history.log_event(
                 "coupons", "ok", f"Kupony {slug}: {active} aktywnych, {decisions} nowych decyzji",
-                {"account": slug, "auth": False, "active": active, "decisions": decisions},
+                {"account": slug, "auth": False},
             )  # fmt: skip
         return out
 

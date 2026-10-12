@@ -298,7 +298,8 @@ async def test_morning_run_lands_in_event_log(monkeypatch: pytest.MonkeyPatch) -
     (event,) = [e for e in history.events if e[0] == "daily"]
     assert event[1] == "ok"
     assert event[3] == {
-        "accounts": 1, "promotions": 1, "coupons": {"would": 1}, "rewards": 1, "notified": True,
+        "run": "morning", "accounts": 1, "promotions": 1, "coupons": {"would": 1}, "rewards": 1,
+        "notified": True,
     }  # fmt: skip
 
 

@@ -4,6 +4,7 @@
 są testowalne i te same dla strony, kropki na chipie i alertów (E23.3). Problem = coś, co wymaga działania
 albo zatrzymało pracę add-onu: wygasła sesja, nieudany lub pominięty poranny przebieg, odrzucony klucz AI,
 porzucona paczka gazetki. Limit modelu AI czy przerwany import (ponowi się sam) to tylko „Uwaga”.
+Teksty biorą się z pól `detail` wpisów, nie z ich opisów (opis to tylko wiersz osi czasu).
 """
 
 from __future__ import annotations
@@ -13,18 +14,19 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Any
 
-from lidl.daily import EVENING, MONTHLY, STATUS_LABELS
+from lidl.daily import EVENING, MONTHLY, fmt_decisions
 from lidl.history import Event, LeafletProgress
 from lidl.sync import SyncProgress
-from lidl.text import count_text, fmt_day_month
+from lidl.text import GENITIVE_MONTHS, count_text, fmt_day_month, plural
 
 MISSED_AFTER = timedelta(hours=2)  # poranny przebieg trwa minuty; po 2 h bez wpisu uznajemy go za pominięty
-LEVELS = {"ok": "Działa", "busy": "W toku", "warn": "Uwaga", "err": "Wymaga działania"}
-_RANK = {"err": 0, "warn": 1, "busy": 2, "ok": 3}
-_GEN_MONTHS = [
-    "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
-    "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
-]  # fmt: skip
+LEVELS = {
+    "ok": "Działa",
+    "busy": "W toku",
+    "warn": "Uwaga",
+    "error": "Wymaga działania",
+}  # poziomy jak w dzienniku
+_RANK = {"error": 0, "warn": 1, "busy": 2, "ok": 3}
 # filtr osi czasu → obszary dziennika (kupony kont to część porannego przebiegu)
 FILTERS: dict[str, tuple[str, set[str]]] = {
     "daily": ("Przebiegi", {"daily", "coupons"}),
@@ -33,7 +35,6 @@ FILTERS: dict[str, tuple[str, set[str]]] = {
     "ai": ("AI", {"ai"}),
     "system": ("System", {"system", "account", "budget"}),
 }
-_LEVEL_OF_EVENT = {"ok": "ok", "warn": "warn", "error": "err"}
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,7 @@ class Snapshot:
     refused: set[str]  # modele z wyczerpanym limitem (gazetka)
     llm_enabled: bool
     tickets: int
-    last_ticket: str | None
+    last_ticket: date | None
     db_bytes: int
 
 
@@ -75,10 +76,6 @@ class Area:
     models: list[tuple[str, int, int, int, str]] = field(default_factory=list)
     facts: list[tuple[str, str]] = field(default_factory=list)
 
-    @property
-    def label(self) -> str:
-        return LEVELS[self.level]
-
 
 @dataclass(frozen=True)
 class Row:
@@ -101,6 +98,11 @@ class StatusView:
     days: list[Day]
     busy: bool
 
+    @property
+    def verdict(self) -> str:
+        n = len(self.problems)
+        return f"{n} {plural(n, 'sprawa wymaga', 'sprawy wymagają', 'spraw wymaga')} działania" if n else ""
+
 
 def fmt_duration(ms: int | None) -> str:
     if ms is None:
@@ -118,7 +120,7 @@ def _when(dt: datetime, now: datetime) -> str:
 
 
 def _day_label(d: date, today: date) -> str:
-    text = f"{d.day} {_GEN_MONTHS[d.month - 1]}"
+    text = f"{d.day} {GENITIVE_MONTHS[d.month - 1]}"
     return "Dziś, " + text if d == today else "Wczoraj, " + text if d == today - timedelta(days=1) else text
 
 
@@ -136,12 +138,13 @@ def _account_event(s: Snapshot, areas: set[str], slug: str) -> Event | None:
 
 
 def _system(s: Snapshot, problems: list[Problem]) -> Area:
-    facts = []
+    facts, expired = [], []
     for slug, label, connected in s.accounts:
         last = _account_event(s, {"sync", "coupons", "account"}, slug)
         if not connected:
             facts.append((label, "niezalogowane"))
         elif last is not None and last.detail.get("auth"):
+            expired.append(label)
             facts.append((label, f"sesja wygasła ({_when(last.ts, s.now)})"))
             problems.append(
                 Problem(f"session:{slug}", "system",
@@ -159,54 +162,53 @@ def _system(s: Snapshot, problems: list[Problem]) -> Area:
     ]  # fmt: skip
     budget = _latest(s.events, {"budget"})
     if budget is not None:
-        facts.append(("Plik dla Budżetu", f"{budget.summary.split(': ', 1)[-1]}, {_when(budget.ts, s.now)}"))
-    mine = [p for p in problems if p.area == "system"]
-    level = "err" if mine else "ok"
-    say = (
-        mine[0].text.split(" — ")[0]
-        if mine
-        else f"{count_text(sum(c for *_, c in s.accounts), 'konto', 'konta', 'kont')} połączone"
-    )
-    return Area("system", "Konta i system", level, say, facts=facts)
+        receipts = budget.detail.get("receipts")
+        text = (
+            count_text(receipts, "paragon", "paragony", "paragonów")
+            if receipts is not None
+            else "eksport nieudany"
+        )
+        facts.append(("Plik dla Budżetu", f"{text}, {_when(budget.ts, s.now)}"))
+    if expired:
+        say = f"Sesja wygasła: {', '.join(expired)}"
+        return Area("system", "Konta i system", "error", say, facts=facts)
+    linked = count_text(sum(c for *_, c in s.accounts), "konto", "konta", "kont")
+    return Area("system", "Konta i system", "ok", f"{linked} połączone", facts=facts)
 
 
 def _ai(s: Snapshot, problems: list[Problem]) -> Area:
     if not s.llm_enabled:
         return Area("ai", "Zapytania AI", "ok", "Wyłączone (brak opcji llm_url i llm_key)")
-    today = [e for e in s.events if e.area == "ai" and e.ts.date() == s.now.date()]
     last = _latest(s.events, {"ai"})
-    if last is not None and last.detail.get("outcome") == "key":
+    key_rejected = last is not None and last.detail.get("outcome") == "key"
+    if key_rejected:
         problems.append(Problem("ai-key", "ai", "Klucz AI odrzucony — gazetka i kategorie stoją",
                                 "Sprawdź opcję llm_key add-onu"))  # fmt: skip
     per: dict[str, Counter[str]] = {}
     times: dict[str, list[int]] = {}
-    for e in today:
-        model = str(e.detail.get("model"))
-        per.setdefault(model, Counter())[str(e.detail.get("outcome"))] += 1
-        if e.duration_ms is not None and e.detail.get("outcome") == "ok":
+    for e in s.events:
+        if e.area != "ai" or e.ts.date() != s.now.date():
+            continue
+        model, outcome = str(e.detail.get("model")), str(e.detail.get("outcome"))
+        per.setdefault(model, Counter())[outcome] += 1
+        if e.duration_ms is not None and outcome == "ok":
             times.setdefault(model, []).append(e.duration_ms)
     models = [
         (m, c["ok"], c["refused"], c["overloaded"] + c["key"],
          fmt_duration(sum(times[m]) // len(times[m])) if times.get(m) else "—")
         for m, c in per.items()
     ]  # fmt: skip
-    total = sum((c for c in per.values()), Counter())
-    if any(p.area == "ai" for p in problems):
-        level, say = "err", "Klucz AI odrzucony"
+    total = sum(per.values(), Counter())
+    failed = total["refused"] + total["overloaded"] + total["key"]
+    if key_rejected:
+        level, say = "error", "Klucz AI odrzucony"
     elif s.refused:
         level, say = "warn", f"Limit dnia: {', '.join(sorted(s.refused))}"
     else:
-        level = "ok"
-        say = f"Dziś {total['ok']} OK" + (
-            f", {total['refused'] + total['overloaded']} nieudanych" if len(total) > 1 else ""
-        )
-    facts = [
-        (
-            "Dziś",
-            f"{total['ok']} OK · {count_text(total['refused'], 'odmowa', 'odmowy', 'odmów')} · "
-            f"{count_text(total['overloaded'], 'przeciążenie', 'przeciążenia', 'przeciążeń')}",
-        )
-    ]
+        level, say = "ok", f"Dziś {total['ok']} OK" + (f", {failed} nieudanych" if failed else "")
+    refused = count_text(total["refused"], "odmowa", "odmowy", "odmów")
+    overloaded = count_text(total["overloaded"], "przeciążenie", "przeciążenia", "przeciążeń")
+    facts = [("Dziś", f"{total['ok']} OK · {refused} · {overloaded}")]
     cat = _latest(s.events, {"ai"}, lambda e: e.detail.get("use") == "kategorie")
     if cat is not None:
         facts.append(("Kategorie produktów", f"ostatnio {_when(cat.ts, s.now)}"))
@@ -218,7 +220,6 @@ def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
         return Area(
             "leaflet", "Gazetka", "ok", "Brak bieżącej gazetki" if s.llm_enabled else "Wyłączona (bez AI)"
         )
-    cur = s.leaflets[0]
     for f in s.leaflets:
         if f.failed:
             problems.append(Problem(
@@ -226,6 +227,7 @@ def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
                 f"Gazetka {fmt_day_month(f.start)}: porzucone paczki {f.failed} z {f.total} — "
                 "część promocji nie trafi do porannego",
             ))  # fmt: skip
+    cur = s.leaflets[0]
     facts = [
         ("Gazetka", f"{fmt_day_month(cur.start)}–{fmt_day_month(cur.end)}"),
         (
@@ -234,135 +236,96 @@ def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
         ),
         ("Trafienia", str(cur.matches)),
     ]
-    nxt = f"następna paczka {cur.next_try:%H:%M}" if cur.pending and cur.next_try else ""
     if cur.failed:
-        return Area(
-            "leaflet",
-            "Gazetka",
-            "err",
-            f"Porzucone paczki: {cur.failed}",
-            nxt,
-            (cur.done, cur.total),
-            facts=facts,
-        )
-    if cur.pending:
-        return Area(
-            "leaflet",
-            "Gazetka",
-            "busy",
-            f"Paczka {cur.done + 1} z {cur.total}",
-            nxt,
-            (cur.done, cur.total),
-            facts=facts,
-        )
-    return Area(
-        "leaflet",
-        "Gazetka",
-        "ok",
-        f"Gotowa: {count_text(cur.matches, 'trafienie', 'trafienia', 'trafień')}",
-        facts=facts,
-    )
+        level, say = "error", f"Porzucone paczki: {cur.failed}"
+    elif cur.pending:
+        level, say = "busy", f"Paczka {cur.done + 1} z {cur.total}"
+    else:
+        level, say = "ok", f"Gotowa: {count_text(cur.matches, 'trafienie', 'trafienia', 'trafień')}"
+    nxt = f"następna paczka {cur.next_try:%H:%M}" if cur.pending and cur.next_try else ""
+    progress = (cur.done, cur.total) if level != "ok" else None
+    return Area("leaflet", "Gazetka", level, say, nxt, progress, facts=facts)
 
 
 def _daily(s: Snapshot, problems: list[Problem]) -> Area:
-    morning = _latest(s.events, {"daily"}, lambda e: "accounts" in e.detail)
+    morning = _latest(s.events, {"daily"}, lambda e: e.detail.get("run") == "morning")
     due = datetime.combine(s.now.date(), s.run_time)
-    nxt = _next_label(s)
     steps: list[tuple[str, str]] = []
-    if morning is not None:
+    if morning is not None and "coupons" in morning.detail:
         d = morning.detail
-        if "coupons" in d:
-            steps = [
-                ("Kupony", ", ".join(f"{STATUS_LABELS.get(k, k)} {n}" for k, n in d["coupons"].items())
-                           or "bez zmian"),
-                ("Promocje", str(d.get("promotions", "—"))),
-                ("Nagrody", count_text(int(d.get("rewards", 0)), "konto", "konta", "kont")),
-                ("Powiadomienie", "wysłane" if d.get("notified") else "brak"),
-            ]  # fmt: skip
-    facts = [(e.summary.split(": ", 1)[0], e.summary.split(": ", 1)[-1])
-             for e in s.events if e.area == "daily" and "accounts" not in e.detail][:2]  # fmt: skip
+        steps = [
+            ("Kupony", fmt_decisions(d["coupons"])),
+            ("Promocje", str(d.get("promotions", "—"))),
+            ("Nagrody", count_text(int(d.get("rewards", 0)), "konto", "konta", "kont")),
+            ("Powiadomienie", "wysłane" if d.get("notified") else "brak"),
+        ]
+    others = [e for e in s.events if e.area == "daily" and e.detail.get("run") != "morning"][:2]
+    facts = [(_when(e.ts, s.now).capitalize(), e.summary) for e in others]
     if s.daily_running:
-        return Area(
-            "daily", "Przebiegi zaplanowane", "busy", "Poranny przebieg w toku", nxt, steps=steps, facts=facts
-        )
-    if morning is not None and morning.level == "error" and morning.ts >= due - timedelta(hours=12):
+        level, say = "busy", "Poranny przebieg w toku"
+    elif morning is not None and morning.level == "error" and morning.ts >= due - timedelta(hours=12):
         step = morning.detail.get("step", "")
         problems.append(Problem("daily", "daily", f"Poranny przebieg przerwany na kroku „{step}”",
                                 "Szczegóły w osi czasu niżej"))  # fmt: skip
-        return Area(
-            "daily", "Przebiegi zaplanowane", "err", f"Przerwany: {step}", nxt, steps=steps, facts=facts
-        )
+        level, say = "error", f"Przerwany: {step}"
     # bez żadnego wpisu (pierwszy dzień po aktualizacji do E23) nie wiemy, czy przebieg miał być — bez alarmu
-    if s.now >= due + MISSED_AFTER and morning is not None and morning.ts < due:
-        problems.append(
-            Problem(
-                "daily", "daily", f"Poranny przebieg {s.run_time:%H:%M} się nie odbył (add-on nie działał?)"
-            )
-        )
-        return Area(
-            "daily",
-            "Przebiegi zaplanowane",
-            "err",
-            f"Dziś {s.run_time:%H:%M} się nie odbył",
-            nxt,
-            steps=steps,
-            facts=facts,
-        )
-    if morning is None:
-        return Area("daily", "Przebiegi zaplanowane", "ok", "Jeszcze bez przebiegu", nxt, facts=facts)
-    say = f"{_when(morning.ts, s.now).capitalize()} gotowe" + (
-        f" w {fmt_duration(morning.duration_ms)}" if morning.duration_ms else ""
-    )
-    return Area("daily", "Przebiegi zaplanowane", "ok", say, nxt, steps=steps, facts=facts)
+    elif s.now >= due + MISSED_AFTER and morning is not None and morning.ts < due:
+        text = f"Poranny przebieg {s.run_time:%H:%M} się nie odbył (add-on nie działał?)"
+        problems.append(Problem("daily", "daily", text))
+        level, say = "error", f"Dziś {s.run_time:%H:%M} się nie odbył"
+    elif morning is None:
+        level, say = "ok", "Jeszcze bez przebiegu"
+    else:
+        took = f" w {fmt_duration(morning.duration_ms)}" if morning.duration_ms else ""
+        level, say = "ok", f"{_when(morning.ts, s.now).capitalize()} gotowe{took}"
+    return Area("daily", "Przebiegi zaplanowane", level, say, _next_label(s), steps=steps, facts=facts)
 
 
 def _next_label(s: Snapshot) -> str:
-    """Najbliższe zaplanowane: poranny, zdrapki 18:00, podsumowanie 1. dnia miesiąca."""
-    plan = [(_next_at(s.now, s.run_time), "poranny"), (_next_at(s.now, EVENING), "zdrapki")]
+    """Dwa najbliższe zaplanowane: poranny, zdrapki 18:00, podsumowanie 1. dnia miesiąca."""
     first = (s.now.date().replace(day=1) + timedelta(days=32)).replace(day=1)
-    plan.append((datetime.combine(first, MONTHLY), "podsumowanie miesiąca"))
+    plan = [
+        (_next_at(s.now, s.run_time), "poranny"),
+        (_next_at(s.now, EVENING), "zdrapki"),
+        (datetime.combine(first, MONTHLY), "podsumowanie miesiąca"),
+    ]
     return " · ".join(f"{_when(at, s.now)} {what}" for at, what in sorted(plan)[:2])
 
 
+def _import_text(e: Event) -> str:
+    d = e.detail
+    text = f"{d.get('new', 0)} nowych, {d.get('details', 0)} szczegółów"
+    return text + (f", przerwany: {d['stopped']}" if d.get("stopped") else "")
+
+
 def _sync(s: Snapshot) -> Area:
-    running = [(slug, p) for slug, p in s.progress.items() if p.running]
-    facts = []
+    facts, failed = [], False
     for slug, label, _ in s.accounts:
         last = _account_event(s, {"sync"}, slug)
         if last is not None:
-            facts.append((label, f"{last.summary.split(': ', 1)[-1]} ({_when(last.ts, s.now)})"))
-    say = f"{s.tickets} w bazie" + (
-        f", ostatni {fmt_day_month(date.fromisoformat(s.last_ticket[:10]))}" if s.last_ticket else ""
-    )
+            facts.append((label, f"{_import_text(last)} ({_when(last.ts, s.now)})"))
+            failed |= last.level == "error" and not last.detail.get("auth")  # sesję pokazuje „Konta i system”
+    running = [p for p in s.progress.values() if p.running]
     if running:
-        done, total = sum(p.done for _, p in running), sum(p.total for _, p in running)
-        return Area(
-            "sync",
-            "Paragony",
-            "busy",
-            f"Import: {done} z {total} szczegółów",
-            progress=(done, total),
-            facts=facts,
-        )
-    failed = [
-        e for slug, *_ in s.accounts
-        if (e := _account_event(s, {"sync"}, slug)) and e.level == "error" and not e.detail.get("auth")
-    ]  # fmt: skip
+        done, total = sum(p.done for p in running), sum(p.total for p in running)
+        say = f"Import: {done} z {total} szczegółów"
+        return Area("sync", "Paragony", "busy", say, progress=(done, total), facts=facts)
+    say = f"{s.tickets} w bazie" + (f", ostatni {fmt_day_month(s.last_ticket)}" if s.last_ticket else "")
     nxt = f"{_when(_next_at(s.now, s.run_time), s.now)} z porannym"
     return Area("sync", "Paragony", "warn" if failed else "ok", say, nxt, facts=facts)
 
 
-def build(s: Snapshot, area: str = "") -> StatusView:
+def build(s: Snapshot, area: str = "", *, timeline: bool = True) -> StatusView:
+    """Widok strony; bez osi czasu (`timeline=False`) dla odświeżania bloku bieżącego i alertów."""
     problems: list[Problem] = []
     areas = [_system(s, problems), _ai(s, problems), _leaflet(s, problems), _daily(s, problems), _sync(s)]
     areas.sort(key=lambda a: _RANK[a.level])
-    wanted = FILTERS[area][1] if area in FILTERS else None
     days: dict[date, list[Row]] = {}
-    for e in s.events:
+    wanted = FILTERS[area][1] if area in FILTERS else None
+    for e in s.events if timeline else []:
         if wanted is None or e.area in wanted:
-            days.setdefault(e.ts.date(), []).append(
-                Row(f"{e.ts:%H:%M}", _LEVEL_OF_EVENT[e.level], e.summary, fmt_duration(e.duration_ms))
-            )
+            row = Row(f"{e.ts:%H:%M}", e.level, e.summary, fmt_duration(e.duration_ms))
+            days.setdefault(e.ts.date(), []).append(row)
     return StatusView(
         areas,
         problems,

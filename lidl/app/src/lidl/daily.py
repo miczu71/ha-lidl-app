@@ -18,7 +18,7 @@ from . import notify
 from .accounts import AccountStore
 from .coupons import CouponRunner
 from .geo import refresh_store_geo
-from .history import History
+from .history import History, elapsed_ms
 from .promotions import Promotion, PromotionRunner
 from .rewards import Rewards, RewardsRunner
 from .sync import HistorySync
@@ -31,11 +31,7 @@ EVENTS_KEEP = timedelta(days=30)  # dziennik zakładki Status (E23)
 STATUS_LABELS = {"activated": "aktywowane", "would": "aktywowałbym", "failed": "nieudane"}
 
 
-def _ms(began: float) -> int:
-    return round((monotonic() - began) * 1000)
-
-
-def _counts(statuses: dict[str, int]) -> str:
+def fmt_decisions(statuses: dict[str, int]) -> str:
     """„aktywowane 5, nieudane 1” — nowe decyzje przebiegu; „bez zmian”, gdy żadnej."""
     return ", ".join(f"{STATUS_LABELS.get(k, k)} {n}" for k, n in statuses.items()) or "bez zmian"
 
@@ -90,8 +86,6 @@ class DailyJob:
         self.dry_run = dry_run
         self.last_check: datetime | None = None
         self.running = False  # kupony w toku (rano); panel odświeża się wtedy sam
-        self._step = ""  # krok przebiegu w toku i wyniki kroków — do wpisu w dzienniku (E23)
-        self._report: dict[str, Any] = {}
 
     def _accounts(self) -> list[tuple[str, str]]:
         return [(a.slug, a.label) for a in self._store.list() if a.connected]
@@ -101,28 +95,28 @@ class DailyJob:
         began = monotonic()
         self._history.prune_events(datetime.now() - EVENTS_KEEP)
         accounts = self._accounts()
-        self._report = {"accounts": len(accounts)}
+        report: dict[str, Any] = {"run": "morning", "accounts": len(accounts)}
+        step = "paragony"
         try:
-            self._step = "paragony"
             await self._sync.run_daily([slug for slug, _ in accounts])
             self._history.warm()  # nowe paragony unieważniły wyniki zakładek
-            self._step = "promocje"
+            step = "promocje"
             await self._promotions.refresh()
-            await self._coupons(accounts)
-            self._step = "sklepy"  # nowy sklep z dzisiejszych paragonów, na końcu
+            step = "kupony"  # z nagrodami i powiadomieniem
+            report.update(await self._coupons(accounts))
+            step = "sklepy"  # nowy sklep z dzisiejszych paragonów, na końcu
             await refresh_store_geo(self._session, self._history)
         except Exception as err:
             self._history.log_event(
-                "daily", "error", f"Poranny przebieg przerwany ({self._step}): {type(err).__name__}: {err}",
-                {**self._report, "step": self._step}, duration_ms=_ms(began),
+                "daily", "error", f"Poranny przebieg przerwany ({step}): {type(err).__name__}: {err}",
+                {**report, "step": step}, duration_ms=elapsed_ms(began),
             )  # fmt: skip
             raise
-        r = self._report
         self._history.log_event(
             "daily", "ok",
-            f"Poranny przebieg: kupony {_counts(r['coupons'])}, promocje {r['promotions']}, "
-            + ("powiadomienie wysłane" if r["notified"] else "bez powiadomienia"),
-            r, duration_ms=_ms(began),
+            f"Poranny przebieg: kupony {fmt_decisions(report['coupons'])}, promocje {report['promotions']}, "
+            + ("powiadomienie wysłane" if report["notified"] else "bez powiadomienia"),
+            report, duration_ms=elapsed_ms(began),
         )  # fmt: skip
 
     async def refresh_rewards(self) -> dict[str, Rewards]:
@@ -136,9 +130,8 @@ class DailyJob:
         summary = (
             "przypomnienie wysłane" if sent else "nieudane" if message else "brak zdrapek wygasających dziś"
         )
-        self._history.log_event(
-            "daily", "warn" if message and not sent else "ok", f"Zdrapki 18:00: {summary}"
-        )
+        level = "warn" if message and not sent else "ok"
+        self._history.log_event("daily", level, f"Zdrapki 18:00: {summary}", {"run": "evening"})
 
     async def monthly(self, today: date | None = None) -> None:
         """1. dnia miesiąca podsumowanie poprzedniego; raz (klucz `s:<RRRR-MM>` w `watched_sent`), bez
@@ -153,30 +146,32 @@ class DailyJob:
         summary = self._history.month_summary(month)
         if summary and await notify.send(self._session, notify.compose_month(summary), tag=notify.TAG_MONTH):
             self._history.mark_watched_sent([key], datetime.now().isoformat())
-            self._history.log_event("daily", "ok", f"Podsumowanie {month}: powiadomienie wysłane")
+            self._history.log_event("daily", "ok", f"Podsumowanie {month}: wysłane", {"run": "month"})
 
-    async def _coupons(self, accounts: list[tuple[str, str]]) -> None:
+    async def _coupons(self, accounts: list[tuple[str, str]]) -> dict[str, Any]:
+        """Kupony, nagrody i poranne powiadomienie; zwraca wyniki do wpisu w dzienniku."""
         self.running = True
         try:
-            self._step = "kupony"
             results = await self._runner.run_all(accounts, dry_run=self.dry_run)
-            self._step = "nagrody"
             rewards = await self._rewards.run_all(accounts)
         finally:
             self.running = False
         self.last_check = datetime.now()
-        self._step = "powiadomienie"
         promos = self._promotions.active(date.today())
-        statuses = Counter(a.status for r in results.values() for a in r.activations)
-        self._report.update(promotions=len(promos), coupons=dict(statuses), rewards=len(rewards))
         sent = self._history.watched_sent_keys()
         fresh = _unsent("m", promos, sent)  # poranne: każda promocja raz, choć trwa kilka dni
         message = notify.compose(results, rewards, dry_run=self.dry_run, promos=list(fresh.values()))
         notified = await notify.send(self._session, message) if message else False
-        self._report["notified"] = notified
         if notified and not self.dry_run:
             self._history.mark_watched_sent(fresh, datetime.now().isoformat())
         await self._watched(dict(accounts), promos, sent)
+        statuses = Counter(a.status for r in results.values() for a in r.activations)
+        return {
+            "promotions": len(promos),
+            "coupons": dict(statuses),
+            "rewards": len(rewards),
+            "notified": notified,
+        }
 
     async def _watched(self, labels: dict[str, str], promos: list[Promotion], sent: set[str]) -> None:
         """Osobne powiadomienie o kuponach i promocjach na obserwowane produkty (E15); każdy kupon konta

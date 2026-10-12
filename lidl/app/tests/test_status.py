@@ -14,8 +14,10 @@ def _ev(hour: int, area: str, level: str, summary: str = "x", day: int = 12, **d
     return Event(datetime(2026, 10, day, hour, 0), area, level, summary, dict(detail), None)
 
 
-MORNING = _ev(7, "daily", "ok", "Poranny przebieg", accounts=2, coupons={"activated": 3}, promotions=67,
-              notified=True, rewards=2)  # fmt: skip
+MORNING = _ev(
+    7, "daily", "ok", "Poranny przebieg", run="morning", accounts=2, coupons={"activated": 3}, promotions=67,
+    notified=True, rewards=2,
+)  # fmt: skip
 
 
 def _snap(**over: object) -> Snapshot:
@@ -23,7 +25,7 @@ def _snap(**over: object) -> Snapshot:
         now=NOW, started=datetime(2026, 10, 10, 6, 58), version="0.20.0", run_time=time(7, 0),
         accounts=[("osoba-1", "Osoba 1", True), ("osoba-2", "Osoba 2", True)],
         events=[MORNING], progress={}, daily_running=False, leaflets=[], refused=set(), llm_enabled=True,
-        tickets=526, last_ticket="2026-10-11", db_bytes=40_000_000,
+        tickets=526, last_ticket=date(2026, 10, 11), db_bytes=40_000_000,
     )  # fmt: skip
     return replace(base, **over)  # type: ignore[arg-type]
 
@@ -51,7 +53,7 @@ def test_auth_error_flags_the_account_until_a_later_success() -> None:
 
 
 def test_failed_morning_run_and_missed_run_are_problems() -> None:
-    failed = _ev(7, "daily", "error", "Poranny przebieg przerwany (promocje)", accounts=2, step="promocje")
+    failed = _ev(7, "daily", "error", "Poranny przebieg przerwany (promocje)", run="morning", step="promocje")
     assert [p.key for p in build(_snap(events=[failed])).problems] == ["daily"]
     yesterday = replace(MORNING, ts=datetime(2026, 10, 11, 7, 0))
     assert [p.key for p in build(_snap(events=[yesterday])).problems] == ["daily"]  # 12:00, dziś brak

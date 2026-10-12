@@ -5,6 +5,10 @@ from __future__ import annotations
 import unicodedata
 from datetime import date, datetime, timedelta
 
+GENITIVE_MONTHS = [
+    "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+    "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
+]  # fmt: skip
 SHORT_MONTHS = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"]
 _IN_MONTH = [
     "w styczniu", "w lutym", "w marcu", "w kwietniu", "w maju", "w czerwcu",

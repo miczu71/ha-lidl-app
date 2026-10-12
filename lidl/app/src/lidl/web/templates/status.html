@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Status · Lidl Plus{% endblock %}
 {% block main %}
+<svg class="vh" aria-hidden="true">
+  <symbol id="lv-ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="lv-busy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="lv-warn" viewBox="0 0 24 24"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v4M12 17.5h.01"/></symbol>
+  <symbol id="lv-error" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/></symbol>
+</svg>
 <div>
   <h1 class="t">Status</h1>
   <p class="lead">Co add-on robi w tle i czy wszystko przeszło. Odświeża się sam, gdy coś trwa.</p>

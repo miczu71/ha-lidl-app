@@ -22,3 +22,12 @@
 {% macro ticket_row(r) %}
 <li><a class="pr pr--amt" href="{{ r.href }}"><span class="pr__name">{{ r.when }}</span><span class="pr__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}{% for n in r.notes %}<span class="pr__save">{{ n }}</span>{% endfor %}{% if r.status %}<span><span class="tag">{{ r.status }}</span></span>{% endif %}</span><span class="pr__amt">{{ r.total }}</span></a></li>
 {% endmacro %}
+
+{# Stan (E23, zakładka Status): ikona z symboli `#lv-<poziom>` strony, opcjonalny tekst albo nazwa dla czytnika #}
+{% macro lv(level, text="", sr="") -%}
+<span class="lv lv--{{ level }}"><svg class="ic" aria-hidden="true"><use href="#lv-{{ level }}"/></svg>{{ text }}{% if sr %}<span class="vh">{{ sr }}</span>{% endif %}</span>
+{%- endmacro %}
+
+{% macro bar(done, total, label, thin=false) -%}
+<div class="prog{% if thin %} prog--thin{% endif %}" role="progressbar" aria-label="{{ label }}" aria-valuenow="{{ done }}" aria-valuemax="{{ total }}"><div class="prog__fill" style="width: {{ (100 * done / (total or 1))|round }}%"></div></div>
+{%- endmacro %}

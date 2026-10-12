@@ -59,6 +59,7 @@ from .products import (
 from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
 from .rhythm import heatmap, map_points, store_rows
 from .status import FILTERS as STATUS_FILTERS
+from .status import LEVELS as STATUS_LEVELS
 from .status import Problem, Snapshot
 from .status import build as build_status
 
@@ -139,8 +140,9 @@ def create_app(settings: Settings) -> FastAPI:
             app.state.problems = []
 
             def problems() -> list[Problem]:
-                app.state.problems = build_status(status_snapshot(app.state)).problems
-                return list(app.state.problems)
+                found = build_status(status_snapshot(app.state), timeline=False).problems
+                app.state.problems = found
+                return found
 
             loops: list[asyncio.Task[Any]] = [
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
@@ -236,10 +238,18 @@ def create_app(settings: Settings) -> FastAPI:
     async def status(request: Request, obszar: str = "", part: str = "") -> Response:
         """Zakładka Status (E23); `part=live` — blok odświeżany, gdy coś trwa, `part=os` — sama oś czasu."""
         area = obszar if obszar in STATUS_FILTERS else ""
-        view = build_status(status_snapshot(request.app.state), area)
+        view = build_status(status_snapshot(request.app.state), area, timeline=part != "live")
         request.app.state.problems = view.problems  # kropka przy zakładce od razu, nie po kwadransie
         name = {"live": "_status_live.html", "os": "_status_timeline.html"}.get(part, "status.html")
-        return render(request, name, section="status", view=view, filters=STATUS_FILTERS, area=area)
+        return render(
+            request,
+            name,
+            section="status",
+            view=view,
+            filters=STATUS_FILTERS,
+            levels=STATUS_LEVELS,
+            area=area,
+        )
 
     @app.get("/healthz")
     async def healthz() -> PlainTextResponse:
@@ -296,6 +306,9 @@ def create_app(settings: Settings) -> FastAPI:
                 auth_url=svc.begin_login(slug),
                 error=_login_error(err),
             )
+        request.app.state.history.log_event(  # kasuje problem „sesja wygasła” w zakładce Status
+            "account", "ok", f"Sesja {slug}: zalogowano", {"account": slug, "auth": False}
+        )
         return go(request, "/konta?m=connected")
 
     @app.post("/accounts/{slug}/check")

@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
+from time import monotonic
 from typing import Any, Protocol
 
 from .client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
-from .history import History
+from .history import History, elapsed_ms
 from .receipt import parse_detail, sanitize_detail
 from .receipt_html import ParsedReceipt
 
@@ -125,7 +125,7 @@ class HistorySync:
         new = details = skipped = unparsed = 0
         stopped: str | None = None
         auth = False
-        began = time.monotonic()
+        began = monotonic()
         try:
             try:
                 new = await self._import_lists(slug, full)
@@ -164,17 +164,8 @@ class HistorySync:
             "error" if stopped else "ok",
             f"Import {slug}: {new} nowych, {details} szczegółów"
             + (f", przerwany: {stopped}" if stopped else ""),
-            {
-                "account": slug,
-                "full": full,
-                "new": new,
-                "details": details,
-                "skipped": skipped,
-                "unparsed": unparsed,
-                "stopped": stopped,
-                "auth": auth,
-            },  # fmt: skip
-            duration_ms=round((time.monotonic() - began) * 1000),
+            {"account": slug, "auth": auth, "new": new, "details": details, "stopped": stopped},
+            duration_ms=elapsed_ms(began),
         )
         return SyncResult(new, details, skipped, stopped, unparsed)
 

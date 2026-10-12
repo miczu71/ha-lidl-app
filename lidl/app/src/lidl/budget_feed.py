@@ -14,14 +14,13 @@ import logging
 from datetime import date, timedelta
 from itertools import islice
 from pathlib import Path
-from time import monotonic
 from typing import Any
 
 import aiohttp
 
 from .accounts import write_json_atomic
 from .history import CATEGORIES, History
-from .llm import ModelRefused, TryLater, ask_json, log_attempt
+from .llm import KeyRejected, ModelRefused, TryLater, ask_logged
 from .settings import Settings
 
 log = logging.getLogger(__name__)
@@ -99,16 +98,17 @@ class BudgetFeed:
         content = [{"type": "text", "text": PROMPT + "\n".join(f"{c}: {n}" for c, n in new.items())}]
         s = self._settings
         for model in s.llm_vision_models:
-            began = monotonic()
             try:
-                payload = await ask_json(
-                    self._session, s.llm_url, s.llm_key, model, content, "categories", SCHEMA
-                )
-                log_attempt(self._history, "kategorie", model, began)
+                payload = await ask_logged(
+                    self._history, "kategorie", self._session, s.llm_url, s.llm_key, model, content,
+                    "categories", SCHEMA,
+                )  # fmt: skip
                 break
+            except KeyRejected as err:  # zły klucz — kolejne modele też go dostaną
+                log.warning("Kategorie produktów: %s", err)
+                return 0
             except (ModelRefused, TryLater) as err:
                 log.info("Kategorie produktów: model %s: %s, następny", model, err)
-                log_attempt(self._history, "kategorie", model, began, err)
         else:
             log.info("Kategorie produktów: żaden model nie odpowiedział, %d produktów czeka", len(new))
             return 0

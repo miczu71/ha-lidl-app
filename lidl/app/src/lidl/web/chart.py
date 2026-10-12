@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from lidl.history import SpendBucket
+from lidl.text import GENITIVE_MONTHS
 from lidl.text import SHORT_MONTHS as _SHORT
 from lidl.text import fmt_day_month as fmt_day_month
 from lidl.text import fmt_pln as fmt_pln
@@ -19,10 +20,6 @@ _STEP_DAYS = {"week": 7, "month": 31, "quarter": 92, "year": 366}
 _FULL = [
     "styczeń", "luty", "marzec", "kwiecień", "maj", "czerwiec",
     "lipiec", "sierpień", "wrzesień", "październik", "listopad", "grudzień",
-]  # fmt: skip
-_GENITIVE = [
-    "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
-    "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
 ]  # fmt: skip
 _ROMAN = ["I", "II", "III", "IV"]
 _PER = {"week": "tygodniowo", "month": "miesięcznie", "quarter": "kwartalnie", "year": "rocznie"}
@@ -100,7 +97,7 @@ def parse_chart_query(params: Mapping[str, str], today: date, first_day: date | 
 
 
 def fmt_month_year_genitive(d: date) -> str:
-    return f"{_GENITIVE[d.month - 1]} {d.year}"
+    return f"{GENITIVE_MONTHS[d.month - 1]} {d.year}"
 
 
 def fmt_month_year(d: date) -> str:
@@ -133,7 +130,7 @@ def _label(step: str, d: date) -> str:
 
 def _aria(step: str, d: date, value: str) -> str:
     if step == "week":
-        return f"tydzień od {d.day} {_GENITIVE[d.month - 1]} {d.year}: {value}"
+        return f"tydzień od {d.day} {GENITIVE_MONTHS[d.month - 1]} {d.year}: {value}"
     if step == "month":
         return f"{_FULL[d.month - 1]} {d.year}: {value}"
     if step == "quarter":
