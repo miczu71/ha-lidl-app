@@ -8,6 +8,18 @@
   <link rel="stylesheet" href="{{ base }}/static/app.css?v={{ version }}">
   <script src="{{ base }}/static/htmx.min.js?v={{ version }}" defer></script>
   {% block head %}{% endblock %}
+  <script>
+    // Głęboki link z innego panelu (Budżet Domowy, M29): HA otwiera /app/<slug>/paragony/<id>, ale iframe
+    // dostaje tylko korzeń panelu. Ramka ma ten sam origin co HA, więc czytamy adres okna nadrzędnego
+    // i raz na wejście przechodzimy do paragonu (powrót na listę już nie przekierowuje).
+    try {
+      const m = top !== self && top.location.pathname.match(/^\/app\/[^/]+(\/paragony\/[\w-]+)\/?$/);
+      if (m && top.__lidlDeep !== top.location.pathname) {
+        top.__lidlDeep = top.location.pathname;
+        if (location.pathname !== "{{ base }}" + m[1]) location.replace("{{ base }}" + m[1]);
+      }
+    } catch (e) { /* inny origin albo brak HA — zwykły panel */ }
+  </script>
 </head>
 <body>
   <header class="bar">{% block bar %}<a href="{{ base }}/">Lidl Plus</a>{% endblock %}</header>
