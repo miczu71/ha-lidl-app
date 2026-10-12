@@ -46,8 +46,10 @@ async def ask_json(
             if r.status >= 400:
                 raise ModelRefused(f"HTTP {r.status}")
             out = await r.json(content_type=None)
-    except (aiohttp.ClientError, TimeoutError) as err:
+    except (aiohttp.ClientError, TimeoutError, ValueError) as err:  # ValueError: treść nie jest JSON-em
         raise TryLater(type(err).__name__) from err
+    if not isinstance(out, dict):
+        raise TryLater("odpowiedź bez obiektu JSON")
     text = ((out.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
     text = text.strip().removeprefix("```json").removeprefix("```").removesuffix("```")
     try:

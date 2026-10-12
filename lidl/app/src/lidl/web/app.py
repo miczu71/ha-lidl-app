@@ -71,10 +71,10 @@ PENDING_SHOWN = 30
 CATEGORY_LABELS = {"food": "Spożywcze", "drugstore": "Drogeria", "kids": "Dla dzieci", "nonfood": "Inne"}
 assert tuple(CATEGORY_LABELS) == CATEGORIES
 CATEGORY_SOURCES = {
-    None: "do sprawdzenia",
-    "ai": "nadana przez AI",
-    "claude": "z przeglądu historii",
-    "manual": "ręcznie",
+    None: "Do sprawdzenia",
+    "ai": "Nadana przez AI",
+    "claude": "Z przeglądu historii",
+    "manual": "Ręcznie",
 }
 
 LOGIN_ERRORS = {
@@ -128,6 +128,7 @@ def create_app(settings: Settings) -> FastAPI:
                 dry_run=not settings.auto_activate,
             )
             app.state.service, app.state.history, app.state.sync = service, history, sync
+            app.state.feed = feed
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
 
             loops: list[asyncio.Task[Any]] = [
@@ -385,7 +386,9 @@ def create_app(settings: Settings) -> FastAPI:
         """E21.3: zastępuje połączenia parami `[{"old", "new"}, …]`; `[]` cofa wszystkie."""
         history: History = request.app.state.history
         pairs = await request.json()
-        return {"merges": history.set_merges((p["old"], p["new"]) for p in pairs)}
+        merges = history.set_merges((p["old"], p["new"]) for p in pairs)
+        request.app.state.feed.export()
+        return {"merges": merges}
 
     @app.get("/produkty/kategorie/kandydaci.json")
     async def category_candidates(request: Request) -> list[dict[str, Any]]:
@@ -397,11 +400,12 @@ def create_app(settings: Settings) -> FastAPI:
     async def category_import(request: Request) -> Response:
         """E6: kategorie `[{"art_id", "category"}, …]` ze źródłem `claude`; ręcznych nie nadpisuje."""
         history: History = request.app.state.history
-        rows = await request.json()
-        try:
-            saved = history.set_categories(((r["art_id"], r["category"]) for r in rows), "claude")
-        except ValueError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=422)
+        try:  # klucz `code` jak w kandydaci.json albo `art_id`
+            rows = [(str(r.get("code") or r["art_id"]), str(r["category"])) for r in await request.json()]
+            saved = history.set_categories(rows, "claude")
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
+            return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=422)
+        request.app.state.feed.export()
         return JSONResponse({"saved": saved})
 
     @app.get("/ceny")
@@ -597,6 +601,7 @@ def create_app(settings: Settings) -> FastAPI:
         history: History = request.app.state.history
         if category in CATEGORIES and history.product_purchases(art_id):
             history.set_categories([(art_id, category)], "manual")
+            request.app.state.feed.export()
         return RedirectResponse(category_href(request, art_id), status_code=303)
 
     @app.get("/paragony/{ticket_id}")

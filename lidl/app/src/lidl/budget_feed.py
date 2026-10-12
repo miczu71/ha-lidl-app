@@ -68,14 +68,23 @@ class BudgetFeed:
         self._lock = asyncio.Lock()  # import ręczny i poranny mogą skończyć się naraz
 
     async def refresh(self, today: date | None = None) -> None:
+        """Po imporcie: kategorie nowych produktów (opcjonalnie), potem plik — błąd AI nie blokuje pliku."""
         async with self._lock:
-            try:
-                if self._settings.llm_enabled:
+            if self._settings.llm_enabled:
+                try:
                     await self.classify_new(today or date.today())
-                count = await asyncio.to_thread(write_export, self._history, self.path)
-                log.info("Budżet: %d paragonów w %s", count, self.path)
-            except Exception:
-                log.exception("Budżet: eksport nieudany")
+                except Exception:
+                    log.exception("Kategorie produktów: klasyfikacja nieudana")
+            self.export()
+
+    def export(self) -> None:
+        """Sam plik (też po ręcznej zmianie kategorii i połączeń). W wątku pętli: History nie jest
+        bezpieczne dla wątków (wspólne połączenie SQLite i cache)."""
+        try:
+            count = write_export(self._history, self.path)
+            log.info("Budżet: %d paragonów w %s", count, self.path)
+        except Exception:
+            log.exception("Budżet: eksport nieudany")
 
     async def classify_new(self, today: date) -> int:
         """Kategorie nowych produktów od modelu; zwraca liczbę zapisanych."""

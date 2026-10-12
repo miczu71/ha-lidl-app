@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime, time, timedelta
 
 import pytest
@@ -1119,6 +1120,12 @@ def test_category_candidates_and_import(client: TestClient) -> None:
     assert r.json() == {"saved": 1} and history.category_of("0009") == ("drugstore", "claude")
     r = client.post("/produkty/kategorie/import", json=[{"art_id": "0009", "category": "toys"}])
     assert r.status_code == 422 and history.category_of("0009") == ("drugstore", "claude")
+    assert client.post("/produkty/kategorie/import", json=[{"name": "x"}]).status_code == 422
+    r = client.post("/produkty/kategorie/import", json=[{"code": "0009", "category": "kids"}])
+    assert r.json() == {"saved": 1}
+    feed = client.app.state.feed  # type: ignore[attr-defined]
+    exported = json.loads(feed.path.read_text(encoding="utf-8"))
+    assert exported["receipts"][0]["parts"] == {"kids": 9.0}  # plik odświeżony od razu
 
 
 def test_product_category_card_manual_choice_and_receipt_split(client: TestClient) -> None:
@@ -1134,9 +1141,9 @@ def test_product_category_card_manual_choice_and_receipt_split(client: TestClien
     client.post("/paragony/produkt/nie-ma/kategoria", data={"category": "kids"})
     assert history.category_of("555") == ("drugstore", "manual") and history.category_of("nie-ma")[1] is None
     receipt = client.get("/paragony/t-new").text
-    # filet 8,50 po rabatach + kaucja 0,50 → drogeria 9,00; mleko 4,00 → spożywcze
+    # filet 8,50 po rabatach → drogeria; mleko 4,00 + kaucja 0,50 → spożywcze
     assert "Podział dla Budżetu" in receipt
-    assert "<dt>Drogeria</dt><dd>9,00 zł</dd>" in receipt and "<dt>Spożywcze</dt><dd>4,00 zł</dd>" in receipt
+    assert "<dt>Drogeria</dt><dd>8,50 zł</dd>" in receipt and "<dt>Spożywcze</dt><dd>4,50 zł</dd>" in receipt
     assert "Podział dla Budżetu" not in client.get("/paragony/t-wait").text
 
 

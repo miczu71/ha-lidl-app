@@ -805,6 +805,12 @@ class History:
         with self._db:
             self._db.execute("DELETE FROM merges")
             self._db.executemany("INSERT INTO merges VALUES (?, ?)", rows.items())
+            # kategoria nadana staremu kodowi przechodzi na nowy, jeśli ten jeszcze jej nie ma (E6)
+            self._db.executemany(
+                "INSERT OR IGNORE INTO product_category SELECT ?, category, source FROM product_category"
+                " WHERE art_id = ?",
+                [(new, old) for old, new in rows.items()],
+            )
         return len(rows)
 
     def category_of(self, art_id: str) -> tuple[str, str | None]:
@@ -859,8 +865,9 @@ class History:
 
     def receipts_export(self, ticket_id: str | None = None) -> list[dict[str, Any]]:
         """E6.5: paragony dla Budżetu Domowego z kwotą zapłaconą podzieloną na kategorie produktów. Część =
-        suma pozycji po rabatach i kuponach; kaucja i różnica groszy idą do największej części, więc
-        `sum(parts) == paid`. Paragon bez pozycji (niepobrany, nierozpoznany) = całość `food`."""
+        suma pozycji po rabatach i kuponach; kaucja i różnica groszy idą do spożywczych (bez nich: do
+        największej części), więc `sum(parts) == paid`. Paragon bez pozycji (niepobrany, nierozpoznany) =
+        całość `food`."""
         resolve, known = self._resolver(), self._categories()
         args = () if ticket_id is None else (ticket_id,)
         sums: dict[str, dict[str, float]] = {}
@@ -869,7 +876,8 @@ class History:
             + (" WHERE ticket_id = ?" if args else ""),
             args,
         ):
-            category = known.get(resolve(art_id, name), UNSET)[0]
+            # po zmianie mostu (nowy kod o tej samej nazwie) zostaje kategoria samego kodu z paragonu
+            category = known.get(resolve(art_id, name), known.get(art_id, UNSET))[0]
             parts = sums.setdefault(tid, {})
             parts[category] = parts.get(category, 0.0) + total + discount
         out = []
@@ -881,9 +889,9 @@ class History:
         ):
             paid = round(paid, 2)
             parts = {c: round(v, 2) for c, v in sums.get(tid, {}).items() if round(v, 2)}
-            if parts:
-                largest = max(parts, key=lambda c: abs(parts[c]))
-                parts[largest] = round(parts[largest] + paid - sum(parts.values()), 2)
+            if parts:  # kaucja (butelki) i grosze różnicy: do spożywczych, bez nich do największej części
+                rest = "food" if "food" in parts else max(parts, key=lambda c: abs(parts[c]))
+                parts[rest] = round(parts[rest] + paid - sum(parts.values()), 2)
             parts = {c: v for c, v in parts.items() if v} or {"food": paid}
             out.append(
                 {

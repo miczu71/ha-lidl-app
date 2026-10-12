@@ -88,3 +88,16 @@ async def test_refresh_without_models_answer_keeps_products_pending(
         await feed.refresh(date(2026, 10, 12))
     assert list(h.uncategorized()) == ["0001", "0002", "0003"]
     assert feed.path.exists()  # plik i tak powstaje (wszystko jako food)
+
+
+async def test_classification_error_does_not_block_export(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def broken(*_: Any) -> Any:
+        raise AttributeError("'list' object has no attribute 'get'")
+
+    monkeypatch.setattr(budget_feed, "ask_json", broken)
+    async with aiohttp.ClientSession() as session:
+        feed = BudgetFeed(session, _history(tmp_path), _settings(tmp_path))
+        await feed.refresh(date(2026, 10, 12))
+    assert feed.path.exists()

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -61,10 +61,11 @@ class HistorySync:
         *,
         pause: float = 2.5,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
-        after: Callable[[], Awaitable[None]] | None = None,
+        after: Callable[[], Coroutine[Any, Any, None]] | None = None,
     ) -> None:
         self._source = source
         self._history = history
+        self._after_task: asyncio.Task[None] | None = None
         self._after = after  # po imporcie (E6: kategorie i plik dla Budżetu): ręcznym konta, porannym raz
         self._pause = pause
         self._sleep = sleep
@@ -89,13 +90,18 @@ class HistorySync:
 
     async def _import(self, slug: str, full: bool, after: bool) -> SyncResult:
         result = await self.import_account(slug, full=full)
-        if after and self._after is not None:
-            await self._after()
+        if after:
+            self._run_after()
         return result
+
+    def _run_after(self) -> None:
+        """Hook w tle: model językowy (do kilku minut) nie trzyma importu ani porannych kuponów."""
+        if self._after is not None:
+            self._after_task = asyncio.create_task(self._after())
 
     async def close(self) -> None:
         """Przerywa trwające importy (zamykanie add-onu); postęp zostaje w bazie."""
-        tasks = [t for t in self._tasks.values() if not t.done()]
+        tasks = [t for t in [*self._tasks.values(), self._after_task] if t is not None and not t.done()]
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -110,8 +116,7 @@ class HistorySync:
         for slug in slugs:
             if self._history.ticket_count(slug) > 0 and self.start(slug, full=False, after=False):
                 await self.wait(slug)
-        if self._after is not None:  # raz po wszystkich kontach
-            await self._after()
+        self._run_after()  # raz po wszystkich kontach
 
     async def import_account(self, slug: str, *, full: bool) -> SyncResult:
         progress = self.progress(slug)

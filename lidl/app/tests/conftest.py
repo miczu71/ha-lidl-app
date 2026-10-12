@@ -12,7 +12,7 @@ from lidl.web.app import create_app
 
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
-    return Settings(data_dir=tmp_path, log_level="info", dev=True)
+    return Settings(data_dir=tmp_path, log_level="info", dev=True, share_dir=tmp_path / "share")
 
 
 @pytest.fixture

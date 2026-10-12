@@ -856,11 +856,22 @@ def test_receipts_export_splits_paid_amount_by_category(tmp_path: Path) -> None:
     h.save_detail("t2", "S", _receipt(("0001", "Mydlo", 1, 7.0)))
     h.set_categories([("0001", "drugstore"), ("0003", "kids")], "claude")
     out = {r["id"]: r for r in h.receipts_export()}
-    # kaucja 0,50 trafia do największej części (dzieci); suma części = zapłacono
-    assert out["t1"]["parts"] == {"drugstore": 3.0, "food": 6.0, "kids": 11.5}
+    # różnica do zapłaconej (kaucja 0,50 i reszta, razem 1,50) trafia do spożywczych; suma części = zapłacono
+    assert out["t1"]["parts"] == {"drugstore": 3.0, "food": 7.5, "kids": 10.0}
     assert out["t1"] | {"parts": None} == {
         "id": "t1", "account": "a", "day": "2026-05-01", "purchased_at": None, "paid": 20.5,
         "payment": None, "url_path": "/paragony/t1", "parts": None,
     }  # fmt: skip
     assert out["t2"]["parts"] == {"drugstore": 7.0}
     assert out["t3"]["parts"] == {"food": 3.0}  # bez pozycji
+
+
+def test_merge_moves_category_to_new_code_and_receipt_keeps_own_code(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("old", "2026-01-01", total=5.0)])
+    h.save_detail("old", "S", _receipt(("n:2", "Krem", 1, 5.0)))
+    h.set_categories([("n:2", "drugstore")], "manual")
+    h.set_merges([("n:2", "0007")])
+    assert h.category_of("0007") == ("drugstore", "manual")
+    h.set_merges([])  # cofnięcie połączenia: kod paragonu nadal ma swoją kategorię
+    assert h.receipt_parts("old") == {"drugstore": 5.0}
