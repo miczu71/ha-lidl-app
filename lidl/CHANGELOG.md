@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.20.0
+
+- **Zakładka „Status” (E23):** jedno miejsce zamiast logu add-onu. Na górze werdykt — „Wszystko działa” albo
+  „N spraw wymaga działania” z linkiem do naprawy — i stan obszarów: konta i system, zapytania AI, gazetka
+  (pasek postępu paczek), przebiegi zaplanowane (07:00, 18:00, 1. dnia) i import paragonów. Szczegóły
+  w zakładkach (kroki porannego przebiegu, zapytania AI według modelu, sesje kont, wersja, baza, plik dla
+  Budżetu), na dole oś czasu z 30 dni z filtrem obszaru. Gdy coś trwa, strona odświeża się sama.
+- **Dziennik zdarzeń:** add-on zapisuje w bazie przebiegi, import, kupony kont, gazetkę, każde zapytanie AI
+  (wynik i czas), plik dla Budżetu i start add-onu; starsze niż 30 dni znikają.
+- **Alerty:** czerwona kropka przy zakładce Status, gdy coś wymaga działania (wygasła sesja konta, nieudany
+  albo pominięty poranny przebieg, odrzucony klucz AI, porzucona paczka gazetki). Nowa opcja
+  **`alert_notify`** — usługa notify (np. telefon), która dostaje jeden push na problem; puste = tylko kropka.
+- Odrzucony klucz AI wstrzymuje gazetkę na 6 h zamiast zużywać próby paczek.
+
 ## 0.19.1
 
 - **Link do paragonu z Budżetu Domowego:** adres `/app/<add-on>/paragony/<id>` otwiera od razu ten paragon
