@@ -94,3 +94,27 @@ def test_timeline_groups_by_day_and_filters_by_area() -> None:
     ]
     only = build(_snap(events=events), area="ai")
     assert [len(d.rows) for d in only.days] == [1]
+
+
+def test_long_running_morning_is_not_reported_as_missed() -> None:
+    yesterday = replace(MORNING, ts=datetime(2026, 10, 11, 7, 0))
+    assert build(_snap(events=[yesterday], daily_running=True)).problems == []
+
+
+def test_key_problem_lasts_until_a_successful_call() -> None:
+    key = _ev(10, "ai", "error", use="gazetka", model="m1", outcome="key")
+    busy = _ev(11, "ai", "warn", use="kategorie", model="m2", outcome="overloaded")
+    assert [p.key for p in build(_snap(events=[busy, key, MORNING])).problems] == ["ai-key"]
+    ok = _ev(11, "ai", "ok", use="gazetka", model="m1", outcome="ok")
+    assert build(_snap(events=[ok, key, MORNING])).problems == []
+
+
+def test_abandoned_batches_of_an_ended_leaflet_are_not_a_problem() -> None:
+    old = LeafletProgress("f0", date(2026, 10, 1), date(2026, 10, 4), 13, 0, 2, None, 3)
+    assert build(_snap(leaflets=[old])).problems == []
+
+
+def test_next_runs_include_todays_monthly_summary_on_the_first() -> None:
+    first = datetime(2026, 11, 1, 8, 0)
+    daily = _area(build(_snap(now=first, events=[replace(MORNING, ts=datetime(2026, 11, 1, 7, 1))])), "daily")
+    assert daily.next.startswith("dziś 10:00 podsumowanie miesiąca")  # type: ignore[attr-defined]

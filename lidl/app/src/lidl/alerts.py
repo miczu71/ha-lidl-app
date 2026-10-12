@@ -16,8 +16,7 @@ import aiohttp
 
 from . import notify
 from .history import History
-from .text import plural
-from .web.status import Problem
+from .web.status import Problem, verdict
 
 log = logging.getLogger(__name__)
 
@@ -34,8 +33,7 @@ async def check(
     fresh = [p for k, p in keys.items() if k not in known]
     if not fresh or not service:
         return
-    n = len(fresh)
-    title = f"Lidl: {n} {plural(n, 'sprawa wymaga', 'sprawy wymagają', 'spraw wymaga')} działania"
+    title = f"Lidl: {verdict(len(fresh))}"
     body = "\n".join(p.text + (f". {p.fix_text}" if p.fix_text else "") for p in fresh)
     if await notify.send(session, (title, body), tag=notify.TAG_ALERT, service=service):
         history.mark_watched_sent([PREFIX + p.key for p in fresh], datetime.now().isoformat())

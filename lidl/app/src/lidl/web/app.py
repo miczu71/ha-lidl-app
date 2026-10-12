@@ -225,7 +225,7 @@ def create_app(settings: Settings) -> FastAPI:
             accounts=[(a.slug, a.label, a.connected) for a in accounts],
             events=history.events(datetime.now() - EVENTS_KEEP),
             progress={a.slug: sync.progress(a.slug) for a in accounts},
-            daily_running=state.job.running,
+            daily_running=state.job.in_progress,
             leaflets=history.leaflet_progress(),
             refused=leaflet.refused if leaflet else set(),
             llm_enabled=settings.llm_enabled,

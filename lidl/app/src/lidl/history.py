@@ -1199,8 +1199,8 @@ class History:
         except sqlite3.Error:
             log.exception("Dziennik: zapis nieudany (%s: %s)", area, summary)
 
-    def events(self, since: datetime, area: str | None = None, limit: int = 500) -> list[Event]:
-        """Wpisy od `since`, najnowsze pierwsze."""
+    def events(self, since: datetime, area: str | None = None, limit: int = -1) -> list[Event]:
+        """Wpisy od `since`, najnowsze pierwsze (-1 = bez limitu: reguły Statusu potrzebują całych 30 dni)."""
         rows = self._db.execute(
             "SELECT * FROM events WHERE ts >= ? AND (? IS NULL OR area = ?)"
             " ORDER BY ts DESC, rowid DESC LIMIT ?",

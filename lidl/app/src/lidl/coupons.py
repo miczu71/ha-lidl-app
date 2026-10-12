@@ -150,7 +150,7 @@ class CouponRunner:
                     {"account": slug, "auth": isinstance(err, LidlPlusAuthError)},
                 )  # fmt: skip
                 continue
-            active, decisions = len(report.active), len(report.activations)
+            active, decisions = len(report.active), sum(a.new for a in report.activations)
             self._history.log_event(
                 "coupons", "ok", f"Kupony {slug}: {active} aktywnych, {decisions} nowych decyzji",
                 {"account": slug, "auth": False},

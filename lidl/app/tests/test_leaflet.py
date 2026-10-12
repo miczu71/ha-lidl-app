@@ -264,3 +264,4 @@ async def test_rejected_key_is_marked_in_event_log(tmp_path: Path) -> None:
     assert len(h.events(START_DT, area="ai")) == 1  # zły klucz: bez kolejnych modeli
     batch = h.next_leaflet_batch("2026-10-07T12:10:00")
     assert batch is not None and batch["attempts"] == 0  # i bez zużycia próby paczki
+    assert await runner.step(NOW + timedelta(minutes=30)) is False  # cała gazetka czeka na poprawny klucz

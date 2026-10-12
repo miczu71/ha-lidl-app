@@ -19,6 +19,7 @@ from lidl.history import Event, LeafletProgress
 from lidl.sync import SyncProgress
 from lidl.text import GENITIVE_MONTHS, count_text, fmt_day_month, plural
 
+TIMELINE_ROWS = 300  # oś czasu pokazuje najnowsze; reguły problemów widzą całe 30 dni
 MISSED_AFTER = timedelta(hours=2)  # poranny przebieg trwa minuty; po 2 h bez wpisu uznajemy go za pominięty
 LEVELS = {
     "ok": "Działa",
@@ -100,8 +101,12 @@ class StatusView:
 
     @property
     def verdict(self) -> str:
-        n = len(self.problems)
-        return f"{n} {plural(n, 'sprawa wymaga', 'sprawy wymagają', 'spraw wymaga')} działania" if n else ""
+        return verdict(len(self.problems)) if self.problems else ""
+
+
+def verdict(n: int) -> str:
+    """„1 sprawa wymaga działania” — nagłówek zakładki i tytuł alertu."""
+    return f"{n} {plural(n, 'sprawa wymaga', 'sprawy wymagają', 'spraw wymaga')} działania"
 
 
 def fmt_duration(ms: int | None) -> str:
@@ -179,8 +184,9 @@ def _system(s: Snapshot, problems: list[Problem]) -> Area:
 def _ai(s: Snapshot, problems: list[Problem]) -> Area:
     if not s.llm_enabled:
         return Area("ai", "Zapytania AI", "ok", "Wyłączone (brak opcji llm_url i llm_key)")
-    last = _latest(s.events, {"ai"})
-    key_rejected = last is not None and last.detail.get("outcome") == "key"
+    # klucz odrzucony, dopóki po nim nie udało się żadne zapytanie (przeciążenia i odmowy nie rozstrzygają)
+    decisive = _latest(s.events, {"ai"}, lambda e: e.detail.get("outcome") in ("ok", "key"))
+    key_rejected = decisive is not None and decisive.detail.get("outcome") == "key"
     if key_rejected:
         problems.append(Problem("ai-key", "ai", "Klucz AI odrzucony — gazetka i kategorie stoją",
                                 "Sprawdź opcję llm_key add-onu"))  # fmt: skip
@@ -221,7 +227,7 @@ def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
             "leaflet", "Gazetka", "ok", "Brak bieżącej gazetki" if s.llm_enabled else "Wyłączona (bez AI)"
         )
     for f in s.leaflets:
-        if f.failed:
+        if f.failed and f.end >= s.now.date():  # po końcu gazetki porzucone paczki niczego już nie zmienią
             problems.append(Problem(
                 f"leaflet:{f.flyer_id}", "leaflet",
                 f"Gazetka {fmt_day_month(f.start)}: porzucone paczki {f.failed} z {f.total} — "
@@ -283,11 +289,13 @@ def _daily(s: Snapshot, problems: list[Problem]) -> Area:
 
 def _next_label(s: Snapshot) -> str:
     """Dwa najbliższe zaplanowane: poranny, zdrapki 18:00, podsumowanie 1. dnia miesiąca."""
-    first = (s.now.date().replace(day=1) + timedelta(days=32)).replace(day=1)
+    month = datetime.combine(s.now.date().replace(day=1), MONTHLY)
+    if month <= s.now:
+        month = datetime.combine((month.date() + timedelta(days=32)).replace(day=1), MONTHLY)
     plan = [
         (_next_at(s.now, s.run_time), "poranny"),
         (_next_at(s.now, EVENING), "zdrapki"),
-        (datetime.combine(first, MONTHLY), "podsumowanie miesiąca"),
+        (month, "podsumowanie miesiąca"),
     ]
     return " · ".join(f"{_when(at, s.now)} {what}" for at, what in sorted(plan)[:2])
 
@@ -322,10 +330,10 @@ def build(s: Snapshot, area: str = "", *, timeline: bool = True) -> StatusView:
     areas.sort(key=lambda a: _RANK[a.level])
     days: dict[date, list[Row]] = {}
     wanted = FILTERS[area][1] if area in FILTERS else None
-    for e in s.events if timeline else []:
-        if wanted is None or e.area in wanted:
-            row = Row(f"{e.ts:%H:%M}", e.level, e.summary, fmt_duration(e.duration_ms))
-            days.setdefault(e.ts.date(), []).append(row)
+    shown = [e for e in s.events if wanted is None or e.area in wanted][:TIMELINE_ROWS] if timeline else []
+    for e in shown:
+        row = Row(f"{e.ts:%H:%M}", e.level, e.summary, fmt_duration(e.duration_ms))
+        days.setdefault(e.ts.date(), []).append(row)
     return StatusView(
         areas,
         problems,

@@ -148,6 +148,7 @@ class LeafletRunner:
         self._url, self._key, self._models = settings.llm_url, settings.llm_key, settings.llm_vision_models
         self._refused: set[str] = set()  # modele z wyczerpanym limitem (limity są per model, nie per paczka)
         self._checked: datetime | None = None
+        self._key_pause: datetime | None = None  # zły klucz: cała gazetka czeka (jeden wpis na `EXHAUSTED`)
 
     @property
     def refused(self) -> set[str]:
@@ -170,6 +171,8 @@ class LeafletRunner:
         if self._checked is None or now - self._checked >= timedelta(seconds=IDLE):
             self._checked = now
             await self._discover()
+        if self._key_pause is not None and now < self._key_pause:
+            return False
         batch = self._history.next_leaflet_batch(now.isoformat())
         if batch is None:
             return False
@@ -216,12 +219,9 @@ class LeafletRunner:
                     SCHEMA,
                 )  # fmt: skip
                 break
-            except (
-                KeyRejected
-            ) as err:  # błąd konfiguracji, nie paczki: bez kolejnych modeli i bez liczenia próby
-                later = now + RETRY
-                self._history.set_leaflet_batch(fid, n, "pending", batch["attempts"], later.isoformat())
-                log.warning("Gazetka %s/%d: %s, ponowię o %s", fid, n, err, later.strftime("%H:%M"))
+            except KeyRejected as err:  # konfiguracja, nie paczka: cała gazetka czeka, próba się nie liczy
+                self._key_pause = now + EXHAUSTED
+                log.warning("Gazetka: %s, ponowię o %s", err, self._key_pause.strftime("%H:%M"))
                 return
             except ModelRefused as err:
                 log.info("Gazetka %s/%d: model %s odmówił (%s), następny", fid, n, model, err)

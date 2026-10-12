@@ -86,6 +86,7 @@ class DailyJob:
         self.dry_run = dry_run
         self.last_check: datetime | None = None
         self.running = False  # kupony w toku (rano); panel odświeża się wtedy sam
+        self.in_progress = False  # cały poranny przebieg w toku (zakładka Status)
 
     def _accounts(self) -> list[tuple[str, str]]:
         return [(a.slug, a.label) for a in self._store.list() if a.connected]
@@ -97,6 +98,7 @@ class DailyJob:
         accounts = self._accounts()
         report: dict[str, Any] = {"run": "morning", "accounts": len(accounts)}
         step = "paragony"
+        self.in_progress = True
         try:
             await self._sync.run_daily([slug for slug, _ in accounts])
             self._history.warm()  # nowe paragony unieważniły wyniki zakładek
@@ -112,6 +114,8 @@ class DailyJob:
                 {**report, "step": step}, duration_ms=elapsed_ms(began),
             )  # fmt: skip
             raise
+        finally:
+            self.in_progress = False
         self._history.log_event(
             "daily", "ok",
             f"Poranny przebieg: kupony {fmt_decisions(report['coupons'])}, promocje {report['promotions']}, "
@@ -165,7 +169,7 @@ class DailyJob:
         if notified and not self.dry_run:
             self._history.mark_watched_sent(fresh, datetime.now().isoformat())
         await self._watched(dict(accounts), promos, sent)
-        statuses = Counter(a.status for r in results.values() for a in r.activations)
+        statuses = Counter(a.status for r in results.values() for a in r.activations if a.new)
         return {
             "promotions": len(promos),
             "coupons": dict(statuses),
