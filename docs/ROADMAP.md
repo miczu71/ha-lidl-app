@@ -194,7 +194,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   przetworzona po 07:00 dnia startu przepadała — teraz „Nowe promocje” = trwające i jeszcze niezgłoszone (klucze `m:`
   w `watched_sent`). Na żywo: start bez 401, „Promocje: 67 pozycji”.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
-- **E6 Integracja z Budżetem Domowym:** dopasowanie paragonu do transakcji kartą (data + kwota), podział na kategorie.
+- **E6 Integracja z Budżetem Domowym:** dopasowanie paragonu do transakcji kartą (data + kwota), podział na kategorie. **W toku (2026-10-12, wspólnie z M29 Budżetu):** kategorie produktów `food`/`drugstore`/`kids`/`nonfood`
+  i eksport `/share/lidl/receipts.json`; plan `docs/PLAN_E6_budzet.md`, wydanie 0.19.0.
 - **E7 Śledzenie cen produktów w czasie** (zlecone 2026-10-07): z bazy historii (E2) bierzemy ceny jednostkowe
   produktów (`items.unit_price` per kod artykułu) i porównujemy je w czasie. Panel z prezentacją wyników:
   zmiana ceny produktu (pierwsza ↔ ostatnia, wykres ceny w czasie), sortowanie listy po zmianie ceny, **top 5
