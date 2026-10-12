@@ -32,3 +32,5 @@ nie przewiduje — używasz na własne ryzyko (zmiany API, blokada konta).
 
 Licencja: MIT. Kod klienta API pochodzi z [Przemko92/home-assistant-lidlplus](https://github.com/Przemko92/home-assistant-lidlplus)
 (MIT) — patrz [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Nazwa i logo Lidl są znakami towarowymi ich właściciela; ten add-on nie jest powiązany z Lidl ani przez niego wspierany.
