@@ -36,6 +36,7 @@ CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
 MONTH_TOP = 5  # E19: długość list produktów w podsumowaniu miesiąca
+CATEGORIES = ("food", "drugstore", "kids", "nonfood")  # E6: kategorie produktu dla Budżetu Domowego
 PRICE_WINDOW_DAYS = 182  # E7: okno mediany ceny (ok. 6 miesięcy), porównywane z tym samym oknem rok wcześniej
 
 _SCHEMA = """
@@ -133,6 +134,13 @@ CREATE TABLE IF NOT EXISTS leaflet_matches (
     discount TEXT NOT NULL,
     end TEXT NOT NULL,
     PRIMARY KEY (flyer_id, art_id, start)
+);
+-- kategoria produktu (E6) po kodzie z mostu nazw; brak wiersza = spożywcze „do sprawdzenia”;
+-- `manual` (karta produktu) wygrywa z `claude` (jednorazowa klasyfikacja historii) i `ai` (nowe produkty)
+CREATE TABLE IF NOT EXISTS product_category (
+    art_id TEXT PRIMARY KEY,
+    category TEXT NOT NULL CHECK (category IN ('food', 'drugstore', 'kids', 'nonfood')),
+    source TEXT NOT NULL CHECK (source IN ('claude', 'ai', 'manual'))
 );
 -- licznik zmian pozycji i połączeń (E22.2): klucz cache wyników `History._cached`, liczony przez SQLite,
 -- więc żaden zapis nie omija unieważnienia
@@ -794,6 +802,99 @@ class History:
             self._db.execute("DELETE FROM merges")
             self._db.executemany("INSERT INTO merges VALUES (?, ?)", rows.items())
         return len(rows)
+
+    def category_of(self, art_id: str) -> tuple[str, str | None]:
+        """Kategoria produktu (kod po moście) i jej źródło; bez wiersza `("food", None)` = do sprawdzenia."""
+        row = self._db.execute(
+            "SELECT category, source FROM product_category WHERE art_id = ?", (art_id,)
+        ).fetchone()
+        return (row[0], row[1]) if row else ("food", None)
+
+    def _categories(self) -> dict[str, tuple[str, str]]:
+        """Kod → (kategoria, źródło)."""
+        return {
+            a: (c, s) for a, c, s in self._db.execute("SELECT art_id, category, source FROM product_category")
+        }
+
+    def set_categories(self, rows: Iterable[tuple[str, str]], source: str) -> int:
+        """Zapisuje kategorie produktów; poza `manual` nie nadpisuje ręcznych. Zwraca liczbę zapisanych."""
+        rows = list(rows)
+        if any(category not in CATEGORIES for _, category in rows):
+            raise ValueError(f"kategoria spoza {CATEGORIES}")
+        keep = "" if source == "manual" else " WHERE product_category.source <> 'manual'"
+        with self._db:
+            before = self._db.total_changes
+            self._db.executemany(
+                "INSERT INTO product_category VALUES (?, ?, ?) ON CONFLICT(art_id) DO UPDATE"
+                f" SET category = excluded.category, source = excluded.source{keep}",
+                [(art_id, category, source) for art_id, category in rows],
+            )
+            return self._db.total_changes - before
+
+    def uncategorized(self, since: date | None = None) -> dict[str, str]:
+        """Produkty (po moście) bez kategorii, pierwszy raz kupione od `since` — kod → ostatnia nazwa; do
+        klasyfikacji AI (E6.3). Historię sprzed E6 klasyfikuje jednorazowo Claude (E6.2), nie AI."""
+        known = self._categories()
+        return {
+            code: p["name"]
+            for code, p in sorted(self._products().items())
+            if code not in known and (since is None or min(p["days"]) >= since.isoformat())
+        }
+
+    def receipts_export(self) -> list[dict[str, Any]]:
+        """E6.5: paragony dla Budżetu Domowego z kwotą zapłaconą podzieloną na kategorie produktów. Część =
+        suma pozycji po rabatach i kuponach; kaucja i różnica groszy idą do największej części, więc
+        `sum(parts) == paid`. Paragon bez pozycji (niepobrany, nierozpoznany) = całość `food`."""
+        resolve, known = self._resolver(), self._categories()
+        sums: dict[str, dict[str, float]] = {}
+        for ticket_id, art_id, name, total, discount in self._db.execute(
+            "SELECT ticket_id, art_id, name, total, discount FROM items"
+        ):
+            category = known.get(resolve(art_id, name), ("food", ""))[0]
+            parts = sums.setdefault(ticket_id, {})
+            parts[category] = parts.get(category, 0.0) + total + discount
+        out = []
+        for ticket_id, account, day, purchased_at, paid, payment in self._db.execute(
+            "SELECT id, account, day, purchased_at, total, payment FROM tickets ORDER BY day, id"
+        ):
+            paid = round(paid, 2)
+            parts = {c: round(v, 2) for c, v in sums.get(ticket_id, {}).items() if round(v, 2)}
+            if parts:
+                largest = max(parts, key=lambda c: abs(parts[c]))
+                parts[largest] = round(parts[largest] + paid - sum(parts.values()), 2)
+            parts = {c: v for c, v in parts.items() if v} or {"food": paid}
+            out.append(
+                {
+                    "id": ticket_id,
+                    "account": account,
+                    "day": day,
+                    "purchased_at": purchased_at,
+                    "paid": paid,
+                    "payment": payment,
+                    "url_path": f"/paragony/{ticket_id}",
+                    "parts": parts,
+                }
+            )
+        return out
+
+    def category_candidates(self) -> list[dict[str, Any]]:
+        """E6: wszystkie produkty po moście z nazwami, liczbą zakupów, wydatkiem i obecną kategorią — do
+        jednorazowej klasyfikacji historii; od największego wydatku."""
+        known, out = self._categories(), []
+        for code, p in self._products().items():
+            category, source = known.get(code, ("food", None))
+            out.append(
+                {
+                    "code": code,
+                    "names": sorted(p["names"]),
+                    "purchases": len(p["days"]),
+                    "spend": round(p["spend"], 2),
+                    "category": category,
+                    "source": source,
+                }
+            )
+        out.sort(key=lambda c: (-c["spend"], c["code"]))
+        return out
 
     def _products(self, start: date | None = None, end: date | None = None) -> dict[str, dict[str, Any]]:
         """Pozycje z paragonów z dni `start`–`end` (domknięty, bez zakresu: całość) zebrane per produkt

@@ -61,9 +61,11 @@ class HistorySync:
         *,
         pause: float = 2.5,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        after: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         self._source = source
         self._history = history
+        self._after = after  # po każdym imporcie konta (E6: kategorie i plik dla Budżetu)
         self._pause = pause
         self._sleep = sleep
         self._progress: dict[str, SyncProgress] = {}
@@ -140,6 +142,8 @@ class HistorySync:
             "Import konta %s: %d nowych, %d szczegółów, %d pominiętych, %d nierozpoznanych",
             slug, new, details, skipped, unparsed,
         )  # fmt: skip
+        if self._after is not None:
+            await self._after()
         return SyncResult(new, details, skipped, stopped, unparsed)
 
     async def _import_lists(self, slug: str, full: bool) -> int:

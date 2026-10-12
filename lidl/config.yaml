@@ -15,6 +15,8 @@ panel_icon: mdi:cart-outline
 panel_title: "Lidl"
 panel_admin: true
 homeassistant_api: true
+map:
+  - share:rw
 options:
   log_level: info
   auto_activate: false

@@ -1104,3 +1104,18 @@ def test_rhythm_stores_link_to_receipts_and_map_skips_stores_without_coordinates
 
 def test_rhythm_without_history_says_where_to_import(client: TestClient) -> None:
     assert "Pobierz ją w zakładce Produkty" in client.get("/rytm").text
+
+
+def test_category_candidates_and_import(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets("osoba-1", [{"id": "o", "date": "2026-01-10T10:00:00+00:00", "totalAmount": 9.0}])
+    history.save_detail("o", "S", ParsedReceipt(items=[ReceiptItem("0009", "Mydlo", 1, 9.0, 9.0)]))
+    r = client.get("/produkty/kategorie/kandydaci.json")
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    assert r.json()[0] | {"names": None} == {
+        "code": "0009", "names": None, "purchases": 1, "spend": 9.0, "category": "food", "source": None,
+    }  # fmt: skip
+    r = client.post("/produkty/kategorie/import", json=[{"art_id": "0009", "category": "drugstore"}])
+    assert r.json() == {"saved": 1} and history.category_of("0009") == ("drugstore", "claude")
+    r = client.post("/produkty/kategorie/import", json=[{"art_id": "0009", "category": "toys"}])
+    assert r.status_code == 422 and history.category_of("0009") == ("drugstore", "claude")

@@ -196,3 +196,17 @@ async def test_import_stores_envelope_and_a_sanitized_raw_copy(history: History)
     assert row is not None and row["purchased_at"] == "2026-03-01T10:00:00" and row["store_code"] == "PL0001"
     raw = history.raw_detail("a")
     assert raw is not None and raw["ticketType"] == "NATIVE" and "operatorId" not in raw
+
+
+async def test_after_hook_runs_once_per_import(history: History) -> None:
+    calls: list[int] = []
+
+    async def after() -> None:
+        calls.append(history.ticket_count())
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    sync = HistorySync(FakeSource({0: ["a"]}), history, sleep=no_sleep, after=after)
+    await sync.import_account("osoba-1", full=False)
+    assert calls == [1]  # po zapisaniu paragonów

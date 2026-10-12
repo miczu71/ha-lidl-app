@@ -24,6 +24,7 @@ class Settings:
     llm_url: str = ""
     llm_key: str = field(default="", repr=False)
     llm_vision_models: tuple[str, ...] = DEFAULT_VISION_MODELS
+    share_dir: Path = Path("/share")  # E6: plik dla Budżetu Domowego
 
     @property
     def leaflet_enabled(self) -> bool:
@@ -44,6 +45,7 @@ def load_settings() -> Settings:
     models = options.get("llm_vision_models")
     return Settings(
         data_dir=Path(os.environ.get("LIDL_DATA_DIR", "/data")),
+        share_dir=Path(os.environ.get("LIDL_SHARE_DIR", "/share")),
         log_level=str(options.get("log_level", "info")),
         dev=os.environ.get("LIDL_DEV") == "1",
         auto_activate=options.get("auto_activate") is True,

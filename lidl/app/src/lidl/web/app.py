@@ -20,12 +20,13 @@ from urllib.parse import quote, urlencode
 
 import aiohttp
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from lidl import __version__
 from lidl.accounts import AccountStore, slugify
+from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, MONTHLY, DailyJob, at_time_loop
@@ -101,7 +102,8 @@ def create_app(settings: Settings) -> FastAPI:
             service = LidlService(AccountStore(settings.accounts_dir), session)
             history = History(settings.data_dir / "history.db")
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
-            sync = HistorySync(service, history)
+            feed = BudgetFeed(session, history, settings)
+            sync = HistorySync(service, history, after=feed.refresh)
             runner = CouponRunner(service, history)
             rewards = RewardsRunner(service)
             promotions = PromotionRunner(session, history)
@@ -129,6 +131,7 @@ def create_app(settings: Settings) -> FastAPI:
                 # promocje od razu po restarcie, nie dopiero rano
                 loops.append(asyncio.create_task(promotions.refresh()))
                 loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
+                loops.append(asyncio.create_task(feed.refresh()))  # plik dla Budżetu po aktualizacji add-onu
                 if settings.leaflet_enabled:
                     loops.append(asyncio.create_task(LeafletRunner(session, history, settings).run_forever()))
             try:
@@ -362,6 +365,23 @@ def create_app(settings: Settings) -> FastAPI:
         history: History = request.app.state.history
         pairs = await request.json()
         return {"merges": history.set_merges((p["old"], p["new"]) for p in pairs)}
+
+    @app.get("/produkty/kategorie/kandydaci.json")
+    async def category_candidates(request: Request) -> list[dict[str, Any]]:
+        """E6: produkty z obecną kategorią — do jednorazowej klasyfikacji historii poza add-onem."""
+        history: History = request.app.state.history
+        return history.category_candidates()
+
+    @app.post("/produkty/kategorie/import")
+    async def category_import(request: Request) -> Response:
+        """E6: kategorie `[{"art_id", "category"}, …]` ze źródłem `claude`; ręcznych nie nadpisuje."""
+        history: History = request.app.state.history
+        rows = await request.json()
+        try:
+            saved = history.set_categories(((r["art_id"], r["category"]) for r in rows), "claude")
+        except ValueError as exc:
+            return JSONResponse({"error": str(exc)}, status_code=422)
+        return JSONResponse({"saved": saved})
 
     @app.get("/ceny")
     async def prices(request: Request) -> Response:

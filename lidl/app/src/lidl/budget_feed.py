@@ -1,0 +1,110 @@
+"""Dane dla Budżetu Domowego (E6, plan docs/PLAN_E6_budzet.md).
+
+Po każdym imporcie paragonów: nowe produkty bez kategorii idą jednym zapytaniem do modelu (kolejka modeli jak
+w gazetkach; bez klucza, przy odmowie albo błędzie zostają „do sprawdzenia” i wracają przy następnym
+imporcie),
+potem plik `/share/lidl/receipts.json` z paragonami podzielonymi na kategorie produktów — zapis atomowy
+(`.tmp` + rename), więc Budżet nigdy nie czyta połowy pliku.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import os
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any
+
+import aiohttp
+
+from .history import CATEGORIES, History
+from .leaflet import ModelRefused, TryLater, ask_json
+from .settings import Settings
+
+log = logging.getLogger(__name__)
+
+NEW_DAYS = 30  # „nowy” produkt = pierwszy zakup w tym oknie; starsze klasyfikuje jednorazowo Claude (E6.2)
+MAX_ITEMS = 80  # produktów w jednym zapytaniu
+PROMPT = (
+    "Przypisz każdy produkt ze sklepu Lidl do jednej kategorii: food (żywność i napoje, też dla zwierząt), "
+    "drugstore (kosmetyki, higiena, chemia domowa, papier toaletowy, ręczniki papierowe), kids (pieluszki, "
+    "chusteczki i kosmetyki dla dzieci, zabawki, ubranka dziecięce), nonfood (reszta: dom, ogród, narzędzia, "
+    'odzież, elektronika, torby). Nazwy są skrócone jak na paragonie. Zwróć JSON {"items": [{"code", '
+    '"category"}]} dla wszystkich kodów.\n\n'
+)
+SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "code": {"type": "string"},
+                    "category": {"type": "string", "enum": list(CATEGORIES)},
+                },
+                "required": ["code", "category"],
+            },
+        }
+    },
+    "required": ["items"],
+}
+
+
+def write_export(history: History, path: Path) -> int:
+    """Zapisuje paragony dla Budżetu; zwraca ich liczbę."""
+    receipts = history.receipts_export()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"version": 1, "receipts": receipts}, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp, path)
+    return len(receipts)
+
+
+class BudgetFeed:
+    def __init__(self, session: aiohttp.ClientSession, history: History, settings: Settings) -> None:
+        self._session, self._history, self._settings = session, history, settings
+        self._lock = asyncio.Lock()  # import ręczny i poranny mogą skończyć się naraz
+
+    @property
+    def path(self) -> Path:
+        return self._settings.share_dir / "lidl" / "receipts.json"
+
+    async def refresh(self, today: date | None = None) -> None:
+        async with self._lock:
+            try:
+                if self._settings.leaflet_enabled:
+                    await self.classify_new(today or date.today())
+                count = await asyncio.to_thread(write_export, self._history, self.path)
+                log.info("Budżet: %d paragonów w %s", count, self.path)
+            except Exception:
+                log.exception("Budżet: eksport nieudany")
+
+    async def classify_new(self, today: date) -> int:
+        """Kategorie nowych produktów od modelu; zwraca liczbę zapisanych."""
+        new = dict(list(self._history.uncategorized(today - timedelta(days=NEW_DAYS)).items())[:MAX_ITEMS])
+        if not new:
+            return 0
+        content = [{"type": "text", "text": PROMPT + "\n".join(f"{c}: {n}" for c, n in new.items())}]
+        s = self._settings
+        for model in s.llm_vision_models:
+            try:
+                payload = await ask_json(
+                    self._session, s.llm_url, s.llm_key, model, content, "categories", SCHEMA
+                )
+                break
+            except (ModelRefused, TryLater) as err:
+                log.info("Kategorie produktów: model %s: %s, następny", model, err)
+        else:
+            log.info("Kategorie produktów: żaden model nie odpowiedział, %d produktów czeka", len(new))
+            return 0
+        rows = [
+            (str(i.get("code")), str(i.get("category")))
+            for i in payload.get("items") or []
+            if isinstance(i, dict) and i.get("code") in new and i.get("category") in CATEGORIES
+        ]
+        saved = self._history.set_categories(rows, "ai")
+        log.info("Kategorie produktów (%s): %d z %d nowych", model, saved, len(new))
+        return saved

@@ -799,3 +799,68 @@ def test_cached_results_follow_new_items_and_merges(tmp_path: Path) -> None:
     assert sorted(r.art_id for r in h.ranking()) == ["222", "n:2"]
     h.set_merges([("n:2", "222")])
     assert [(r.art_id, r.purchases) for r in h.ranking()] == [("222", 2)]
+
+
+def _seed_categories(h: History) -> None:
+    h.upsert_tickets("a", [_ticket("old", "2026-01-01", total=9.0), _ticket("new", "2026-05-01", total=12.0)])
+    h.save_detail("old", "S", _receipt(("n:1", "Mydlo", 1, 4.0), ("n:2", "Chleb", 1, 5.0)))
+    h.save_detail("new", "S", _receipt(("0001", "mydlo", 1, 4.5), ("0003", "Pieluszki", 1, 7.5)))
+
+
+def test_categories_follow_bridge_and_manual_wins(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_categories(h)
+    assert list(h.uncategorized()) == ["0001", "0003", "n:2"]  # stary kod „Mydlo” idzie mostem do 0001
+    assert h.uncategorized(date(2026, 2, 1)) == {"0003": "Pieluszki"}  # 0001 kupione już w styczniu
+    assert h.set_categories([("0001", "drugstore"), ("0003", "kids")], "claude") == 2
+    assert h.category_of("0001") == ("drugstore", "claude")
+    assert h.category_of("n:2") == ("food", None)  # brak wiersza = spożywcze „do sprawdzenia”
+    h.set_categories([("0003", "nonfood")], "manual")
+    assert h.set_categories([("0003", "food"), ("n:2", "food")], "ai") == 1  # ręcznej AI nie nadpisuje
+    assert h.category_of("0003") == ("nonfood", "manual")
+    with pytest.raises(ValueError):
+        h.set_categories([("0001", "toys")], "claude")
+
+
+def test_category_candidates_list_resolved_products(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_categories(h)
+    h.set_categories([("0003", "kids")], "claude")
+    by_code = {c["code"]: c for c in h.category_candidates()}
+    assert set(by_code) == {"0001", "0003", "n:2"}
+    assert by_code["0001"]["purchases"] == 2 and by_code["0001"]["spend"] == 8.5
+    assert sorted(by_code["0001"]["names"]) == ["Mydlo", "mydlo"]
+    assert (by_code["0003"]["category"], by_code["0003"]["source"]) == ("kids", "claude")
+    assert (by_code["n:2"]["category"], by_code["n:2"]["source"]) == ("food", None)
+
+
+def test_receipts_export_splits_paid_amount_by_category(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a",
+        [
+            _ticket("t1", "2026-05-01", total=20.5),
+            _ticket("t2", "2026-05-02", total=7.0),
+            _ticket("t3", "2026-05-03", total=3.0),
+        ],
+    )
+    t1 = ParsedReceipt(
+        items=[
+            ReceiptItem("0001", "Mydlo", 1, 4.0, 4.0, discount=-1.0),
+            ReceiptItem("0002", "Chleb", 1, 6.0, 6.0),
+            ReceiptItem("0003", "Pieluszki", 1, 10.0, 10.0),
+        ],
+        deposit_charged=0.5,
+    )
+    h.save_detail("t1", "S", t1)
+    h.save_detail("t2", "S", _receipt(("0001", "Mydlo", 1, 7.0)))
+    h.set_categories([("0001", "drugstore"), ("0003", "kids")], "claude")
+    out = {r["id"]: r for r in h.receipts_export()}
+    # kaucja 0,50 trafia do największej części (dzieci); suma części = zapłacono
+    assert out["t1"]["parts"] == {"drugstore": 3.0, "food": 6.0, "kids": 11.5}
+    assert out["t1"] | {"parts": None} == {
+        "id": "t1", "account": "a", "day": "2026-05-01", "purchased_at": None, "paid": 20.5,
+        "payment": None, "url_path": "/paragony/t1", "parts": None,
+    }  # fmt: skip
+    assert out["t2"]["parts"] == {"drugstore": 7.0}
+    assert out["t3"]["parts"] == {"food": 3.0}  # bez pozycji
