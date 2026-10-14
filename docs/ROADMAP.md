@@ -183,6 +183,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   Podetapy: E24.0 docs ✅, E24.1 pomiar modeli ✅ (wynik w `docs/PLAN_E24_sync_gazetki.md`: modele spoza Google
   zmyślają dopasowania → decyzja usera: Google z ponawianiem, Mistral awaryjnie + filtr nazw), E24.2 gazetki ✅,
   E24.3 paragony co godzinę ✅, E24.4 wydanie 0.21.0.
+  **E24 ZAKOŃCZONE 2026-10-14 (0.21.0 na żywo 19:02, release v0.21.0):** 373 testy, simplify + code-review (7 z 9 uwag
+  poprawionych). Na żywo: paczka 13 gazetki, porzucona wcześniej po 30 próbach, przetworzona zaraz po starcie; Status
+  „Wszystko działa”, Gazetka „Gotowa: 13 trafień”. Do sprawdzenia: pierwszy godzinny import o pełnej godzinie (puste
+  przebiegi nie zostawiają wpisu — dowodem będzie wpis „Import …” przy nowym paragonie), fallback Mistrala w logu
+  zapytań AI przy kolejnej awarii Google. Otwarte: lokalny model wizyjny (RTX 2070 Super 8 GB) — niemierzony.
   Rollback: wydanie 0.21.1 z `git revert`, user przywraca listę `llm_vision_models`; bez zmiany schematu bazy.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
