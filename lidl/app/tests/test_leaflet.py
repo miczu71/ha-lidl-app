@@ -8,7 +8,14 @@ from typing import Any
 import pytest
 
 from lidl.history import History
-from lidl.leaflet import OVERVIEW_URL, LeafletRunner, find_flyers, page_batches, parse_matches
+from lidl.leaflet import (
+    MAX_ATTEMPTS,
+    OVERVIEW_URL,
+    LeafletRunner,
+    find_flyers,
+    page_batches,
+    parse_matches,
+)
 from lidl.promotions import Promotion, PromotionRunner
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.settings import Settings, load_settings
@@ -265,3 +272,40 @@ async def test_rejected_key_is_marked_in_event_log(tmp_path: Path) -> None:
     batch = h.next_leaflet_batch("2026-10-07T12:10:00")
     assert batch is not None and batch["attempts"] == 0  # i bez zużycia próby paczki
     assert await runner.step(NOW + timedelta(minutes=30)) is False  # cała gazetka czeka na poprawny klucz
+
+
+async def _exhaust_first_batch(h: History, tmp_path: Path) -> LeafletRunner:
+    """Paczka 1 po `MAX_ATTEMPTS` nieudanych próbach (przeciążone oba modele)."""
+    session = FakeSession([(503, "")] * 4 + [_answer()])
+    runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
+    await runner.step(NOW)  # odkrycie gazetki + próba 1
+    fid = h.leaflet_progress()[0].flyer_id
+    h.set_leaflet_batch(fid, 0, "pending", MAX_ATTEMPTS - 1, "")
+    await runner.step(NOW)  # próba 30
+    return runner
+
+
+async def test_batch_is_postponed_to_next_morning_after_max_attempts(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    await _exhaust_first_batch(h, tmp_path)
+    assert h.leaflet_progress()[0].failed == 1
+    assert h.revive_leaflet_batches("2026-10-08T05:59:00") == 0  # jeszcze przed 6:00 następnego dnia
+    assert h.revive_leaflet_batches("2026-10-08T06:00:00") == 1
+    batch = h.next_leaflet_batch("2026-10-08T06:00:00")
+    assert batch is not None and batch["batch"] == 0 and batch["attempts"] == 0
+    assert any(e.level == "warn" and "do jutra" in e.summary for e in h.events(START_DT, area="leaflet"))
+
+
+async def test_runner_step_revives_postponed_batch_the_next_day(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    runner = await _exhaust_first_batch(h, tmp_path)
+    assert await runner.step(datetime(2026, 10, 8, 6, 5)) is True
+    progress = h.leaflet_progress()[0]
+    assert progress.failed == 0 and progress.done == 1
+
+
+async def test_batches_of_an_ended_leaflet_are_neither_revived_nor_processed(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    await _exhaust_first_batch(h, tmp_path)
+    assert h.revive_leaflet_batches("2026-10-11T06:00:00") == 0  # gazetka skończyła się 10.10
+    assert h.next_leaflet_batch("2026-10-11T06:00:00") is None  # paczka 2 czeka, ale na nic już nie wpłynie

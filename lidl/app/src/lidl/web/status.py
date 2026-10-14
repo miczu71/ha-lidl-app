@@ -3,7 +3,7 @@
 `build()` to czysta funkcja migawki stanu (`Snapshot`) — bez bazy i sieci, więc reguły „co jest problemem”
 są testowalne i te same dla strony, kropki na chipie i alertów (E23.3). Problem = coś, co wymaga działania
 albo zatrzymało pracę add-onu: wygasła sesja, nieudany lub pominięty poranny przebieg, odrzucony klucz AI,
-porzucona paczka gazetki. Limit modelu AI czy przerwany import (ponowi się sam) to tylko „Uwaga”.
+odłożona paczka gazetki. Limit modelu AI czy przerwany import (ponowi się sam) to tylko „Uwaga”.
 Teksty biorą się z pól `detail` wpisów, nie z ich opisów (opis to tylko wiersz osi czasu).
 """
 
@@ -227,23 +227,24 @@ def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
             "leaflet", "Gazetka", "ok", "Brak bieżącej gazetki" if s.llm_enabled else "Wyłączona (bez AI)"
         )
     for f in s.leaflets:
-        if f.failed and f.end >= s.now.date():  # po końcu gazetki porzucone paczki niczego już nie zmienią
+        if f.failed and f.end >= s.now.date():  # po końcu gazetki odłożone paczki niczego już nie zmienią
             problems.append(Problem(
                 f"leaflet:{f.flyer_id}", "leaflet",
-                f"Gazetka {fmt_day_month(f.start)}: porzucone paczki {f.failed} z {f.total} — "
-                "część promocji nie trafi do porannego",
+                f"Gazetka {fmt_day_month(f.start)}: odłożone paczki {f.failed} z {f.total} (ponowię jutro) — "
+                "do tego czasu część promocji nie trafi do porannego",
             ))  # fmt: skip
     cur = s.leaflets[0]
     facts = [
         ("Gazetka", f"{fmt_day_month(cur.start)}–{fmt_day_month(cur.end)}"),
         (
             "Paczki",
-            f"{cur.done} z {cur.total} zrobione" + (f", {cur.failed} porzucone" if cur.failed else ""),
+            f"{cur.done} z {cur.total} zrobione"
+            + (f", {cur.failed} odłożone na jutro" if cur.failed else ""),
         ),
         ("Trafienia", str(cur.matches)),
     ]
     if cur.failed:
-        level, say = "error", f"Porzucone paczki: {cur.failed}"
+        level, say = "error", f"Odłożone paczki: {cur.failed}"
     elif cur.pending:
         level, say = "busy", f"Paczka {cur.done + 1} z {cur.total}"
     else:

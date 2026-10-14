@@ -20,7 +20,7 @@ import base64
 import logging
 import re
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import aiohttp
@@ -48,6 +48,7 @@ IDLE = 3600  # s między sprawdzeniami nowej gazetki, gdy nic nie czeka
 RETRY = timedelta(minutes=10)
 EXHAUSTED = timedelta(hours=6)
 MAX_ATTEMPTS = 30
+DEFER_AT = time(6, 0)  # po `MAX_ATTEMPTS` próbach paczka wraca następnego dnia o tej godzinie (E24)
 
 SCHEMA = {
     "type": "object",
@@ -168,6 +169,7 @@ class LeafletRunner:
     async def step(self, now: datetime | None = None) -> bool:
         """Sprawdza nowe gazetki (co `IDLE`) i przetwarza jedną paczkę; True, gdy paczka była do zrobienia."""
         now = now or datetime.now()
+        self._history.revive_leaflet_batches(now.isoformat())
         if self._checked is None or now - self._checked >= timedelta(seconds=IDLE):
             self._checked = now
             await self._discover()
@@ -251,14 +253,16 @@ class LeafletRunner:
         )  # fmt: skip
 
     def _retry(self, batch: dict[str, Any], now: datetime, err: TryLater) -> None:
-        """Ta sama paczka za `RETRY`; po `MAX_ATTEMPTS` próbach odpuszczamy."""
+        """Ta sama paczka za `RETRY`; po `MAX_ATTEMPTS` próbach odłożona na jutro (`DEFER_AT`), dopóki
+        gazetka trwa — Google bywa niedostępny przez pół dnia."""
         attempts = batch["attempts"] + 1
         later = now + RETRY
         status = "failed" if attempts >= MAX_ATTEMPTS else "pending"
         if status == "failed":
+            later = datetime.combine(now.date() + timedelta(days=1), DEFER_AT)
             self._history.log_event(
-                "leaflet", "error",
-                f"Paczka {batch['batch'] + 1} gazetki porzucona po {attempts} próbach: {err}",
+                "leaflet", "warn",
+                f"Paczka {batch['batch'] + 1} gazetki odłożona do jutra po {attempts} próbach: {err}",
                 {"flyer": batch["flyer_id"]},
             )  # fmt: skip
         self._history.set_leaflet_batch(

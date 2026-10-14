@@ -1298,10 +1298,11 @@ class History:
             self._db.execute("DELETE FROM leaflet_matches WHERE end < ?", (old,))
 
     def next_leaflet_batch(self, now: str) -> dict[str, Any] | None:
+        """Najstarsza paczka gotowa do próby; paczki gazetki, która już się skończyła, niczego nie zmienią."""
         cur = self._db.execute(
-            "SELECT * FROM leaflet_batches WHERE status = 'pending' AND next_try <= ?"
+            "SELECT * FROM leaflet_batches WHERE status = 'pending' AND next_try <= ? AND end >= ?"
             " ORDER BY start, flyer_id, batch LIMIT 1",
-            (now,),
+            (now, now[:10]),
         )
         row = cur.fetchone()
         if row is None:
@@ -1309,6 +1310,17 @@ class History:
         out = dict(zip([c[0] for c in cur.description], row, strict=True))
         out["pages"] = json.loads(out["pages"])
         return out
+
+    def revive_leaflet_batches(self, now: str) -> int:
+        """Paczki odłożone po `MAX_ATTEMPTS` próbach wracają do kolejki od ustalonej godziny, dopóki gazetka
+        trwa; licznik prób od zera. Zwraca liczbę wskrzeszonych."""
+        with self._db:
+            cur = self._db.execute(
+                "UPDATE leaflet_batches SET status = 'pending', attempts = 0, next_try = ''"
+                " WHERE status = 'failed' AND next_try <= ? AND end >= ?",
+                (now, now[:10]),
+            )
+        return cur.rowcount
 
     def has_pending_leaflet(self) -> bool:
         return (

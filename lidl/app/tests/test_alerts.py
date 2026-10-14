@@ -12,7 +12,7 @@ from lidl.web.status import Problem
 SESSION = Problem(
     "session:osoba-2", "system", "Sesja konta Osoba 2 wygasła — kupony stoją", "Zaloguj", "/konta"
 )
-LEAFLET = Problem("leaflet:f1", "leaflet", "Gazetka 13 paź: porzucone paczki 2 z 15")
+LEAFLET = Problem("leaflet:f1", "leaflet", "Gazetka 13 paź: odłożone paczki 2 z 15")
 
 
 @pytest.fixture
