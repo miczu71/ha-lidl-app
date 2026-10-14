@@ -372,7 +372,7 @@ async def test_hourly_loop_runs_on_full_hours_and_survives_errors() -> None:
 
     with pytest.raises(asyncio.CancelledError):
         await hourly_loop(job, time(7, 0), now=lambda: datetime(2026, 10, 14, 9, 30), sleep=sleep)
-    assert waits == [1800, 1800, 1800] and calls == 2
+    assert waits == [1800, 5400, 9000] and calls == 2  # kolejne pełne godziny: 10:00, 11:00, 12:00
 
 
 async def test_hourly_loop_skips_closed_days() -> None:
@@ -415,3 +415,23 @@ async def test_hourly_job_does_nothing_during_morning_run() -> None:
     job.in_progress = True
     await job.hourly()
     assert log == []
+
+
+async def test_hourly_loop_does_not_repeat_an_hour_when_woken_early() -> None:
+    clock = [datetime(2026, 10, 14, 8, 30)]
+    waits: list[float] = []
+    calls = 0
+
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 3:
+            raise asyncio.CancelledError
+        clock[0] += timedelta(seconds=seconds - 0.1)  # budzik 100 ms przed pełną godziną
+
+    async def job() -> None:
+        nonlocal calls
+        calls += 1
+
+    with pytest.raises(asyncio.CancelledError):
+        await hourly_loop(job, time(7, 0), now=lambda: clock[0], sleep=sleep)
+    assert calls == 2 and waits[1] > 3500  # po 9:00 czekamy do 10:00, nie 0,1 s do „tej samej” 9:00

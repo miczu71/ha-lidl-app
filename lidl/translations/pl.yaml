@@ -33,5 +33,5 @@ configuration:
     name: Powiadomienie o problemach
     description: >-
       Usługa notify (bez „notify.”, np. moj_telefon), która dostaje push, gdy coś wymaga działania: wygasła sesja
-      konta, nieudany lub pominięty poranny przebieg, odrzucony klucz AI, odłożona paczka gazetki. Raz na problem.
+      konta, nieudany lub pominięty poranny przebieg, odrzucony klucz AI. Raz na problem.
       Puste = tylko kropka przy zakładce Status.

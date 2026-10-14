@@ -81,11 +81,13 @@ async def hourly_loop(
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> None:
     """O każdej pełnej godzinie sklepów uruchamia `job`; błąd jednego przebiegu nie zatrzymuje kolejnych."""
+    target = datetime.min
     while True:
         started = now()
-        target = next_hour(started)
+        # budzik bywa o ułamek sekundy za wcześnie — wtedy `started` jest jeszcze przed `target`
+        target = next_hour(max(started, target))
         await sleep((target - started).total_seconds())
-        if not sync_due(target, run_time):  # docelowa godzina: budzik bywa o ułamek sekundy za wcześnie
+        if not sync_due(target, run_time):
             continue
         try:
             await job()

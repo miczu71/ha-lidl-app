@@ -77,7 +77,16 @@ def test_leaflet_progress_and_abandoned_batches() -> None:
     area = _area(build(_snap(leaflets=[busy])), "leaflet")
     assert (area.level, area.progress) == ("busy", (8, 15))  # type: ignore[attr-defined]
     failed = replace(busy, pending=0, failed=2)
-    assert [p.key for p in build(_snap(leaflets=[failed])).problems] == ["leaflet:f1"]
+    view = build(_snap(leaflets=[failed]))
+    assert view.problems == []  # odłożone paczki wrócą same następnego dnia — „Uwaga”, nie alert
+    assert _area(view, "leaflet").level == "warn"  # type: ignore[attr-defined]
+
+
+def test_pending_batches_of_an_ended_leaflet_are_not_shown_as_busy() -> None:
+    ended = LeafletProgress(
+        "f1", date(2026, 10, 5), date(2026, 10, 8), 8, 7, 0, datetime(2026, 10, 7, 12, 40), 5
+    )
+    assert _area(build(_snap(leaflets=[ended])), "leaflet").level == "ok"  # type: ignore[attr-defined]
 
 
 def test_running_import_shows_progress() -> None:

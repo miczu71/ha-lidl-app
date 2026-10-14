@@ -94,7 +94,7 @@ Lidla); całość trwa od kilkudziesięciu minut do kilku godzin, zależnie od l
 obrazy publicznej gazetki i nazwy produktów z zakładki Kupony — bez kont, kwot i dat zakupów.
 
 Gdy modele wizyjne zawodzą (przeciążenie, limity), add-on ponawia paczkę co 10 minut. Po kilku nieudanych
-rundach dołącza **modele awaryjne** — szybkie, ale mniej dokładne, więc ich oferty przechodzą dodatkowy filtr
+rundach (albo od razu, gdy modele Google wyczerpały limity) dołącza **modele awaryjne** — szybkie, ale mniej dokładne, więc ich oferty przechodzą dodatkowy filtr
 (nazwa oferty musi mieć wspólne słowo z Twoim produktem i podany rabat). Paczka, której nie uda się przetworzyć
 po 30 próbach, jest odkładana do następnego dnia (6:00) i wraca do kolejki, dopóki gazetka trwa; w zakładce Status
 widać ją jako „odłożoną”.

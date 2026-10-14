@@ -2,8 +2,8 @@
 
 `build()` to czysta funkcja migawki stanu (`Snapshot`) — bez bazy i sieci, więc reguły „co jest problemem”
 są testowalne i te same dla strony, kropki na chipie i alertów (E23.3). Problem = coś, co wymaga działania
-albo zatrzymało pracę add-onu: wygasła sesja, nieudany lub pominięty poranny przebieg, odrzucony klucz AI,
-odłożona paczka gazetki. Limit modelu AI czy przerwany import (ponowi się sam) to tylko „Uwaga”.
+albo zatrzymało pracę add-onu: wygasła sesja, nieudany lub pominięty poranny przebieg, odrzucony klucz AI.
+Limit modelu AI, odłożona paczka gazetki czy przerwany import (ponowią się same) to tylko „Uwaga”.
 Teksty biorą się z pól `detail` wpisów, nie z ich opisów (opis to tylko wiersz osi czasu).
 """
 
@@ -221,19 +221,13 @@ def _ai(s: Snapshot, problems: list[Problem]) -> Area:
     return Area("ai", "Zapytania AI", level, say, models=models, facts=facts)
 
 
-def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
+def _leaflet(s: Snapshot) -> Area:
     if not s.leaflets:
         return Area(
             "leaflet", "Gazetka", "ok", "Brak bieżącej gazetki" if s.llm_enabled else "Wyłączona (bez AI)"
         )
-    for f in s.leaflets:
-        if f.failed and f.end >= s.now.date():  # po końcu gazetki odłożone paczki niczego już nie zmienią
-            problems.append(Problem(
-                f"leaflet:{f.flyer_id}", "leaflet",
-                f"Gazetka {fmt_day_month(f.start)}: odłożone paczki {f.failed} z {f.total} (ponowię jutro) — "
-                "do tego czasu część promocji nie trafi do porannego",
-            ))  # fmt: skip
     cur = s.leaflets[0]
+    running = cur.end >= s.now.date()  # po końcu gazetki paczki niczego już nie zmienią
     facts = [
         ("Gazetka", f"{fmt_day_month(cur.start)}–{fmt_day_month(cur.end)}"),
         (
@@ -243,9 +237,9 @@ def _leaflet(s: Snapshot, problems: list[Problem]) -> Area:
         ),
         ("Trafienia", str(cur.matches)),
     ]
-    if cur.failed:
-        level, say = "error", f"Odłożone paczki: {cur.failed}"
-    elif cur.pending:
+    if cur.failed and running:  # wrócą same następnego dnia (E24) — „Uwaga”, nie alert
+        level, say = "warn", f"Odłożone paczki: {cur.failed}"
+    elif cur.pending and running:
         level, say = "busy", f"Paczka {cur.done + 1} z {cur.total}"
     else:
         level, say = "ok", f"Gotowa: {count_text(cur.matches, 'trafienie', 'trafienia', 'trafień')}"
@@ -327,7 +321,7 @@ def _sync(s: Snapshot) -> Area:
 def build(s: Snapshot, area: str = "", *, timeline: bool = True) -> StatusView:
     """Widok strony; bez osi czasu (`timeline=False`) dla odświeżania bloku bieżącego i alertów."""
     problems: list[Problem] = []
-    areas = [_system(s, problems), _ai(s, problems), _leaflet(s, problems), _daily(s, problems), _sync(s)]
+    areas = [_system(s, problems), _ai(s, problems), _leaflet(s), _daily(s, problems), _sync(s)]
     areas.sort(key=lambda a: _RANK[a.level])
     days: dict[date, list[Row]] = {}
     wanted = FILTERS[area][1] if area in FILTERS else None

@@ -16,6 +16,7 @@ from lidl.leaflet import (
     find_flyers,
     page_batches,
     parse_matches,
+    same_product,
 )
 from lidl.promotions import Promotion, PromotionRunner
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
@@ -181,7 +182,11 @@ async def test_runner_moves_to_next_model_on_rate_limit_and_saves_matches(tmp_pa
 
 async def test_all_models_refusing_postpones_the_batch_and_restarts_the_queue(tmp_path: Path) -> None:
     h = _history(tmp_path)
-    runner = LeafletRunner(FakeSession([(429, ""), (400, "")]), h, _settings(tmp_path))  # type: ignore[arg-type]
+    runner = LeafletRunner(
+        FakeSession([(429, ""), (400, ""), (429, "")]),
+        h,
+        _settings(tmp_path),  # type: ignore[arg-type]
+    )
     await runner.step(NOW)
     batch = h.next_leaflet_batch("2026-10-07T18:00:00")
     assert batch is not None and batch["batch"] == 0 and runner._refused == set()
@@ -193,7 +198,7 @@ async def test_bad_key_is_retried_not_treated_as_a_rate_limit(tmp_path: Path) ->
     runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
     await runner.step(NOW)
     assert session.models == ["model-a"] and runner._refused == set()
-    assert h.has_pending_leaflet()
+    assert h.has_pending_leaflet(START)
 
 
 async def test_overloaded_model_falls_through_to_the_next_one(tmp_path: Path) -> None:
@@ -365,3 +370,28 @@ def test_fallback_models_option(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert load_settings().llm_fallback_models == ("m9",)
     options.write_text(json.dumps({"llm_fallback_models": []}))
     assert load_settings().llm_fallback_models == ()  # pusta lista wyłącza modele awaryjne
+
+
+async def test_fallback_model_joins_at_once_when_the_primary_models_hit_their_limits(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    right = {"code": "0000111", "page": 2, "leaflet_name": "Produkt A XXL", "discount": "-38%",
+             "valid_from": "08.10", "valid_to": "10.10", "lidl_plus_coupon": False}  # fmt: skip
+    wrong = {**right, "code": "0000444", "leaflet_name": "Bułka fitness"}
+    session = FakeSession([(429, ""), (429, ""), _answer(right, wrong)])
+    runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
+    await runner.step(NOW)  # limity dzienne Google: bez czekania 6 h i bez 3 nieudanych rund
+    assert session.models == ["model-a", "model-b", "model-fb"]
+    assert [m[0] for m in h.leaflet_matches_active(START)] == ["0000111"]
+    assert h.leaflet_progress()[0].done == 1
+
+
+def test_has_pending_leaflet_ignores_ended_flyers(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.add_leaflet("g1", [[[1, "u"]]], START, END)
+    assert h.has_pending_leaflet(END) and not h.has_pending_leaflet(END + timedelta(days=1))
+
+
+def test_normalization_keeps_polish_l_so_stems_still_match() -> None:
+    assert same_product("Płatki owsiane", "Płatki owsiane 500g") and same_product(
+        "Łosoś wędzony", "Losos wedz."
+    )

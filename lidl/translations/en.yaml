@@ -33,5 +33,5 @@ configuration:
     name: Problem notifications
     description: >-
       Notify service (without "notify.", e.g. my_phone) that gets a push when something needs action: expired
-      account session, failed or missed morning run, rejected AI key, postponed leaflet batch. Once per problem.
+      account session, failed or missed morning run, rejected AI key. Once per problem.
       Empty = only a dot on the Status tab.

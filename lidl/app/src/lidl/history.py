@@ -1322,10 +1322,13 @@ class History:
             )
         return cur.rowcount
 
-    def has_pending_leaflet(self) -> bool:
-        return (
-            self._db.execute("SELECT 1 FROM leaflet_batches WHERE status = 'pending'").fetchone() is not None
-        )
+    def has_pending_leaflet(self, today: date | None = None) -> bool:
+        """Czeka paczka trwającej gazetki (po jej końcu paczki niczego już nie zmienią)."""
+        row = self._db.execute(
+            "SELECT 1 FROM leaflet_batches WHERE status = 'pending' AND end >= ?",
+            ((today or date.today()).isoformat(),),
+        ).fetchone()
+        return row is not None
 
     def leaflet_progress(self) -> list[LeafletProgress]:
         """Stan paczek każdej zapisanej gazetki (zakładka Status, E23), najnowsza pierwsza."""

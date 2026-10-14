@@ -9,9 +9,13 @@
 - **Gazetki — naprawa po serii błędów modeli Google:**
   - Paczka, której nie udało się przetworzyć w 30 próbach, nie przepada: wraca następnego dnia o 6:00, dopóki
     gazetka trwa (w Statusie „odłożona”, nie „porzucona”). Paczki zakończonej gazetki nie są już próbowane.
-  - Po 3 nieudanych rundach do kolejki dochodzą **modele awaryjne** (nowa opcja `llm_fallback_models`, domyślnie
-    `ministral-14b-2512`). Ich oferty muszą mieć rabat i wspólne słowo z nazwą Twojego produktu — bez tego
-    pomiar pokazał 14–50 fałszywych dopasowań na 10 prawdziwych.
+  - Po 3 nieudanych rundach — albo od razu, gdy modele Google wyczerpały limity — do kolejki dochodzą **modele
+    awaryjne** (nowa opcja `llm_fallback_models`, domyślnie `ministral-14b-2512`). Ich oferty muszą mieć rabat
+    i wspólne słowo z nazwą Twojego produktu — bez tego pomiar pokazał 14–50 fałszywych dopasowań na 10 prawdziwych.
+  - Odłożona paczka to w Statusie „Uwaga”, nie alert (wraca sama); paczki zakończonej gazetki nie pokazują się
+    już jako „w toku”.
+- Godzinny import nie zapisuje świeżego paragonu bez szczegółów (zostaje w kolejce do następnego przebiegu)
+  i nie dopisuje wpisu o wygasłej sesji co godzinę — sesję zgłasza poranny przebieg.
 
 ## 0.20.0
 

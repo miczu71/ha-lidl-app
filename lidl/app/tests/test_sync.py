@@ -290,7 +290,33 @@ async def test_hourly_run_logs_errors_even_when_quiet(history: History) -> None:
     src = FakeSource({0: ["a"]})
     sync, _ = _sync(src, history)
     await sync.import_account("osoba-1", full=True)
-    src.fail_list = LidlPlusAuthError("unauthorized")
+    src.fail_list = LidlPlusCannotConnect("timeout")
     await sync.run_hourly(["osoba-1"])
     last = history.events(datetime(2000, 1, 1), area="sync")[0]
-    assert last.level == "error" and last.detail["auth"] is True
+    assert last.level == "error" and last.detail["auth"] is False
+
+
+async def test_hourly_run_does_not_repeat_auth_failures_in_the_event_log(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=True)
+    before = len(history.events(datetime(2000, 1, 1), area="sync"))
+    src.fail_list = LidlPlusAuthError("unauthorized")
+    for _ in range(3):
+        await sync.run_hourly(["osoba-1"])
+    assert len(history.events(datetime(2000, 1, 1), area="sync")) == before  # sesję pokazuje poranny przebieg
+
+
+async def test_hourly_run_leaves_a_receipt_with_unavailable_detail_pending(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=True)
+    src.years[0].append("b")
+    src.fail_detail["b"] = LidlPlusError(
+        "http_404", status=404
+    )  # świeży paragon, szczegóły jeszcze niegotowe
+    assert await sync.run_hourly(["osoba-1"]) == 1  # nowy paragon na liście liczy się mimo braku szczegółów
+    assert history.pending_details("osoba-1") == ["b"]  # nie zapisany jako pusty — wróci w kolejnym przebiegu
+    del src.fail_detail["b"]
+    assert await sync.run_hourly(["osoba-1"]) == 1
+    assert history.pending_details("osoba-1") == []

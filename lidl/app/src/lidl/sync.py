@@ -120,13 +120,13 @@ class HistorySync:
 
     async def run_hourly(self, slugs: list[str]) -> int:
         """Godzinny przebieg (E24): tylko paragony, bez kuponów i powiadomień. Konta bez historii i te,
-        które już się synchronizują (ręczny import), pomija. Zwraca liczbę zaimportowanych paragonów; hook
-        `after` (plik dla Budżetu, kategorie) idzie tylko, gdy coś przyszło."""
+        które już się synchronizują (ręczny import), pomija. Zwraca liczbę nowych paragonów (największa z: na
+        liście, ze szczegółami); hook `after` (plik dla Budżetu, kategorie) idzie tylko, gdy coś przyszło."""
         imported = 0
         for slug in slugs:
             if self._history.ticket_count(slug) > 0 and self.start(slug, full=False, after=False, quiet=True):
                 result = await self.wait(slug)
-                imported += result.details if result else 0
+                imported += max(result.new_tickets, result.details) if result else 0
         if imported:
             self._run_after()
         return imported
@@ -151,7 +151,10 @@ class HistorySync:
                         if is_fatal(err):
                             raise
                         skipped += 1
-                        self._history.save_detail(ticket_id, None, ParsedReceipt())
+                        if (
+                            not quiet
+                        ):  # godzinny przebieg: świeży paragon bywa jeszcze niegotowy — zostaje w kolejce
+                            self._history.save_detail(ticket_id, None, ParsedReceipt())
                         continue
                     parsed = parse_detail(detail)
                     if not self._history.save_detail(
@@ -167,8 +170,9 @@ class HistorySync:
                 log.warning("Import konta %s przerwany: %s", slug, stopped)
         finally:
             progress.running = False
-        if quiet and not (new or details or stopped):
-            return SyncResult(new, details, skipped, stopped, unparsed)  # godzinny przebieg bez nowości
+        if quiet and not (new or details) and (not stopped or auth):
+            # godzinny przebieg bez nowości; wygasłą sesję zgłasza poranny przebieg, nie 17 wpisów dziennie
+            return SyncResult(new, details, skipped, stopped, unparsed)
         log.info(
             "Import konta %s: %d nowych, %d szczegółów, %d pominiętych, %d nierozpoznanych",
             slug, new, details, skipped, unparsed,

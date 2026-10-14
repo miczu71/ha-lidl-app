@@ -134,7 +134,7 @@ def _day(text: Any, default: date) -> date:
 
 
 def _stems(text: str) -> set[str]:
-    plain = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+    plain = unicodedata.normalize("NFKD", text.lower().replace("ł", "l")).encode("ascii", "ignore").decode()
     return {w[:STEM] for w in re.split(r"[^a-z0-9]+", plain) if len(w) >= STEM and not w.isdigit()}
 
 
@@ -244,25 +244,35 @@ class LeafletRunner:
             self._retry(batch, now, err)
             return
         overloaded: TryLater | None = None
-        queue = (*self._models, *self._fallback) if batch["attempts"] >= FALLBACK_AFTER else self._models
-        for model in [m for m in queue if m not in self._refused]:
-            try:
-                payload = await ask_logged(
-                    self._history, "gazetka", self._session, self._url, self._key, model, content, "matches",
-                    SCHEMA,
-                )  # fmt: skip
+        payload: dict[str, Any] | None = None
+        model = ""
+        for fallback, pool in ((False, self._models), (True, self._fallback)):
+            if fallback and not (
+                batch["attempts"] >= FALLBACK_AFTER or any(m in self._refused for m in self._models)
+            ):
+                break  # modele awaryjne po kilku nieudanych rundach albo gdy Google wyczerpał limity
+            for model in [m for m in pool if m not in self._refused]:
+                try:
+                    payload = await ask_logged(
+                        self._history, "gazetka", self._session, self._url, self._key, model, content,
+                        "matches", SCHEMA,
+                    )  # fmt: skip
+                    break
+                except (
+                    KeyRejected
+                ) as err:  # konfiguracja, nie paczka: cała gazetka czeka, próba się nie liczy
+                    self._key_pause = now + EXHAUSTED
+                    log.warning("Gazetka: %s, ponowię o %s", err, self._key_pause.strftime("%H:%M"))
+                    return
+                except ModelRefused as err:
+                    log.info("Gazetka %s/%d: model %s odmówił (%s), następny", fid, n, model, err)
+                    self._refused.add(model)
+                except TryLater as err:  # przeciążenie jednego modelu — inny może być wolny
+                    log.info("Gazetka %s/%d: model %s: %s, następny", fid, n, model, err)
+                    overloaded = err
+            if payload is not None:
                 break
-            except KeyRejected as err:  # konfiguracja, nie paczka: cała gazetka czeka, próba się nie liczy
-                self._key_pause = now + EXHAUSTED
-                log.warning("Gazetka: %s, ponowię o %s", err, self._key_pause.strftime("%H:%M"))
-                return
-            except ModelRefused as err:
-                log.info("Gazetka %s/%d: model %s odmówił (%s), następny", fid, n, model, err)
-                self._refused.add(model)
-            except TryLater as err:  # przeciążenie jednego modelu — inny może być wolny
-                log.info("Gazetka %s/%d: model %s: %s, następny", fid, n, model, err)
-                overloaded = err
-        else:
+        if payload is None:
             if overloaded:
                 self._retry(batch, now, overloaded)
                 return
