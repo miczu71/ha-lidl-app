@@ -24,9 +24,14 @@ configuration:
     name: Vision models (in order)
     description: >-
       Models that read leaflet page images (5 pages per request); on a rate limit the add-on tries the next.
+  llm_fallback_models:
+    name: Leaflet fallback models
+    description: >-
+      Added to the queue when vision models keep failing for several rounds. Faster but less accurate — their
+      offers must share a word with your product's name. Empty list = no fallback models.
   alert_notify:
     name: Problem notifications
     description: >-
       Notify service (without "notify.", e.g. my_phone) that gets a push when something needs action: expired
-      account session, failed or missed morning run, rejected AI key, abandoned leaflet batch. Once per problem.
+      account session, failed or missed morning run, rejected AI key, postponed leaflet batch. Once per problem.
       Empty = only a dot on the Status tab.

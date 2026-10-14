@@ -12,6 +12,9 @@ COUNTRY = "PL"
 LANGUAGE = "pl-PL"
 DEFAULT_RUN_TIME = time(7, 0)  # jak w config.yaml
 DEFAULT_VISION_MODELS = ("gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemma-4-31b-it")
+# Awaryjnie, gdy modele Google nie odpowiadają (E24): szybki i niezawodny, ale dopasowuje nieprecyzyjnie,
+# więc jego oferty przechodzą filtr zgodności nazw (`leaflet.parse_matches`)
+DEFAULT_FALLBACK_MODELS = ("ministral-14b-2512",)
 
 
 @dataclass(frozen=True)
@@ -24,6 +27,7 @@ class Settings:
     llm_url: str = ""
     llm_key: str = field(default="", repr=False)
     llm_vision_models: tuple[str, ...] = DEFAULT_VISION_MODELS
+    llm_fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
     share_dir: Path = Path("/share")  # E6: plik dla Budżetu Domowego
     alert_notify: str = ""  # E23.3: usługa notify na alerty techniczne; puste = tylko kropka w panelu
 
@@ -45,6 +49,7 @@ def load_settings() -> Settings:
     except (OSError, ValueError):
         pass
     models = options.get("llm_vision_models")
+    fallback = options.get("llm_fallback_models")
     return Settings(
         data_dir=Path(os.environ.get("LIDL_DATA_DIR", "/data")),
         share_dir=Path(os.environ.get("LIDL_SHARE_DIR", "/share")),
@@ -60,4 +65,7 @@ def load_settings() -> Settings:
         llm_vision_models=tuple(str(m) for m in models)
         if isinstance(models, list) and models
         else DEFAULT_VISION_MODELS,
+        llm_fallback_models=tuple(str(m) for m in fallback)
+        if isinstance(fallback, list)  # pusta lista = bez modeli awaryjnych
+        else DEFAULT_FALLBACK_MODELS,
     )

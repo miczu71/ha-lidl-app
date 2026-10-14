@@ -7,6 +7,10 @@
 - Kolejka modeli (`llm_vision_models`): limit albo odmowa (4xx) wyłącza model do wyczerpania wszystkich;
   przeciążenie (5xx), sieć albo zły klucz → następny model, a gdy żaden nie odpowie — ta sama paczka
   za `RETRY`. Postęp jest w bazie (restart nie marnuje limitów).
+- Po `FALLBACK_AFTER` nieudanych rundach paczki do kolejki dochodzą modele awaryjne (`llm_fallback_models`).
+  Są niezawodne, ale zmyślają dopasowania (pomiar E24.1: 14–50 fałszywych na 10 pewnych), więc ich oferty
+  muszą mieć wspólne słowo z nazwą naszego produktu i rabat. Po `MAX_ATTEMPTS` próbach paczka czeka do
+  następnego dnia (`DEFER_AT`), dopóki gazetka trwa.
 - Kupony Lidl Plus z gazetki pomijamy — aktywuje je E3.
 - Strony bez spożywczych ofert (informacje, porównania cen z konkurencją, odzież, narzędzia, dom, rośliny,
   znicze) odpadają po opisie strony `altText` przed wysłaniem — mniej zapytań do limitu (E22.4). Drogeria
@@ -19,6 +23,7 @@ import asyncio
 import base64
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Any
@@ -48,6 +53,8 @@ IDLE = 3600  # s między sprawdzeniami nowej gazetki, gdy nic nie czeka
 RETRY = timedelta(minutes=10)
 EXHAUSTED = timedelta(hours=6)
 MAX_ATTEMPTS = 30
+FALLBACK_AFTER = 3  # nieudanych rund (≈30 min), po których dochodzą modele awaryjne
+STEM = 4  # znaków początku słowa, po których oferta „zgadza się” z produktem (Banany ≈ Banan)
 DEFER_AT = time(6, 0)  # po `MAX_ATTEMPTS` próbach paczka wraca następnego dnia o tej godzinie (E24)
 
 SCHEMA = {
@@ -126,10 +133,26 @@ def _day(text: Any, default: date) -> date:
     return d.replace(year=d.year + 1) if d < default - timedelta(days=180) else d
 
 
+def _stems(text: str) -> set[str]:
+    plain = unicodedata.normalize("NFKD", text.lower()).encode("ascii", "ignore").decode()
+    return {w[:STEM] for w in re.split(r"[^a-z0-9]+", plain) if len(w) >= STEM and not w.isdigit()}
+
+
+def same_product(offer: str, product: str) -> bool:
+    """Oferta i skrócona nazwa z paragonu mają wspólny początek słowa („Banany, luzem” ≈ „Banany luz”)."""
+    return bool(_stems(offer) & _stems(product))
+
+
 def parse_matches(
-    payload: dict[str, Any], codes: set[str], pages: set[int], start: date, end: date
+    payload: dict[str, Any],
+    codes: set[str],
+    pages: set[int],
+    start: date,
+    end: date,
+    names: dict[str, str] | None = None,
 ) -> list[Promotion]:
-    """Oferty z odpowiedzi modelu; kody spoza listy, strony spoza paczki i kupony Lidl Plus odpadają."""
+    """Oferty z odpowiedzi modelu; kody spoza listy, strony spoza paczki i kupony Lidl Plus odpadają.
+    Z `names` (kod → nazwa; modele awaryjne) oferta musi mieć też rabat i nazwę zgodną z produktem."""
     return [
         Promotion(
             m["code"],
@@ -139,7 +162,13 @@ def parse_matches(
             _day(m.get("valid_to"), end),
         )
         for m in payload.get("matches") or []
-        if m.get("code") in codes and m.get("page") in pages and not m.get("lidl_plus_coupon")
+        if m.get("code") in codes
+        and m.get("page") in pages
+        and not m.get("lidl_plus_coupon")
+        and (
+            names is None
+            or (m.get("discount") and same_product(str(m.get("leaflet_name") or ""), names[m["code"]]))
+        )
     ]
 
 
@@ -147,6 +176,7 @@ class LeafletRunner:
     def __init__(self, session: aiohttp.ClientSession, history: History, settings: Settings) -> None:
         self._session, self._history = session, history
         self._url, self._key, self._models = settings.llm_url, settings.llm_key, settings.llm_vision_models
+        self._fallback = settings.llm_fallback_models
         self._refused: set[str] = set()  # modele z wyczerpanym limitem (limity są per model, nie per paczka)
         self._checked: datetime | None = None
         self._key_pause: datetime | None = None  # zły klucz: cała gazetka czeka (jeden wpis na `EXHAUSTED`)
@@ -214,7 +244,8 @@ class LeafletRunner:
             self._retry(batch, now, err)
             return
         overloaded: TryLater | None = None
-        for model in [m for m in self._models if m not in self._refused]:
+        queue = (*self._models, *self._fallback) if batch["attempts"] >= FALLBACK_AFTER else self._models
+        for model in [m for m in queue if m not in self._refused]:
             try:
                 payload = await ask_logged(
                     self._history, "gazetka", self._session, self._url, self._key, model, content, "matches",
@@ -243,7 +274,10 @@ class LeafletRunner:
             )
             return
         start, end = date.fromisoformat(batch["start"]), date.fromisoformat(batch["end"])
-        promos = parse_matches(payload, {c.art_id for c in candidates}, {p[0] for p in pages}, start, end)
+        names = {c.art_id: c.name for c in candidates} if model in self._fallback else None
+        promos = parse_matches(
+            payload, {c.art_id for c in candidates}, {p[0] for p in pages}, start, end, names
+        )
         self._history.save_leaflet_matches(fid, promos)
         self._history.set_leaflet_batch(fid, n, "done", batch["attempts"], "")
         log.info("Gazetka %s/%d (%s): %d trafień", fid, n, model, len(promos))

@@ -180,7 +180,9 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   sync tylko paragonów co godzinę 7–23 w dni handlowe (pn–sob + niedziele handlowe z ustawy), bez kuponów
   i powiadomień; gazetki: modele spoza Google przez `auto:vision` (po pomiarze), mniejsze paczki (po pomiarze),
   porzucone paczki wracają następnego dnia. Diagnoza: 1 sukces na 73 próby modeli Google (500/503/429).
-  Podetapy: E24.0 docs ✅, E24.1 pomiar modeli, E24.2 gazetki, E24.3 paragony co godzinę, E24.4 wydanie 0.21.0.
+  Podetapy: E24.0 docs ✅, E24.1 pomiar modeli ✅ (wynik w `docs/PLAN_E24_sync_gazetki.md`: modele spoza Google
+  zmyślają dopasowania → decyzja usera: Google z ponawianiem, Mistral awaryjnie + filtr nazw), E24.2 gazetki ✅,
+  E24.3 paragony co godzinę ✅, E24.4 wydanie 0.21.0.
   Rollback: wydanie 0.21.1 z `git revert`, user przywraca listę `llm_vision_models`; bez zmiany schematu bazy.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`

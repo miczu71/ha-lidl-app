@@ -21,8 +21,11 @@ Jeśli sesja wygaśnie, panel poprosi o ponowne logowanie.
 Po zalogowaniu konta kliknij **Pobierz historię** (zakładka Produkty). Pierwsze pobranie obejmuje wszystkie
 paragony konta, idzie powoli (jeden paragon na kilka sekund, kilkanaście minut) i działa w tle — panel możesz
 zamknąć. Jeśli Lidl ograniczy liczbę żądań albo zerwie się połączenie, import zatrzymuje się, a **Wznów teraz**
-dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same raz dziennie (o godzinie z opcji
-**Godzina dziennego przebiegu**, domyślnie 7:00).
+dokańcza tylko to, czego brakuje. Potem nowe paragony pobierają się same: w porannym przebiegu (opcja
+**Godzina dziennego przebiegu**, domyślnie 7:00) oraz co godzinę od 7:00 do 23:00 w dni, gdy sklepy są
+otwarte — od poniedziałku do soboty i w niedziele handlowe (add-on wylicza je z ustawy; w zwykłe niedziele
+godzinnego pobrania nie ma). Godzinne pobranie dotyczy tylko paragonów: bez kuponów i bez powiadomień, a nowy
+paragon jest w panelu i w Budżecie najpóźniej godzinę po zakupie.
 
 - **Oszczędności** to suma rabatów na pozycjach paragonów (osobno kupony Lidl Plus i promocje) — punkt odniesienia sprzed aktywacji kuponów przez add-on.
 - **Zapłacono łącznie** to suma kwot paragonów (po rabatach, z saldem kaucji). **Kaucje pobrane** i **zwrócone**
@@ -90,13 +93,19 @@ Gazetkę add-on czyta raz na wydanie: w tle, po 5 stron na zapytanie, wysyła do
 Lidla); całość trwa od kilkudziesięciu minut do kilku godzin, zależnie od limitów modelu. Do modelu trafiają
 obrazy publicznej gazetki i nazwy produktów z zakładki Kupony — bez kont, kwot i dat zakupów.
 
+Gdy modele wizyjne zawodzą (przeciążenie, limity), add-on ponawia paczkę co 10 minut. Po kilku nieudanych
+rundach dołącza **modele awaryjne** — szybkie, ale mniej dokładne, więc ich oferty przechodzą dodatkowy filtr
+(nazwa oferty musi mieć wspólne słowo z Twoim produktem i podany rabat). Paczka, której nie uda się przetworzyć
+po 30 próbach, jest odkładana do następnego dnia (6:00) i wraca do kolejki, dopóki gazetka trwa; w zakładce Status
+widać ją jako „odłożoną”.
+
 ## Opcje
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
 - **Automatyczna aktywacja kuponów** — wyłączona = tryb próbny (patrz wyżej).
 - **Godzina dziennego przebiegu** — GG:MM, czas lokalny; paragony, kupony i powiadomienie.
-- **Adres i klucz API modelu językowego, modele** — odczyt promocji z cotygodniowej gazetki (niżej). Puste
-  adres albo klucz = gazetka wyłączona.
+- **Adres i klucz API modelu językowego, modele wizyjne i awaryjne** — odczyt promocji z cotygodniowej gazetki
+  (niżej). Puste adres albo klucz = gazetka wyłączona. Pusta lista modeli awaryjnych wyłącza je.
 
 Add-on ma uprawnienie do API Home Assistanta (`homeassistant_api`) wyłącznie po to, żeby wysłać powiadomienie
 przez `notify.family`.

@@ -28,6 +28,8 @@ options:
     - gemini-3.6-flash
     - gemini-3.7-flash
     - gemma-4-31b-it
+  llm_fallback_models:
+    - ministral-14b-2512
   alert_notify: ""
 schema:
   log_level: "list(debug|info|warning|error)"
@@ -36,5 +38,7 @@ schema:
   llm_url: "str?"
   llm_key: "password?"
   llm_vision_models:
+    - str
+  llm_fallback_models:
     - str
   alert_notify: "match(^[a-z0-9_]*$)?"

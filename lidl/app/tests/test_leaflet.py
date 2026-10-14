@@ -9,6 +9,7 @@ import pytest
 
 from lidl.history import History
 from lidl.leaflet import (
+    FALLBACK_AFTER,
     MAX_ATTEMPTS,
     OVERVIEW_URL,
     LeafletRunner,
@@ -18,7 +19,7 @@ from lidl.leaflet import (
 )
 from lidl.promotions import Promotion, PromotionRunner
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
-from lidl.settings import Settings, load_settings
+from lidl.settings import DEFAULT_FALLBACK_MODELS, Settings, load_settings
 
 START, END = date(2026, 10, 8), date(2026, 10, 10)
 NOW = datetime(2026, 10, 7, 12, 0)
@@ -155,7 +156,7 @@ class FakeSession:
 def _settings(tmp_path: Path) -> Settings:
     return Settings(
         data_dir=tmp_path, log_level="info", dev=True, llm_url="http://llm.example/v1", llm_key="k",
-        llm_vision_models=("model-a", "model-b"),
+        llm_vision_models=("model-a", "model-b"), llm_fallback_models=("model-fb",),
     )  # fmt: skip
 
 
@@ -275,8 +276,8 @@ async def test_rejected_key_is_marked_in_event_log(tmp_path: Path) -> None:
 
 
 async def _exhaust_first_batch(h: History, tmp_path: Path) -> LeafletRunner:
-    """Paczka 1 po `MAX_ATTEMPTS` nieudanych próbach (przeciążone oba modele)."""
-    session = FakeSession([(503, "")] * 4 + [_answer()])
+    """Paczka 1 po `MAX_ATTEMPTS` nieudanych próbach (wszystkie modele przeciążone, awaryjny od próby 3)."""
+    session = FakeSession([(503, "")] * 5 + [_answer()])
     runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
     await runner.step(NOW)  # odkrycie gazetki + próba 1
     fid = h.leaflet_progress()[0].flyer_id
@@ -309,3 +310,58 @@ async def test_batches_of_an_ended_leaflet_are_neither_revived_nor_processed(tmp
     await _exhaust_first_batch(h, tmp_path)
     assert h.revive_leaflet_batches("2026-10-11T06:00:00") == 0  # gazetka skończyła się 10.10
     assert h.next_leaflet_batch("2026-10-11T06:00:00") is None  # paczka 2 czeka, ale na nic już nie wpłynie
+
+
+def test_parse_matches_with_names_requires_a_shared_word_and_a_discount() -> None:
+    names = {"0000111": "Mleko UHT 1,5%", "0000444": "Banany luz"}
+
+    def offer(code: str, name: str, discount: str) -> dict[str, Any]:
+        return {
+            "code": code,
+            "page": 1,
+            "leaflet_name": name,
+            "discount": discount,
+            "lidl_plus_coupon": False,
+        }
+
+    payload = {
+        "matches": [
+            offer("0000111", "Bułka fitness", "-20%"),  # inna nazwa niż nasz produkt
+            offer("0000444", "Banany, luzem", "-30%"),
+            offer("0000444", "Banany luzem", ""),  # bez rabatu
+        ]
+    }
+    promos = parse_matches(payload, set(names), {1}, START, END, names=names)
+    assert [(p.art_id, p.title) for p in promos] == [("0000444", "Banany, luzem")]
+    assert (
+        len(parse_matches(payload, set(names), {1}, START, END)) == 3
+    )  # bez nazw (modele Google): bez filtra
+
+
+async def test_fallback_model_is_used_only_after_failed_rounds_and_its_matches_are_filtered(
+    tmp_path: Path,
+) -> None:
+    h = _history(tmp_path)
+    right = {"code": "0000111", "page": 2, "leaflet_name": "Produkt A XXL", "discount": "-38%",
+             "valid_from": "08.10", "valid_to": "10.10", "lidl_plus_coupon": False}  # fmt: skip
+    wrong = {**right, "code": "0000444", "leaflet_name": "Bułka fitness"}
+    session = FakeSession([(503, "")] * 4 + [_answer(right, wrong)])
+    runner = LeafletRunner(session, h, _settings(tmp_path))  # type: ignore[arg-type]
+    await runner.step(NOW)
+    assert session.models == ["model-a", "model-b"]  # pierwsza runda tylko modele Google
+    fid = h.leaflet_progress()[0].flyer_id
+    h.set_leaflet_batch(fid, 0, "pending", FALLBACK_AFTER, "")
+    await runner.step(NOW)
+    assert session.models[2:] == ["model-a", "model-b", "model-fb"]  # Google ponownie, potem awaryjny
+    assert [m[0] for m in h.leaflet_matches_active(START)] == ["0000111"]
+
+
+def test_fallback_models_option(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    options = tmp_path / "options.json"
+    monkeypatch.setenv("LIDL_OPTIONS_PATH", str(options))
+    options.write_text(json.dumps({"llm_url": "http://x/v1", "llm_key": "k"}))
+    assert load_settings().llm_fallback_models == DEFAULT_FALLBACK_MODELS
+    options.write_text(json.dumps({"llm_fallback_models": ["m9"]}))
+    assert load_settings().llm_fallback_models == ("m9",)
+    options.write_text(json.dumps({"llm_fallback_models": []}))
+    assert load_settings().llm_fallback_models == ()  # pusta lista wyłącza modele awaryjne

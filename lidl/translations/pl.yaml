@@ -24,9 +24,14 @@ configuration:
     name: Modele wizyjne (kolejność)
     description: >-
       Modele czytające obrazy stron gazetki (po 5 stron na zapytanie); przy limicie add-on próbuje następnego.
+  llm_fallback_models:
+    name: Modele awaryjne gazetki
+    description: >-
+      Dochodzą do kolejki, gdy modele wizyjne zawodzą kilka rund z rzędu. Szybsze, ale mniej dokładne — ich oferty
+      muszą mieć wspólne słowo z nazwą Twojego produktu. Pusta lista = bez modeli awaryjnych.
   alert_notify:
     name: Powiadomienie o problemach
     description: >-
       Usługa notify (bez „notify.”, np. moj_telefon), która dostaje push, gdy coś wymaga działania: wygasła sesja
-      konta, nieudany lub pominięty poranny przebieg, odrzucony klucz AI, porzucona paczka gazetki. Raz na problem.
+      konta, nieudany lub pominięty poranny przebieg, odrzucony klucz AI, odłożona paczka gazetki. Raz na problem.
       Puste = tylko kropka przy zakładce Status.

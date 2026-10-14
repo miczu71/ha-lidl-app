@@ -92,3 +92,21 @@ User chce, żeby paragon był widoczny w panelu i w Budżecie do godziny po zaku
 - Kod: wydanie 0.21.1 z `git revert` commitów E24 (bez force-push), aktualizacja przez Supervisor.
 - Opcja: user przywraca listę `gemini-3.5-flash, gemini-3.6-flash, gemini-3.7-flash, gemma-4-31b-it`.
 - Baza: bez zmiany schematu (tylko UPDATE statusów paczek), więc cofnięcie nie wymaga migracji.
+
+## Wynik E24.1 (2026-10-14) i decyzja
+
+Wzorzec E4.2 (20 stron, 10 pewnych trafień), skrypt `~/dev/lidl-spike/probe_leaflet_ai.py` (`LEAFLET_BATCH`).
+
+| Model | paczka | pewne /10 | fałszywe | błędy zapytań |
+|---|---|---|---|---|
+| Gemini 3.5 (E4.2) | 1 strona | 8 | 0 | — |
+| `auto:vision` | 5 / 2 / 1 | 3 / 5 / 7 | 0 / 11 / 48 | 502: 3/4, 2/10, 1/20; 209–313 s |
+| `ministral-14b-2512` | 5 / 2 / 1 | 5 / 5 / 8 | 15 / 14 / 50 | brak (przy 1 stronie 2× 429); 65–133 s |
+
+Bramka z planu (≥ 7/10) niewystarczająca: precyzja jest równie ważna (fałszywa promocja trafia do powiadomienia).
+Mniejsze paczki odpadają (1 strona = 75–100 zapytań na gazetkę wobec limitu Gemini 20 RPD).
+**Decyzja usera:** mix — modele Google z ponawianiem, po `FALLBACK_AFTER` = 3 nieudanych rundach dochodzi Mistral
+(`llm_fallback_models`), jego oferty przechodzą filtr (rabat + wspólny początek słowa z nazwą produktu).
+Filtr sprawdzony offline na zapisanych wynikach: Mistral paczka 5: 15 → 5 fałszywych przy 5/10 pewnych (po odrzuceniu
+kuponów Lidl Plus i ofert bez rabatu realnie 2–3).
+Pytanie usera o lokalny model na RTX 2070 Super 8 GB: odpowiedź z wiedzy ogólnej, niemierzona — nie wchodzi do E24.

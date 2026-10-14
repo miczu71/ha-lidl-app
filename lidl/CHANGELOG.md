@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.21.0
+
+- **Paragony co godzinę (E24):** od 7:00 do 23:00 w dni, gdy sklepy są otwarte (pn–sob i niedziele handlowe,
+  wyliczane z ustawy), add-on pobiera nowe paragony; poranny przebieg o 7:00 działa jak dotąd. To tylko
+  paragony — bez kuponów i powiadomień. Plik dla Budżetu i kategorie odświeżają się tylko wtedy, gdy przyszedł
+  nowy paragon, a pusty przebieg nie zostawia wpisu w osi czasu Statusu.
+- **Gazetki — naprawa po serii błędów modeli Google:**
+  - Paczka, której nie udało się przetworzyć w 30 próbach, nie przepada: wraca następnego dnia o 6:00, dopóki
+    gazetka trwa (w Statusie „odłożona”, nie „porzucona”). Paczki zakończonej gazetki nie są już próbowane.
+  - Po 3 nieudanych rundach do kolejki dochodzą **modele awaryjne** (nowa opcja `llm_fallback_models`, domyślnie
+    `ministral-14b-2512`). Ich oferty muszą mieć rabat i wspólne słowo z nazwą Twojego produktu — bez tego
+    pomiar pokazał 14–50 fałszywych dopasowań na 10 prawdziwych.
+
 ## 0.20.0
 
 - **Zakładka „Status” (E23):** jedno miejsce zamiast logu add-onu. Na górze werdykt — „Wszystko działa” albo
