@@ -62,9 +62,9 @@ async def at_time_loop(
             log.exception("Dzienny przebieg nieudany")
 
 
-def seconds_until_next_hour(now: datetime) -> float:
-    """Sekundy do najbliższej pełnej godziny po `now`."""
-    return (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1) - now).total_seconds()
+def next_hour(now: datetime) -> datetime:
+    """Najbliższa pełna godzina po `now`."""
+    return now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
 
 
 def sync_due(at: datetime, run_time: time) -> bool:
@@ -83,8 +83,8 @@ async def hourly_loop(
     """O każdej pełnej godzinie sklepów uruchamia `job`; błąd jednego przebiegu nie zatrzymuje kolejnych."""
     while True:
         started = now()
-        target = started.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        await sleep(seconds_until_next_hour(started))
+        target = next_hour(started)
+        await sleep((target - started).total_seconds())
         if not sync_due(target, run_time):  # docelowa godzina: budzik bywa o ułamek sekundy za wcześnie
             continue
         try:

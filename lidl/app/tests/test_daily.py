@@ -10,7 +10,7 @@ import pytest
 from lidl import notify
 from lidl.accounts import Account
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
-from lidl.daily import DailyJob, at_time_loop, hourly_loop, seconds_until, seconds_until_next_hour, sync_due
+from lidl.daily import DailyJob, at_time_loop, hourly_loop, next_hour, seconds_until, sync_due
 from lidl.history import History, WatchedCoupon
 from lidl.promotions import Promotion
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
@@ -347,13 +347,13 @@ def test_sync_due_skips_whole_hour_of_a_later_morning_run() -> None:
 @pytest.mark.parametrize(
     ("now", "expected"),
     [
-        (datetime(2026, 10, 14, 9, 30), 30 * 60),
-        (datetime(2026, 10, 14, 9, 0), 3600),
-        (datetime(2026, 10, 14, 23, 59, 30), 30),
+        (datetime(2026, 10, 14, 9, 30), datetime(2026, 10, 14, 10, 0)),
+        (datetime(2026, 10, 14, 9, 0), datetime(2026, 10, 14, 10, 0)),  # pełna godzina → następna
+        (datetime(2026, 10, 14, 23, 59, 30), datetime(2026, 10, 15, 0, 0)),
     ],
-)  # fmt: skip
-def test_seconds_until_next_hour(now: datetime, expected: float) -> None:
-    assert seconds_until_next_hour(now) == expected
+)
+def test_next_hour(now: datetime, expected: datetime) -> None:
+    assert next_hour(now) == expected
 
 
 async def test_hourly_loop_runs_on_full_hours_and_survives_errors() -> None:
