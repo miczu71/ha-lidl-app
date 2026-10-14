@@ -10,7 +10,7 @@ import pytest
 from lidl import notify
 from lidl.accounts import Account
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
-from lidl.daily import DailyJob, at_time_loop, seconds_until
+from lidl.daily import DailyJob, at_time_loop, hourly_loop, seconds_until, seconds_until_next_hour, sync_due
 from lidl.history import History, WatchedCoupon
 from lidl.promotions import Promotion
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
@@ -55,11 +55,15 @@ class FakeStore:
 
 
 class FakeSync:
-    def __init__(self, log: list[str]) -> None:
-        self.log = log
+    def __init__(self, log: list[str], imported: int = 0) -> None:
+        self.log, self.imported = log, imported
 
     async def run_daily(self, slugs: list[str]) -> None:
         self.log.append(f"paragony {slugs}")
+
+    async def run_hourly(self, slugs: list[str]) -> int:
+        self.log.append(f"godzinny {slugs}")
+        return self.imported
 
 
 class FakeRunner:
@@ -103,7 +107,7 @@ class FakeHistory:
         self.events: list[tuple[str, str, str, dict[str, Any]]] = []
 
     def warm(self) -> None:
-        pass
+        self.warmed = getattr(self, "warmed", 0) + 1
 
     def log_event(self, area: str, level: str, summary: str, detail: Any = None, **_: Any) -> None:
         self.events.append((area, level, summary, detail or {}))
@@ -316,3 +320,98 @@ async def test_failed_morning_step_is_logged_as_error_and_reraised() -> None:
     ((area, level, summary, detail),) = history.events
     assert (area, level, detail["step"]) == ("daily", "error", "promocje")
     assert "lidl.pl leży" in summary
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        (datetime(2026, 10, 14, 6, 59, 59), False),  # przed sklepami
+        (datetime(2026, 10, 14, 7, 0), False),  # godzina porannego przebiegu (run_time 7:00)
+        (datetime(2026, 10, 14, 8, 0), True),
+        (datetime(2026, 10, 14, 23, 0), True),  # ostatni sync dnia
+        (datetime(2026, 10, 15, 0, 0), False),
+        (datetime(2026, 10, 17, 12, 0), True),  # sobota
+        (datetime(2026, 10, 18, 12, 0), False),  # zwykła niedziela
+        (datetime(2026, 12, 13, 12, 0), True),  # niedziela handlowa
+    ],
+)
+def test_sync_due(now: datetime, expected: bool) -> None:
+    assert sync_due(now, time(7, 0)) is expected
+
+
+def test_sync_due_skips_whole_hour_of_a_later_morning_run() -> None:
+    assert not sync_due(datetime(2026, 10, 14, 7, 0), time(7, 30))  # poranny import o 7:30 pokrywa tę godzinę
+    assert sync_due(datetime(2026, 10, 14, 8, 0), time(7, 30))
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        (datetime(2026, 10, 14, 9, 30), 30 * 60),
+        (datetime(2026, 10, 14, 9, 0), 3600),
+        (datetime(2026, 10, 14, 23, 59, 30), 30),
+    ],
+)  # fmt: skip
+def test_seconds_until_next_hour(now: datetime, expected: float) -> None:
+    assert seconds_until_next_hour(now) == expected
+
+
+async def test_hourly_loop_runs_on_full_hours_and_survives_errors() -> None:
+    waits: list[float] = []
+    calls = 0
+
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 3:
+            raise asyncio.CancelledError
+
+    async def job() -> None:
+        nonlocal calls
+        calls += 1
+        raise RuntimeError("awaria jednego przebiegu")
+
+    with pytest.raises(asyncio.CancelledError):
+        await hourly_loop(job, time(7, 0), now=lambda: datetime(2026, 10, 14, 9, 30), sleep=sleep)
+    assert waits == [1800, 1800, 1800] and calls == 2
+
+
+async def test_hourly_loop_skips_closed_days() -> None:
+    waits: list[float] = []
+    calls = 0
+
+    async def sleep(seconds: float) -> None:
+        waits.append(seconds)
+        if len(waits) == 2:
+            raise asyncio.CancelledError
+
+    async def job() -> None:
+        nonlocal calls
+        calls += 1
+
+    with pytest.raises(asyncio.CancelledError):
+        await hourly_loop(
+            job, time(7, 0), now=lambda: datetime(2026, 10, 18, 9, 30), sleep=sleep
+        )  # niedziela
+    assert calls == 0
+
+
+async def test_hourly_job_syncs_only_connected_accounts_and_warms_cache_on_news() -> None:
+    log: list[str] = []
+    history = FakeHistory()
+    job = _job(log, history=history)
+    job._sync.imported = 2  # type: ignore[attr-defined]
+    await job.hourly()
+    assert log == ["godzinny ['osoba-1']"]
+    assert getattr(history, "warmed", 0) == 1
+    log.clear()
+    job._sync.imported = 0  # type: ignore[attr-defined]
+    await job.hourly()
+    assert getattr(history, "warmed", 0) == 1  # bez nowych paragonów cache zostaje
+
+
+async def test_hourly_job_does_nothing_during_morning_run() -> None:
+    log: list[str] = []
+    job = _job(log)
+    job.in_progress = True
+    await job.hourly()
+    assert log == []

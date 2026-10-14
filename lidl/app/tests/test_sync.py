@@ -233,3 +233,64 @@ async def test_import_result_lands_in_event_log(history: History) -> None:
         "details": 1,
         "stopped": "unauthorized",
     }
+
+
+async def test_hourly_run_is_silent_when_nothing_is_new(history: History) -> None:
+    calls: list[int] = []
+
+    async def after() -> None:
+        calls.append(1)
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    src = FakeSource({0: ["a"]})
+    sync = HistorySync(src, history, sleep=no_sleep, after=after)
+    await sync.import_account("osoba-1", full=True)
+    history.log_event("sync", "ok", "poprzedni wpis")
+    assert await sync.run_hourly(["osoba-1"]) == 0
+    await asyncio.sleep(0)
+    assert calls == []  # bez nowych paragonów nie ma pliku dla Budżetu ani kategorii AI
+    assert len(history.events(datetime(2000, 1, 1), area="sync")) == 2  # import + poprzedni, bez godzinnego
+
+
+async def test_hourly_run_imports_new_receipts_and_runs_hook_once(history: History) -> None:
+    calls: list[int] = []
+
+    async def after() -> None:
+        calls.append(history.ticket_count())
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    src = FakeSource({0: ["a"]})
+    sync = HistorySync(src, history, sleep=no_sleep, after=after)
+    await sync.import_account("osoba-1", full=True)
+    src.years[0].append("b")
+    assert await sync.run_hourly(["osoba-1"]) == 1  # jeden nowy paragon
+    await asyncio.sleep(0)
+    assert len(calls) == 1 and calls[0] == 2  # hook po zapisaniu paragonów
+    assert await sync.run_hourly(["osoba-1"]) == 0
+    await asyncio.sleep(0)
+    assert len(calls) == 1  # drugi przebieg bez nowości nie woła hooka
+    assert len(history.events(datetime(2000, 1, 1), area="sync")) == 2  # pełny import + godzina z nowością
+
+
+async def test_hourly_run_skips_unimported_and_busy_accounts(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=True)
+    src.list_calls.clear()
+    sync.progress("osoba-1").running = True  # ręczny import w toku
+    assert await sync.run_hourly(["osoba-1", "osoba-2"]) == 0
+    assert src.list_calls == []
+
+
+async def test_hourly_run_logs_errors_even_when_quiet(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=True)
+    src.fail_list = LidlPlusAuthError("unauthorized")
+    await sync.run_hourly(["osoba-1"])
+    last = history.events(datetime(2000, 1, 1), area="sync")[0]
+    assert last.level == "error" and last.detail["auth"] is True

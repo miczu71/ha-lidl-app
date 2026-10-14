@@ -1,6 +1,6 @@
 """Dzienny przebieg o stałej godzinie (opcja `run_time`, czas lokalny): paragony, promocje, kupony, nagrody,
 powiadomienie; wieczorem (18:00) przypomnienie o zdrapkach wygasających dziś; 1. dnia miesiąca o 10:00
-podsumowanie poprzedniego miesiąca (E19)."""
+podsumowanie poprzedniego miesiąca (E19); co godzinę w godzinach sklepów sam import paragonów (E24)."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from .geo import refresh_store_geo
 from .history import History, elapsed_ms
 from .promotions import Promotion, PromotionRunner
 from .rewards import Rewards, RewardsRunner
+from .shopdays import is_shopping_day
 from .sync import HistorySync
 
 log = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ log = logging.getLogger(__name__)
 EVENING = time(18, 0)
 MONTHLY = time(10, 0)  # po porannym imporcie paragonów (`run_time`)
 EVENTS_KEEP = timedelta(days=30)  # dziennik zakładki Status (E23)
+SYNC_HOURS = range(7, 24)  # pełne godziny godzinnego importu paragonów (E24): 7:00 … 23:00
 STATUS_LABELS = {"activated": "aktywowane", "would": "aktywowałbym", "failed": "nieudane"}
 
 
@@ -58,6 +60,37 @@ async def at_time_loop(
             await job()
         except Exception:
             log.exception("Dzienny przebieg nieudany")
+
+
+def seconds_until_next_hour(now: datetime) -> float:
+    """Sekundy do najbliższej pełnej godziny po `now`."""
+    return (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1) - now).total_seconds()
+
+
+def sync_due(at: datetime, run_time: time) -> bool:
+    """Czy o pełnej godzinie `at` startuje godzinny import: godziny sklepów, dzień handlowy, a godzinę
+    porannego przebiegu (`run_time`) zajmuje poranny import."""
+    return at.hour in SYNC_HOURS and at.hour != run_time.hour and is_shopping_day(at.date())
+
+
+async def hourly_loop(
+    job: Callable[[], Awaitable[None]],
+    run_time: time,
+    *,
+    now: Callable[[], datetime] = datetime.now,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> None:
+    """O każdej pełnej godzinie sklepów uruchamia `job`; błąd jednego przebiegu nie zatrzymuje kolejnych."""
+    while True:
+        started = now()
+        target = started.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        await sleep(seconds_until_next_hour(started))
+        if not sync_due(target, run_time):  # docelowa godzina: budzik bywa o ułamek sekundy za wcześnie
+            continue
+        try:
+            await job()
+        except Exception:
+            log.exception("Godzinny import nieudany")
 
 
 def _unsent(prefix: str, promos: list[Promotion], sent: set[str]) -> dict[str, Promotion]:
@@ -122,6 +155,14 @@ class DailyJob:
             + ("powiadomienie wysłane" if report["notified"] else "bez powiadomienia"),
             report, duration_ms=elapsed_ms(began),
         )  # fmt: skip
+
+    async def hourly(self) -> None:
+        """Godzinny import paragonów (E24): bez kuponów i powiadomień; pomija, gdy trwa poranny przebieg.
+        Nowe paragony unieważniają wyniki zakładek (jak po porannym imporcie)."""
+        if self.in_progress:
+            return
+        if await self._sync.run_hourly([slug for slug, _ in self._accounts()]):
+            self._history.warm()
 
     async def refresh_rewards(self) -> dict[str, Rewards]:
         """Nagrody połączonych kont (też przy starcie add-onu, żeby panel nie czekał do rana)."""

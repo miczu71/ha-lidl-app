@@ -80,17 +80,17 @@ class HistorySync:
     def progress(self, slug: str) -> SyncProgress:
         return self._progress.setdefault(slug, SyncProgress())
 
-    def start(self, slug: str, *, full: bool, after: bool = True) -> bool:
+    def start(self, slug: str, *, full: bool, after: bool = True, quiet: bool = False) -> bool:
         """Uruchamia import w tle (potem hook `after`); False, jeśli to konto już się synchronizuje."""
         progress = self.progress(slug)
         if progress.running:
             return False
         progress.running = True
-        self._tasks[slug] = asyncio.create_task(self._import(slug, full, after))
+        self._tasks[slug] = asyncio.create_task(self._import(slug, full, after, quiet))
         return True
 
-    async def _import(self, slug: str, full: bool, after: bool) -> SyncResult:
-        result = await self.import_account(slug, full=full)
+    async def _import(self, slug: str, full: bool, after: bool, quiet: bool) -> SyncResult:
+        result = await self.import_account(slug, full=full, quiet=quiet)
         if after:
             self._run_after()
         return result
@@ -107,10 +107,9 @@ class HistorySync:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def wait(self, slug: str) -> None:
+    async def wait(self, slug: str) -> SyncResult | None:
         task = self._tasks.get(slug)
-        if task:
-            await task
+        return await task if task else None
 
     async def run_daily(self, slugs: list[str]) -> None:
         """Dzienny przebieg; konta, których nikt jeszcze ręcznie nie zaimportował, pomija."""
@@ -119,7 +118,20 @@ class HistorySync:
                 await self.wait(slug)
         self._run_after()  # raz po wszystkich kontach
 
-    async def import_account(self, slug: str, *, full: bool) -> SyncResult:
+    async def run_hourly(self, slugs: list[str]) -> int:
+        """Godzinny przebieg (E24): tylko paragony, bez kuponów i powiadomień. Konta bez historii i te,
+        które już się synchronizują (ręczny import), pomija. Zwraca liczbę zaimportowanych paragonów; hook
+        `after` (plik dla Budżetu, kategorie) idzie tylko, gdy coś przyszło."""
+        imported = 0
+        for slug in slugs:
+            if self._history.ticket_count(slug) > 0 and self.start(slug, full=False, after=False, quiet=True):
+                result = await self.wait(slug)
+                imported += result.details if result else 0
+        if imported:
+            self._run_after()
+        return imported
+
+    async def import_account(self, slug: str, *, full: bool, quiet: bool = False) -> SyncResult:
         progress = self.progress(slug)
         progress.running, progress.done, progress.total, progress.error = True, 0, 0, None
         new = details = skipped = unparsed = 0
@@ -155,6 +167,8 @@ class HistorySync:
                 log.warning("Import konta %s przerwany: %s", slug, stopped)
         finally:
             progress.running = False
+        if quiet and not (new or details or stopped):
+            return SyncResult(new, details, skipped, stopped, unparsed)  # godzinny przebieg bez nowości
         log.info(
             "Import konta %s: %d nowych, %d szczegółów, %d pominiętych, %d nierozpoznanych",
             slug, new, details, skipped, unparsed,

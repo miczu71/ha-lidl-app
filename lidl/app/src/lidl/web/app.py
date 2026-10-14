@@ -29,7 +29,7 @@ from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
-from lidl.daily import EVENING, EVENTS_KEEP, MONTHLY, DailyJob, at_time_loop
+from lidl.daily import EVENING, EVENTS_KEEP, MONTHLY, DailyJob, at_time_loop, hourly_loop
 from lidl.geo import refresh_store_geo
 from lidl.history import CANDIDATE_MIN_PURCHASES, CATEGORIES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
@@ -148,6 +148,7 @@ def create_app(settings: Settings) -> FastAPI:
                 asyncio.create_task(at_time_loop(settings.run_time, job)),
                 asyncio.create_task(at_time_loop(EVENING, job.evening)),
                 asyncio.create_task(at_time_loop(MONTHLY, job.monthly)),
+                asyncio.create_task(hourly_loop(job.hourly, settings.run_time)),
                 asyncio.create_task(job.refresh_rewards()),
                 asyncio.create_task(alerts.loop(session, history, problems, settings.alert_notify)),
             ]
