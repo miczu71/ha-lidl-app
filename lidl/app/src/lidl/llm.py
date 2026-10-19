@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiohttp
 
+from . import __version__
 from .history import elapsed_ms
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ async def ask_json(
         "messages": [{"role": "user", "content": content}],
         "response_format": {"type": "json_schema", "json_schema": {"name": name, "schema": schema}},
     }
-    headers = {"Authorization": f"Bearer {key}"}
+    headers = {"Authorization": f"Bearer {key}", "User-Agent": f"ha-lidl/{__version__}"}
     try:
         async with session.post(
             f"{url}/chat/completions", json=body, headers=headers, timeout=LLM_TIMEOUT
