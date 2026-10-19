@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.1
+
+- Zapytania do routera LLM niosą nagłówek `User-Agent: ha-lidl/<wersja>`, dzięki czemu panel LLM (:3004) pokazuje, który add-on używa którego modelu. Bez zmian w działaniu.
+
 ## 0.21.0
 
 - **Paragony co godzinę (E24):** od 7:00 do 23:00 w dni, gdy sklepy są otwarte (pn–sob i niedziele handlowe,
