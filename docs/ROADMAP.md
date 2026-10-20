@@ -43,8 +43,8 @@ zaoszczędzone miesięcznie (kupony + promocje na produktach z historii), widocz
 - [x] „Show in sidebar” włączone (potwierdzone 2026-10-07).
 - [x] Test rotacji tokenu (2026-10-08): oba konta działają ponad dobę po logowaniu i po kilkunastu restartach
   (każdy wczytuje refresh token z pliku); przebieg 07:00 i „Sprawdź połączenie” 16:57 bez błędu — nowy refresh token jest zapisywany.
-- [ ] Do sprawdzenia 2026-10-09: poranne 07:00 (jednorazowo wszystkie trwające promocje, w tym trafienia gazetki 8–10.10)
-  i przypomnienie o zdrapkach 18:00 (czeka na pierwszą zdrapkę).
+- [x] Poranne 07:00 i przypomnienie o zdrapkach 18:00 — sprawdzone 2026-10-20 w Statusie: poranne przebiegi codziennie OK,
+  przypomnienie o zdrapkach wysłane 2026-10-17 18:00.
 - [ ] Opcjonalnie `impeccable init` (`PRODUCT.md`) — UI na razie wzorowany na Budżecie.
 
 ## Etapy
@@ -188,6 +188,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   „Wszystko działa”, Gazetka „Gotowa: 13 trafień”. Do sprawdzenia: pierwszy godzinny import o pełnej godzinie (puste
   przebiegi nie zostawiają wpisu — dowodem będzie wpis „Import …” przy nowym paragonie), fallback Mistrala w logu
   zapytań AI przy kolejnej awarii Google. Otwarte: lokalny model wizyjny (RTX 2070 Super 8 GB) — niemierzony.
+  **Sprawdzone 2026-10-20 w Statusie:** godzinny import działa (nowe paragony 14.10 20:00, 16.10 17:00, 17.10 10:00);
+  gazetka 19–21.10 przy błędach 502/429 Google przeszła cała na `ministral-14b-2512` (19/19 paczek, 30 trafień).
   Rollback: wydanie 0.21.1 z `git revert`, user przywraca listę `llm_vision_models`; bez zmiany schematu bazy.
 - **E3 Kupony — automatyczna aktywacja** (wywiad 2026-10-07; plan: `docs/PLAN_E3_kupony.md`): sekcje AllStores
   i SSC; kupon produktowy, gdy trafia kod z `auto_activate_codes()`, ogólne zawsze; raz dziennie o `run_time`
@@ -215,7 +217,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 - **E5 Proponowana lista zakupów:** produkty „pora kupić” (cykl zakupów) + promocje/kupony → `todo.*`; licznik oszczędności.
 - **E6 Integracja z Budżetem Domowym:** dopasowanie paragonu do transakcji kartą (data + kwota), podział na kategorie. **0.19.0 na żywo (2026-10-12, wspólnie z M29 Budżetu):** kategorie produktów `food`/`drugstore`/`kids`/`nonfood`
   i eksport `/share/lidl/receipts.json`; historia sklasyfikowana (E6.2), 24 produkty do przeglądu; plan i wynik
-  `docs/PLAN_E6_budzet.md`. Dopasowanie do płatności — Budżet M29 E4–E6.
+  `docs/PLAN_E6_budzet.md`. Dopasowanie do płatności — Budżet M29 E4–E6. **E6 ZAKOŃCZONE 2026-10-12** (Budżet 0.50.0 +
+  Lidl 0.19.1: 183 paragony dopasowane automatycznie, 3 do wyboru u użytkownika, auto-podział transakcji na kategorie).
 - **E7 Śledzenie cen produktów w czasie** (zlecone 2026-10-07): z bazy historii (E2) bierzemy ceny jednostkowe
   produktów (`items.unit_price` per kod artykułu) i porównujemy je w czasie. Panel z prezentacją wyników:
   zmiana ceny produktu (pierwsza ↔ ostatnia, wykres ceny w czasie), sortowanie listy po zmianie ceny, **top 5
