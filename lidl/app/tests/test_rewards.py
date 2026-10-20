@@ -66,6 +66,17 @@ def test_coupon_plus_next_goal_and_missing() -> None:
     assert cp.ends == date(2026, 10, 31)
 
 
+def test_coupon_plus_goal_reached_without_won_status() -> None:
+    # na żywo 2026-10-20: 739,30 zł wydane, a progi 50/300/500 nadal bez statusu Won
+    cp = parse_coupon_plus(
+        _coupon_plus(739.3, [_goal(50, "Uncompleted"), _goal(300, "Uncompleted"), _goal(1000, "Uncompleted")])
+    )
+    assert cp is not None
+    assert [g.won for g in cp.goals] == [True, True, False]
+    assert cp.next_goal is not None and cp.next_goal.value == 1000
+    assert cp.missing == 260.7
+
+
 def test_coupon_plus_all_goals_won() -> None:
     cp = parse_coupon_plus(_coupon_plus(1600, [_goal(50, "Won"), _goal(1500, "Won")]))
     assert cp is not None and cp.next_goal is None and cp.missing is None

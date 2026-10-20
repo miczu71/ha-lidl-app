@@ -66,11 +66,13 @@ def parse_lotteries(payload: Any) -> tuple[ScratchCard, ...]:
     return tuple(sorted(cards, key=lambda c: c.expires))
 
 
-def _goal(g: dict[str, Any]) -> Goal:
+def _goal(g: dict[str, Any], reached: float) -> Goal:
     coupon = (g.get("prize") or {}).get("coupon") or {}
+    value = float(g.get("value") or 0)
     return Goal(
-        float(g.get("value") or 0),
-        g.get("status") == "Won",
+        value,
+        # Lidl nie zawsze daje osiągniętemu progowi status Won (na żywo 2026-10-20) — liczy się też kwota
+        g.get("status") == "Won" or reached >= value,
         (coupon.get("title") or "").strip(" *"),
         (coupon.get("discountTitle") or "").strip(),
     )
@@ -87,8 +89,9 @@ def parse_coupon_plus(payload: Any) -> CouponPlus | None:
         return None
     if cluster is None:
         return None
-    goals = sorted((_goal(g) for g in cluster.get("goals") or []), key=lambda g: g.value)
-    return CouponPlus(float(cluster.get("reachedAmount") or 0), tuple(goals), ends)
+    reached = float(cluster.get("reachedAmount") or 0)
+    goals = sorted((_goal(g, reached) for g in cluster.get("goals") or []), key=lambda g: g.value)
+    return CouponPlus(reached, tuple(goals), ends)
 
 
 class RewardsSource(Protocol):
