@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.21.2
+
+- Nagrody: próg Kupon Plus liczy się jako zdobyty, gdy wydana kwota go osiąga — Lidl nie zawsze oznacza go statusem „Won”, przez co panel pokazywał ujemne „Brakuje …” do progu, który był już za nami.
+
 ## 0.21.1
 
 - Zapytania do routera LLM niosą nagłówek `User-Agent: ha-lidl/<wersja>`, dzięki czemu panel LLM (:3004) pokazuje, który add-on używa którego modelu. Bez zmian w działaniu.
