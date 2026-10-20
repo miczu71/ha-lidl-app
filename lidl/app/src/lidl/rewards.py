@@ -72,7 +72,7 @@ def _goal(g: dict[str, Any], reached: float) -> Goal:
     return Goal(
         value,
         # Lidl nie zawsze daje osiągniętemu progowi status Won (na żywo 2026-10-20) — liczy się też kwota
-        g.get("status") == "Won" or reached >= value,
+        g.get("status") == "Won" or 0 < value <= reached,
         (coupon.get("title") or "").strip(" *"),
         (coupon.get("discountTitle") or "").strip(),
     )
