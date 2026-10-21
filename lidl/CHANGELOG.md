@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.22.0
+
+- **Gramatura z nazwy produktu (E25):** add-on odczytuje gramaturę (g, kg, ml, l, szt., także „2x500 g”) z nazwy
+  paragonowej — tylko regułami, bez AI.
+- **„Mniej w opakowaniu” (shrinkflation):** w zakładce Ceny nowa sekcja z produktami, których opakowanie zmalało
+  (0,5–1× poprzedniej gramatury) przy cenie półkowej nie niższej niż przedtem, z ostatnich 365 dni: stara → nowa
+  gramatura, cena za kg/l przed i po, data przejścia. „Ten sam produkt” to ten sam kod, powiązanie z E21 albo
+  identyczna nazwa bez gramatury. Bez powiadomień.
+- **Cena za kg/l na wykresie produktu:** karta pod wykresem ceny, gdy każdy zakup ma gramaturę w kg lub l.
+- **Produkty:** ilości sztuk i kilogramy liczone osobno, przy filtrze produktu liczba zakupów i średnia cena
+  za kg albo sztukę, nowy wykres kaucji w czasie (pobrane / zwrócone).
+- Zerowa gramatura w nazwie (np. „0 l”) nie jest już traktowana jako gramatura.
+
 ## 0.21.2
 
 - Nagrody: próg Kupon Plus liczy się jako zdobyty, gdy wydana kwota go osiąga — Lidl nie zawsze oznacza go statusem „Won”, przez co panel pokazywał ujemne „Brakuje …” do progu, który był już za nami.
