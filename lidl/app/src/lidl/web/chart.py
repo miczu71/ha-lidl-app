@@ -42,6 +42,7 @@ class Bar:
     height: str
     label: str
     aria: str
+    height2: str = ""  # drugi słupek w kolumnie (wykres kaucji)
 
 
 @dataclass(frozen=True)
@@ -138,8 +139,8 @@ def _aria(step: str, d: date, value: str) -> str:
     return f"{d.year}: {value}"
 
 
-def build_chart(buckets: list[SpendBucket], step: str, metric: str) -> Chart:
-    values = [b.spend if metric == "spend" else b.quantity for b in buckets]
+def build_chart(buckets: list[SpendBucket], step: str, metric: str, unit: str = "szt.") -> Chart:
+    values = [b.spend if metric == "spend" else (b.weight if unit == "kg" else b.quantity) for b in buckets]
     axis_max = _nice_axis_max(max(values, default=0.0))
 
     def fmt(v: float) -> str:
@@ -149,7 +150,7 @@ def build_chart(buckets: list[SpendBucket], step: str, metric: str) -> Chart:
     bars = []
     for i, (b, v) in enumerate(zip(buckets, values, strict=True)):
         d = date.fromisoformat(b.start)
-        aria_value = fmt_pln(v) if metric == "spend" else f"{fmt_qty(v)} szt."
+        aria_value = fmt_pln(v) if metric == "spend" else f"{fmt_qty(v)} {unit}"
         bars.append(
             Bar(
                 height=f"{v / axis_max * 100:.1f}".rstrip("0").rstrip(".") + "%",
@@ -160,7 +161,7 @@ def build_chart(buckets: list[SpendBucket], step: str, metric: str) -> Chart:
     ticks = [fmt(axis_max * k / 4) for k in (4, 3, 2, 1)] + ["0"]
     total = sum(values)
     average = total / len(values) if values else 0.0
-    suffix = "" if metric == "spend" else " szt."
+    suffix = "" if metric == "spend" else f" {unit}"
     return Chart(
         bars=bars,
         ticks=ticks,
@@ -168,6 +169,40 @@ def build_chart(buckets: list[SpendBucket], step: str, metric: str) -> Chart:
         average=fmt(average) + suffix,
         per=_PER[step],
         empty=total == 0,
+    )
+
+
+def build_deposit_chart(buckets: list[SpendBucket], step: str) -> Chart | None:
+    """Kaucje w czasie: w kolumnie dwa słupki (pobrane / zwrócone) na wspólnej osi; `None` gdy same zera."""
+    charged = [b.charged for b in buckets]
+    refunded = [b.refunded for b in buckets]
+    if not any(charged) and not any(refunded):
+        return None
+    axis_max = _nice_axis_max(max(charged + refunded))
+
+    def height(v: float) -> str:
+        return f"{v / axis_max * 100:.1f}".rstrip("0").rstrip(".") + "%"
+
+    every = max(1, math.ceil(len(buckets) / MAX_LABELS))
+    bars = []
+    for i, b in enumerate(buckets):
+        d = date.fromisoformat(b.start)
+        bars.append(
+            Bar(
+                height=height(b.charged),
+                label=_label(step, d) if i % every == 0 else "",
+                aria=_aria(step, d, f"pobrane {fmt_pln(b.charged, 2)}, zwrócone {fmt_pln(b.refunded, 2)}"),
+                height2=height(b.refunded),
+            )
+        )
+    total_c, total_r = sum(charged), sum(refunded)
+    return Chart(
+        bars=bars,
+        ticks=[fmt_pln(axis_max * k / 4) for k in (4, 3, 2, 1)] + ["0"],
+        total=f"{fmt_pln(total_c, 2)} / {fmt_pln(total_r, 2)}",
+        average=f"{fmt_pln(total_c / len(buckets), 2)} / {fmt_pln(total_r / len(buckets), 2)}",
+        per=_PER[step],
+        empty=False,
     )
 
 

@@ -41,7 +41,7 @@ from lidl.settings import Settings
 from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_bounds
 
-from .chart import build_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
+from .chart import build_chart, build_deposit_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
 from .months import default_month, month_banner, month_nav, month_view
 from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_changes
 from .products import (
@@ -401,10 +401,22 @@ def create_app(settings: Settings) -> FastAPI:
                 ],
             )
             chart = None
+            deposit_chart = None
+            product_summary = None
             range_totals = None
             if query.error is None:
                 series = history.spend_series(query.start, query.end, query.step, query.art_id)
-                chart = build_chart(series, query.step, query.metric)
+                weighed = query.art_id is not None and sum(b.weight for b in series) > 0
+                unit = "kg" if weighed else "szt."
+                chart = build_chart(series, query.step, query.metric, unit)
+                if query.art_id is not None:
+                    bought = sum(b.purchases for b in series)
+                    amount = sum(b.weight if weighed else b.quantity for b in series)
+                    product_summary = count_text(bought, "zakup", "zakupy", "zakupów")
+                    if amount > 0:
+                        product_summary += f", średnio {fmt_pln(sum(b.spend for b in series) / amount, 2)} za {unit}"
+                elif query.metric == "spend":
+                    deposit_chart = build_deposit_chart(series, query.step)
                 if query.art_id is None and query.metric == "spend":
                     totals = history.purchase_totals(query.start, query.end)
                     range_totals = {
@@ -415,6 +427,8 @@ def create_app(settings: Settings) -> FastAPI:
             all_totals = history.purchase_totals()
             ctx.update(
                 chart=chart,
+                deposit_chart=deposit_chart,
+                product_summary=product_summary,
                 range_totals=range_totals,
                 kpi_paid=fmt_pln(all_totals.paid, 2),
                 kpi_charged=fmt_pln(all_totals.charged, 2),

@@ -143,3 +143,26 @@ def test_line_steps_extend_to_last_day_and_dots_are_zero_length_paths() -> None:
     assert "V" in line.line and line.end.startswith("M1000.0,")
     assert all(d.endswith("h0") for d in line.dots) and len(line.dots) == 2
     assert [t for _, t in line.labels][:2] == ["lut 26", "mar 26"]  # krócej niż 2 lata: miesiące
+
+
+def test_weight_unit_uses_weight_and_kg_suffix() -> None:
+    buckets = [SpendBucket("2026-01-01", 20.0, 3.0, 1, weight=1.5)]
+    kg = build_chart(buckets, "month", "qty", "kg")
+    assert kg.total == "1,5 kg" and kg.bars[0].aria == "styczeń 2026: 1,5 kg"
+    szt = build_chart(buckets, "month", "qty")
+    assert szt.total == "3 szt."
+
+
+def test_deposit_chart_has_two_bars_per_bucket_and_none_for_zeros() -> None:
+    from lidl.web.chart import build_deposit_chart
+
+    buckets = [
+        SpendBucket("2026-01-01", 0.0, 0.0, 0, charged=4.0, refunded=1.0),
+        SpendBucket("2026-02-01", 0.0, 0.0, 0, charged=2.0, refunded=0.0),
+    ]
+    chart = build_deposit_chart(buckets, "month")
+    assert chart is not None
+    assert [(b.height, b.height2) for b in chart.bars] == [("100%", "25%"), ("50%", "0%")]
+    assert chart.bars[0].aria == "styczeń 2026: pobrane 4,00 zł, zwrócone 1,00 zł"
+    assert chart.ticks == ["4 zł", "3 zł", "2 zł", "1 zł", "0"]
+    assert build_deposit_chart(_buckets([0.0, 0.0]), "month") is None

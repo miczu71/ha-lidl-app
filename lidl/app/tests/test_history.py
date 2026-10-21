@@ -875,3 +875,45 @@ def test_merge_moves_category_to_new_code_and_receipt_keeps_own_code(tmp_path: P
     assert h.category_of("0007") == ("drugstore", "manual")
     h.set_merges([])  # cofnięcie połączenia: kod paragonu nadal ma swoją kategorię
     assert h.receipt_parts("old") == {"drugstore": 5.0}
+
+
+def _seed_mixed(h: History) -> None:
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-05"), _ticket("t2", "2026-02-10")])
+    h.save_detail(
+        "t1",
+        "S",
+        ParsedReceipt(
+            items=[
+                ReceiptItem("1", "Produkt A", 2, 3.0, 6.0),
+                ReceiptItem("2", "Produkt W", 0.5, 10.0, 5.0, is_weight=True),
+            ],
+            deposit_charged=1.5,
+            deposit_refunded=0.5,
+        ),
+    )
+    h.save_detail(
+        "t2",
+        "S",
+        ParsedReceipt(
+            items=[ReceiptItem("2", "Produkt W", 1.25, 10.0, 12.5, is_weight=True)],
+            deposit_charged=2.0,
+        ),
+    )
+
+
+def test_spend_series_separates_pieces_from_kilograms(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_mixed(h)
+    series = h.spend_series(date(2026, 1, 1), date(2026, 2, 28), "month")
+    assert [(b.quantity, b.weight, b.spend) for b in series] == [(2.0, 0.5, 11.0), (0.0, 1.25, 12.5)]
+    weighed = h.spend_series(date(2026, 1, 1), date(2026, 2, 28), "month", art_id="2")
+    assert [(b.quantity, b.weight, b.purchases) for b in weighed] == [(0.0, 0.5, 1), (0.0, 1.25, 1)]
+
+
+def test_spend_series_deposits_per_bucket_for_whole_household_only(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed_mixed(h)
+    series = h.spend_series(date(2026, 1, 1), date(2026, 3, 31), "month")
+    assert [(b.charged, b.refunded) for b in series] == [(1.5, 0.5), (2.0, 0.0), (0.0, 0.0)]
+    filtered = h.spend_series(date(2026, 1, 1), date(2026, 3, 31), "month", art_id="2")
+    assert all((b.charged, b.refunded) == (0.0, 0.0) for b in filtered)

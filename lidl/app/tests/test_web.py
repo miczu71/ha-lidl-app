@@ -1164,3 +1164,44 @@ def test_status_page_shows_startup_and_partials(client: TestClient) -> None:
     assert 'id="status-os"' in timeline.text and 'id="status-live"' not in timeline.text
     assert "Brak wpisów w tym obszarze" in timeline.text
     assert 'id="status-live"' in client.get("/status?part=live").text
+
+
+def _seed_weighed(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets(
+        "osoba-1",
+        [
+            {"id": f"w{i}", "date": f"{d}T10:00:00+00:00", "totalAmount": 20.0, "savings": 0.0}
+            for i, d in enumerate(("2026-09-02", "2026-10-02"))
+        ],
+    )
+    for i, kg in enumerate((0.5, 1.5)):
+        history.save_detail(
+            f"w{i}",
+            "Sklep X",
+            ParsedReceipt(items=[ReceiptItem("333", "Produkt W", kg, 10.0, kg * 10, is_weight=True)]),
+        )
+
+
+def test_weighed_product_filter_shows_kilograms_and_average_price(client: TestClient) -> None:
+    _seed(client)
+    _seed_weighed(client)
+    text = client.get("/produkty?zakres=all&produkt=333&miara=sztuki").text
+    assert "wrzesień 2026: 0,5 kg" in text and "2 zakupy, średnio 10,00 zł za kg" in text
+    assert "(bez produktów na wagę)" in client.get("/produkty?zakres=all&miara=sztuki").text
+
+
+def test_product_filter_shows_purchase_count_and_average_price_per_piece(client: TestClient) -> None:
+    _seed(client)
+    text = client.get("/produkty?zakres=all&produkt=111").text
+    # 2 paragony x (10,00 - 2,00) = 16,00 zł za 4 szt.
+    assert "2 zakupy, średnio 4,00 zł za szt." in text
+
+
+def test_deposit_chart_only_for_spend_without_product_filter(client: TestClient) -> None:
+    _seed(client)
+    text = client.get("/produkty?zakres=all").text
+    assert "Kaucje: pobrane / zwrócone" in text and "bars--pair" in text
+    assert "wrzesień 2026: pobrane 5,00" in text
+    assert "bars--pair" not in client.get("/produkty?zakres=all&produkt=111").text
+    assert "bars--pair" not in client.get("/produkty?zakres=all&miara=sztuki").text

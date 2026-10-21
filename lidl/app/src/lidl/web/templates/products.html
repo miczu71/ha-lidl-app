@@ -136,7 +136,7 @@
       <legend>Pokaż</legend>
       <div class="seg">
         <label><input type="radio" name="miara" value="wydatki"{% if query.metric == 'spend' %} checked{% endif %}><span>Wydatki (zł)</span></label>
-        <label><input type="radio" name="miara" value="sztuki"{% if query.metric == 'qty' %} checked{% endif %}><span>Sztuki</span></label>
+        <label><input type="radio" name="miara" value="sztuki"{% if query.metric == 'qty' %} checked{% endif %}><span>Ilość</span></label>
       </div>
     </fieldset>
     {% if query.art_id %}
@@ -156,7 +156,17 @@
     </div>
     <div class="xl" aria-hidden="true">{% for b in chart.bars %}<span>{{ b.label }}</span>{% endfor %}</div>
   </div>
-  <p class="sum">Suma w zakresie: <strong>{{ chart.total }}</strong>{% if query.metric == 'spend' %} {{ 'na ten produkt' if query.art_id else 'na produkty (po rabatach)' }}{% endif %}{% if range_totals %} · kaucje pobrane <strong>{{ range_totals.charged }}</strong>, zwrócone <strong>{{ range_totals.refunded }}</strong> · zapłacono łącznie <strong>{{ range_totals.paid }}</strong>{% endif %} · średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.</p>
+  <p class="sum">Suma w zakresie: <strong>{{ chart.total }}</strong>{% if query.metric == 'spend' %} {{ 'na ten produkt' if query.art_id else 'na produkty (po rabatach)' }}{% endif %}{% if query.metric == 'qty' and not query.art_id %} (bez produktów na wagę){% endif %}{% if product_summary %} · {{ product_summary }}{% endif %}{% if range_totals %} · kaucje pobrane <strong>{{ range_totals.charged }}</strong>, zwrócone <strong>{{ range_totals.refunded }}</strong> · zapłacono łącznie <strong>{{ range_totals.paid }}</strong>{% endif %} · średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.</p>
+  {% if deposit_chart %}
+  <p class="sum">Kaucje: pobrane / zwrócone</p>
+  <div class="plot">
+    <div class="yl" aria-hidden="true">{% for t in deposit_chart.ticks %}<span>{{ t }}</span>{% endfor %}</div>
+    <div class="bars bars--pair">
+      {% for b in deposit_chart.bars %}<div class="bars__col" role="img" aria-label="{{ b.aria }}"><div class="bars__bar" style="height: {{ b.height }}"></div><div class="bars__bar" style="height: {{ b.height2 }}"></div></div>{% endfor %}
+    </div>
+    <div class="xl" aria-hidden="true">{% for b in deposit_chart.bars %}<span>{{ b.label }}</span>{% endfor %}</div>
+  </div>
+  {% endif %}
   {% elif chart %}
   <p class="notice notice--info" role="status">
     <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>

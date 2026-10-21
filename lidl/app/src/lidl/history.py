@@ -291,8 +291,11 @@ class PurchaseTotals:
 class SpendBucket:
     start: str
     spend: float
-    quantity: float
+    quantity: float  # tylko sztuki (is_weight = 0)
     purchases: int
+    weight: float = 0.0  # kg pozycji ważonych (is_weight = 1)
+    charged: float = 0.0  # kaucje pobrane (cały dom, bez filtra produktu)
+    refunded: float = 0.0  # kaucje zwrócone (cały dom, bez filtra produktu)
 
 
 @dataclass(frozen=True)
@@ -1516,20 +1519,33 @@ class History:
             raise ValueError("range")
         resolve = self._resolver()
         rows = self._db.execute(
-            "SELECT t.day, i.total + i.discount, i.quantity, i.ticket_id, i.art_id, i.name FROM items i"
+            "SELECT t.day, i.total + i.discount, i.quantity, i.ticket_id, i.art_id, i.name, i.is_weight FROM items i"
             " JOIN tickets t ON t.id = i.ticket_id WHERE t.day BETWEEN ? AND ?",
             (start.isoformat(), end.isoformat()),
         )
         spend: dict[date, float] = {}
         qty: dict[date, float] = {}
+        weight: dict[date, float] = {}
         tickets: dict[date, set[str]] = {}
-        for day, net, quantity, ticket_id, item_art, item_name in rows:
+        for day, net, quantity, ticket_id, item_art, item_name, is_weight in rows:
             if art_id is not None and resolve(item_art, item_name) != art_id:
                 continue
             b = _bucket_start(date.fromisoformat(day), step)
             spend[b] = spend.get(b, 0.0) + net
-            qty[b] = qty.get(b, 0.0) + quantity
+            target = weight if is_weight else qty
+            target[b] = target.get(b, 0.0) + quantity
             tickets.setdefault(b, set()).add(ticket_id)
+        charged: dict[date, float] = {}
+        refunded: dict[date, float] = {}
+        if art_id is None:  # kaucje są na poziomie paragonu, nie pozycji
+            for day, ch, rf in self._db.execute(
+                "SELECT t.day, t.deposit_charged, t.deposit_refunded FROM tickets t"
+                " WHERE t.parsed = 1 AND t.detail_version >= ? AND t.day BETWEEN ? AND ?",
+                (PARSER_VERSION, start.isoformat(), end.isoformat()),
+            ):
+                b = _bucket_start(date.fromisoformat(day), step)
+                charged[b] = charged.get(b, 0.0) + ch
+                refunded[b] = refunded.get(b, 0.0) + rf
         series = []
         b = _bucket_start(start, step)
         while b <= end:
@@ -1539,6 +1555,9 @@ class History:
                     round(spend.get(b, 0.0), 2),
                     round(qty.get(b, 0.0), 3),
                     len(tickets.get(b, ())),
+                    round(weight.get(b, 0.0), 3),
+                    round(charged.get(b, 0.0), 2),
+                    round(refunded.get(b, 0.0), 2),
                 )
             )
             b = _next_bucket(b, step)
