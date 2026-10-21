@@ -37,6 +37,5 @@ def pack_size(name: str) -> tuple[float, str] | None:
 
 def base_name(name: str) -> str:
     """Nazwa bez gramatury: małe litery, zwinięte spacje, bez końcowych kropek/myślników."""
-    stripped = _PACK_RE.sub(" ", name, count=1).lower()
-    stripped = re.sub(r"\s+", " ", stripped).strip()
+    stripped = re.sub(r"\s+", " ", _PACK_RE.sub(" ", name, count=1).lower())
     return stripped.strip(" .-–")

@@ -415,9 +415,8 @@ def create_app(settings: Settings) -> FastAPI:
                     product_summary = count_text(bought, "zakup", "zakupy", "zakupów")
                     if amount > 0:
                         product_summary += f", średnio {fmt_pln(sum(b.spend for b in series) / amount, 2)} za {unit}"
-                elif query.metric == "spend":
-                    deposit_chart = build_deposit_chart(series, query.step)
                 if query.art_id is None and query.metric == "spend":
+                    deposit_chart = build_deposit_chart(series, query.step)
                     totals = history.purchase_totals(query.start, query.end)
                     range_totals = {
                         "paid": fmt_pln(totals.paid),

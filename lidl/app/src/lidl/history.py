@@ -19,6 +19,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from itertools import groupby
 from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -644,7 +645,7 @@ def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict
 def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
     """Produkty, w których opakowanie zmalało (0,5–1× poprzedniej gramatury) przy cenie półkowej nie niższej
     niż przedtem; w ostatnich 365 dniach. Grupa = kody o tej samej `base_name`; `rows` posortowane po dniu."""
-    year = today - timedelta(days=365)
+    year = _year_ago(today)
     parent: dict[str, str] = {}
 
     def find(k: str) -> str:
@@ -654,7 +655,7 @@ def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
         return k
 
     first_code: dict[str, str] = {}
-    packed: list[tuple[_PriceRow, tuple[float, str], str]] = []
+    packed: list[tuple[_PriceRow, tuple[float, str]]] = []
     for row in rows:
         key, name, day, _price, _paid, _qty, weight = row
         pack = pack_size(name)
@@ -663,29 +664,23 @@ def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
         base = base_name(name)
         if base:
             parent[find(key)] = find(first_code.setdefault(base, key))
-        packed.append((row, pack, base))
+        packed.append((row, pack))
     groups: dict[str, list[tuple[_PriceRow, tuple[float, str]]]] = defaultdict(list)
-    for row, pack, _base in packed:
+    for row, pack in packed:
         groups[find(row[0])].append((row, pack))
     found = []
     for members in groups.values():
-        runs: list[list[tuple[_PriceRow, tuple[float, str]]]] = []
-        for item in members:
-            if runs and runs[-1][0][1] == item[1]:
-                runs[-1].append(item)
-            else:
-                runs.append([item])
+        runs = [list(g) for _, g in groupby(members, key=lambda m: m[1])]
         for i in range(len(runs) - 1, 0, -1):
             old, new = runs[i - 1], runs[i]
             (old_pack, unit), (new_pack, new_unit) = old[0][1], new[0][1]
+            changed = new[0][0][2]
+            if unit != new_unit or not 0.5 <= new_pack / old_pack < 1 or changed <= year:
+                continue
             old_shelf = statistics.median(r[0][3] for r in old)
             new_shelf = statistics.median(r[0][3] for r in new)
-            changed = new[0][0][2]
             if (
-                unit != new_unit
-                or not 0.5 <= new_pack / old_pack < 1
-                or new_shelf < old_shelf
-                or changed <= year
+                new_shelf < old_shelf
                 or any(m[1] == (old_pack, unit) for run in runs[i:] for m in run)
                 or any(m[1] == (new_pack, unit) for run in runs[:i] for m in run)
             ):
@@ -755,6 +750,7 @@ class History:
         """Liczy z góry najdroższe wyniki Kuponów i Cen (E22.2): po starcie i po porannym imporcie."""
         self.coupon_candidates()
         self.price_overview()
+        self.shrinkflation()
 
     def _migrate_v1(self) -> None:
         """v1 → v2: nowe kolumny, a pozycje i znacznik pobrania zerowane, więc szczegóły pobiorą się od nowa

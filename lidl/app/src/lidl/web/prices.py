@@ -63,7 +63,6 @@ def shrink_rows(items: list[Shrink], href: Callable[[str], str]) -> list[dict[st
             {
                 "name": s.name,
                 "href": href(s.art_id),
-                "packs": packs,
                 "prices": f"{packs} · {fmt_pln(s.old_unit, 2)}/{s.unit} → {fmt_pln(s.new_unit, 2)}/{s.unit}",
                 "shelf": f"{fmt_pln(s.old_shelf, 2)} → {fmt_pln(s.new_shelf, 2)} na półce",
                 "date": fmt_date(date.fromisoformat(s.day)),
@@ -121,13 +120,19 @@ def _split_rows(split: dict[str, SpendGroup]) -> list[dict[str, Any]]:
     return rows
 
 
-def product_view(product: ProductPrices, today: date) -> dict[str, Any]:
-    """Cena półkowa (schodki, obowiązuje do następnej zmiany) i zapłacona przy każdym zakupie."""
-    name, weight, points, change = product.name, product.weight, product.points, product.change
+def _steps(points: list[Any]) -> list[tuple[date, float]]:
+    """Schodki ceny półkowej: punkt tylko przy zmianie ceny."""
     steps: list[tuple[date, float]] = []
     for p in points:
         if not steps or steps[-1][1] != p.shelf:
             steps.append((date.fromisoformat(p.day), p.shelf))
+    return steps
+
+
+def product_view(product: ProductPrices, today: date) -> dict[str, Any]:
+    """Cena półkowa (schodki, obowiązuje do następnej zmiany) i zapłacona przy każdym zakupie."""
+    name, weight, points, change = product.name, product.weight, product.points, product.change
+    steps = _steps(points)
     dots = [(date.fromisoformat(p.day), p.paid) for p in points]
     best = min(points, key=lambda p: (p.paid, p.day))
     first, last = date.fromisoformat(points[0].day), date.fromisoformat(points[-1].day)
@@ -139,10 +144,7 @@ def product_view(product: ProductPrices, today: date) -> dict[str, Any]:
     unit_chart: LineChart | None = None
     if product.unit_points and product.unit:
         label = "zł/" + product.unit
-        steps_u: list[tuple[date, float]] = []
-        for p in product.unit_points:
-            if not steps_u or steps_u[-1][1] != p.shelf:
-                steps_u.append((date.fromisoformat(p.day), p.shelf))
+        steps_u = _steps(product.unit_points)
         dots_u = [(date.fromisoformat(p.day), p.paid) for p in product.unit_points]
         last_u = product.unit_points[-1]
         aria_u = (

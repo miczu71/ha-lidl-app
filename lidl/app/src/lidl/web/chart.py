@@ -139,6 +139,10 @@ def _aria(step: str, d: date, value: str) -> str:
     return f"{d.year}: {value}"
 
 
+def _height(v: float, axis_max: float) -> str:
+    return f"{v / axis_max * 100:.1f}".rstrip("0").rstrip(".") + "%"
+
+
 def build_chart(buckets: list[SpendBucket], step: str, metric: str, unit: str = "szt.") -> Chart:
     values = [b.spend if metric == "spend" else (b.weight if unit == "kg" else b.quantity) for b in buckets]
     axis_max = _nice_axis_max(max(values, default=0.0))
@@ -153,7 +157,7 @@ def build_chart(buckets: list[SpendBucket], step: str, metric: str, unit: str = 
         aria_value = fmt_pln(v) if metric == "spend" else f"{fmt_qty(v)} {unit}"
         bars.append(
             Bar(
-                height=f"{v / axis_max * 100:.1f}".rstrip("0").rstrip(".") + "%",
+                height=_height(v, axis_max),
                 label=_label(step, d) if i % every == 0 else "",
                 aria=_aria(step, d, aria_value),
             )
@@ -180,19 +184,16 @@ def build_deposit_chart(buckets: list[SpendBucket], step: str) -> Chart | None:
         return None
     axis_max = _nice_axis_max(max(charged + refunded))
 
-    def height(v: float) -> str:
-        return f"{v / axis_max * 100:.1f}".rstrip("0").rstrip(".") + "%"
-
     every = max(1, math.ceil(len(buckets) / MAX_LABELS))
     bars = []
     for i, b in enumerate(buckets):
         d = date.fromisoformat(b.start)
         bars.append(
             Bar(
-                height=height(b.charged),
+                height=_height(b.charged, axis_max),
                 label=_label(step, d) if i % every == 0 else "",
                 aria=_aria(step, d, f"pobrane {fmt_pln(b.charged, 2)}, zwrócone {fmt_pln(b.refunded, 2)}"),
-                height2=height(b.refunded),
+                height2=_height(b.refunded, axis_max),
             )
         )
     total_c, total_r = sum(charged), sum(refunded)
