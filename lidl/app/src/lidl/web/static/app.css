@@ -168,7 +168,11 @@ select.field { appearance: auto; }
 .bars__bar { width: 100%; background: var(--blue); border-radius: 4px 4px 0 0; min-height: 2px; }
 .bars--pair .bars__col { gap: 2px; }
 .bars--pair .bars__bar { flex: 1; width: auto; }
-.bars--pair .bars__bar + .bars__bar { opacity: 0.5; }
+.bars--pair .bars__bar + .bars__bar { background: var(--green); }
+.legend { display: flex; gap: var(--space-3); margin: 0; color: var(--ink-muted); font: 400 14px/20px var(--font-sans); }
+.legend span { display: inline-flex; align-items: center; gap: var(--space-1); }
+.legend i { width: 12px; height: 12px; border-radius: 3px; background: var(--blue); }
+.legend span + span i { background: var(--green); }
 .xl { grid-column: 2; display: flex; gap: 6px; margin-top: var(--space-1); }
 .xl span { flex: 1; min-width: 0; text-align: center; color: var(--ink-muted); font: 600 12px/16px var(--font-sans); white-space: nowrap; }
 .sum { margin: 0; color: var(--ink-muted); font: 400 14px/20px var(--font-sans); }

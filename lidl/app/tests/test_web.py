@@ -1224,6 +1224,32 @@ def test_weighed_product_filter_shows_kilograms_and_average_price(client: TestCl
     assert "(bez produktów na wagę)" in client.get("/produkty?zakres=all&miara=sztuki").text
 
 
+def _seed_mixed(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets(
+        "osoba-1",
+        [
+            {"id": f"m{i}", "date": f"{d}T10:00:00+00:00", "totalAmount": 20.0, "savings": 0.0}
+            for i, d in enumerate(("2026-08-02", "2026-09-02", "2026-10-02"))
+        ],
+    )
+    for i in (0, 1):
+        history.save_detail(
+            f"m{i}", "Sklep X", ParsedReceipt(items=[ReceiptItem("444", "Produkt M", 1.5, 6.0, 9.0, is_weight=True)])
+        )
+    history.save_detail("m2", "Sklep X", ParsedReceipt(items=[ReceiptItem("444", "Produkt M", 2.0, 2.0, 4.0)]))
+
+
+def test_mixed_product_summary_splits_weight_and_pieces(client: TestClient) -> None:
+    _seed(client)
+    _seed_mixed(client)
+    text = client.get("/produkty?zakres=all&produkt=444&miara=sztuki").text
+    assert "3 zakupy, średnio 6,00 zł za kg (2 na wagę), 2,00 zł za szt. (1 na sztuki), bez 1 zakupu na sztuki" in text
+    assert "3 kg" in text  # wykres w kg
+    spend = client.get("/produkty?zakres=all&produkt=444").text
+    assert "6,00 zł za kg (2 na wagę), 2,00 zł za szt. (1 na sztuki)" in spend and "bez 1 zakupu" not in spend
+
+
 def test_product_filter_shows_purchase_count_and_average_price_per_piece(client: TestClient) -> None:
     _seed(client)
     text = client.get("/produkty?zakres=all&produkt=111").text
@@ -1234,7 +1260,7 @@ def test_product_filter_shows_purchase_count_and_average_price_per_piece(client:
 def test_deposit_chart_only_for_spend_without_product_filter(client: TestClient) -> None:
     _seed(client)
     text = client.get("/produkty?zakres=all").text
-    assert "Kaucje: pobrane / zwrócone" in text and "bars--pair" in text
+    assert ">Kaucje</p>" in text and "bars--pair" in text and "pobrane</span>" in text and "zwrócone</span>" in text
     assert "wrzesień 2026: pobrane 5,00" in text
     assert "bars--pair" not in client.get("/produkty?zakres=all&produkt=111").text
     assert "bars--pair" not in client.get("/produkty?zakres=all&miara=sztuki").text

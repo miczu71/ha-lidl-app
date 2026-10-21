@@ -298,6 +298,9 @@ class SpendBucket:
     weight: float = 0.0  # kg pozycji ważonych (is_weight = 1)
     charged: float = 0.0  # kaucje pobrane (cały dom, bez filtra produktu)
     refunded: float = 0.0  # kaucje zwrócone (cały dom, bez filtra produktu)
+    weight_spend: float = 0.0  # wydatek na pozycje ważone (is_weight = 1); sztuki = spend - weight_spend
+    weight_purchases: int = 0  # paragony z pozycją ważoną
+    piece_purchases: int = 0  # paragony z pozycją na sztuki (paragon z obiema formami liczy się w obu)
 
 
 @dataclass(frozen=True)
@@ -1623,7 +1626,10 @@ class History:
         spend: dict[date, float] = {}
         qty: dict[date, float] = {}
         weight: dict[date, float] = {}
+        weight_spend: dict[date, float] = {}
         tickets: dict[date, set[str]] = {}
+        weight_tickets: dict[date, set[str]] = {}
+        piece_tickets: dict[date, set[str]] = {}
         for day, net, quantity, ticket_id, item_art, item_name, is_weight in rows:
             if art_id is not None and resolve(item_art, item_name) != art_id:
                 continue
@@ -1632,6 +1638,11 @@ class History:
             target = weight if is_weight else qty
             target[b] = target.get(b, 0.0) + quantity
             tickets.setdefault(b, set()).add(ticket_id)
+            if is_weight:
+                weight_spend[b] = weight_spend.get(b, 0.0) + net
+                weight_tickets.setdefault(b, set()).add(ticket_id)
+            else:
+                piece_tickets.setdefault(b, set()).add(ticket_id)
         charged: dict[date, float] = {}
         refunded: dict[date, float] = {}
         if art_id is None:  # kaucje są na poziomie paragonu, nie pozycji
@@ -1655,6 +1666,9 @@ class History:
                     round(weight.get(b, 0.0), 3),
                     round(charged.get(b, 0.0), 2),
                     round(refunded.get(b, 0.0), 2),
+                    round(weight_spend.get(b, 0.0), 2),
+                    len(weight_tickets.get(b, ())),
+                    len(piece_tickets.get(b, ())),
                 )
             )
             b = _next_bucket(b, step)

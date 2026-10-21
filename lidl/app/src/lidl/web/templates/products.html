@@ -158,7 +158,8 @@
   </div>
   <p class="sum">Suma w zakresie: <strong>{{ chart.total }}</strong>{% if query.metric == 'spend' %} {{ 'na ten produkt' if query.art_id else 'na produkty (po rabatach)' }}{% endif %}{% if query.metric == 'qty' and not query.art_id %} (bez produktów na wagę){% endif %}{% if product_summary %} · {{ product_summary }}{% endif %}{% if range_totals %} · kaucje pobrane <strong>{{ range_totals.charged }}</strong>, zwrócone <strong>{{ range_totals.refunded }}</strong> · zapłacono łącznie <strong>{{ range_totals.paid }}</strong>{% endif %} · średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.</p>
   {% if deposit_chart %}
-  <p class="sum">Kaucje: pobrane / zwrócone</p>
+  <p class="sum">Kaucje</p>
+  <p class="legend"><span><i aria-hidden="true"></i>pobrane</span><span><i aria-hidden="true"></i>zwrócone</span></p>
   <div class="plot">
     <div class="yl" aria-hidden="true">{% for t in deposit_chart.ticks %}<span>{{ t }}</span>{% endfor %}</div>
     <div class="bars bars--pair">
