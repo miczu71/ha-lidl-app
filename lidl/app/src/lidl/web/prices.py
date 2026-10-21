@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import date
 from typing import Any
 
-from lidl.history import PriceChange, PriceOverview, ProductPrices, Shrink, SpendGroup
+from lidl.history import PriceChange, PriceOverview, PricePoint, ProductPrices, Shrink, SpendGroup
 from lidl.text import count_text, fmt_date, fmt_pct
 
 from .chart import LineChart, build_line, fmt_month_year_genitive, fmt_pln, fmt_qty
@@ -63,7 +63,7 @@ def shrink_rows(items: list[Shrink], href: Callable[[str], str]) -> list[dict[st
             {
                 "name": s.name,
                 "href": href(s.art_id),
-                "prices": f"{packs} · {fmt_pln(s.old_unit, 2)}/{s.unit} → {fmt_pln(s.new_unit, 2)}/{s.unit}",
+                "prices": f"{packs} · {fmt_pln(s.old_unit, 2)}/{s.unit} → {fmt_pln(s.new_unit, 2)}/{s.unit} · od {fmt_date(date.fromisoformat(s.day))}",
                 "shelf": f"{fmt_pln(s.old_shelf, 2)} → {fmt_pln(s.new_shelf, 2)} na półce",
                 "date": fmt_date(date.fromisoformat(s.day)),
                 "delta": delta(s.pct),
@@ -120,7 +120,7 @@ def _split_rows(split: dict[str, SpendGroup]) -> list[dict[str, Any]]:
     return rows
 
 
-def _steps(points: list[Any]) -> list[tuple[date, float]]:
+def _steps(points: Sequence[PricePoint]) -> list[tuple[date, float]]:
     """Schodki ceny półkowej: punkt tylko przy zmianie ceny."""
     steps: list[tuple[date, float]] = []
     for p in points:

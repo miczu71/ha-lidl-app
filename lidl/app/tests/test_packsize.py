@@ -62,3 +62,8 @@ def test_base_name(name: str, expected: str) -> None:
 
 def test_base_name_same_for_different_pack() -> None:
     assert base_name("Produkt A 500g") == base_name("Produkt A 450 g")
+
+
+@pytest.mark.parametrize("name", ["Cola 0l", "Woda 0g", "Produkt 0,0l"])
+def test_pack_size_zero_is_none(name: str) -> None:
+    assert pack_size(name) is None

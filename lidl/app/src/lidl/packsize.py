@@ -32,6 +32,8 @@ def pack_size(name: str) -> tuple[float, str] | None:
     qty = float(m.group("num").replace(",", ".")) * factor
     if m.group("mult"):
         qty *= int(m.group("mult"))
+    if qty <= 0:
+        return None
     return round(qty, 6), base
 
 
