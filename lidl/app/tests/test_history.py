@@ -458,6 +458,114 @@ def test_price_history_shelf_and_paid_per_unit(tmp_path: Path) -> None:
     ]
 
 
+def _shrink(tmp_path: Path, *buys: tuple[str, str, str, float], qty: float = 1) -> History:
+    """Zakupy (dzień, kod, nazwa, cena półkowa), po jednym paragonie na zakup."""
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket(f"t{i}", b[0]) for i, b in enumerate(buys)])
+    for i, (_, code, name, price) in enumerate(buys):
+        h.save_detail(f"t{i}", "S", _priced((code, name, qty, price, 0.0)))
+    return h
+
+
+TODAY = date(2026, 10, 8)
+
+
+def test_shrinkflation_same_code_smaller_pack_same_price(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-07-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "1", "Produkt A 450g", 6.3),
+    )
+    (s,) = h.shrinkflation(TODAY)
+    assert (s.art_id, s.name, s.unit, s.old_pack, s.new_pack) == ("1", "Produkt A 450g", "kg", 0.5, 0.45)
+    assert (s.old_shelf, s.new_shelf, s.day, s.spend) == (6.0, 6.3, "2026-09-01", 18.3)
+    assert (s.old_unit, s.new_unit, s.pct) == (12.0, 14.0, 16.7)
+
+
+def test_shrinkflation_joins_codes_with_the_same_base_name(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "2", "Produkt A 450g", 6.0),
+    )
+    (s,) = h.shrinkflation(TODAY)
+    assert (s.art_id, s.day, s.pct) == ("2", "2026-09-01", 11.1)
+
+
+def test_shrinkflation_ignores_other_base_name(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "2", "Produkt B 450g", 6.0),
+    )
+    assert h.shrinkflation(TODAY) == []
+
+
+def test_shrinkflation_ignores_lower_unit_price(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "1", "Produkt A 450g", 5.0),
+    )
+    assert h.shrinkflation(TODAY) == []
+
+
+def test_shrinkflation_ignores_two_sizes_sold_side_by_side(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-07-01", "1", "Produkt A 450g", 6.3),
+        ("2026-08-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "1", "Produkt A 450g", 6.3),
+    )
+    assert h.shrinkflation(TODAY) == []
+
+
+def test_shrinkflation_ignores_bigger_pack(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 450g", 6.0),
+        ("2026-09-01", "1", "Produkt A 500g", 6.3),
+    )
+    assert h.shrinkflation(TODAY) == []
+
+
+def test_shrinkflation_ignores_weighed_products(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t0", "2026-06-01"), _ticket("t1", "2026-09-01")])
+    for t, name in (("t0", "Produkt A 500g"), ("t1", "Produkt A 450g")):
+        h.save_detail(t, "S", ParsedReceipt(items=[ReceiptItem("1", name, 1.0, 6.0, 6.0, is_weight=True)]))
+    assert h.shrinkflation(TODAY) == []
+
+
+def test_shrinkflation_ignores_transition_older_than_a_year(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2025-01-01", "1", "Produkt A 500g", 6.0),
+        ("2025-02-01", "1", "Produkt A 450g", 6.3),
+    )
+    assert h.shrinkflation(TODAY) == []
+
+
+def test_product_prices_unit_points_only_with_pack_size(tmp_path: Path) -> None:
+    h = _shrink(
+        tmp_path,
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "1", "Produkt A 450g", 6.3),
+        ("2026-09-02", "2", "Produkt C", 3.0),
+    )
+    p = h.product_prices("1", TODAY)
+    assert p is not None and p.unit == "kg"
+    assert p.unit_points is not None
+    assert [(u.day, u.shelf, u.paid) for u in p.unit_points] == [
+        ("2026-06-01", 12.0, 12.0),
+        ("2026-09-01", 14.0, 14.0),
+    ]
+    c = h.product_prices("2", TODAY)
+    assert c is not None and c.unit is None and c.unit_points is None
+
+
 def test_prices_on_empty_database(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     today = date(2026, 10, 8)

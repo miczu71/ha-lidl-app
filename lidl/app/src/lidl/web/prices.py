@@ -6,7 +6,7 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any
 
-from lidl.history import PriceChange, PriceOverview, ProductPrices, SpendGroup
+from lidl.history import PriceChange, PriceOverview, ProductPrices, Shrink, SpendGroup
 from lidl.text import count_text, fmt_date, fmt_pct
 
 from .chart import LineChart, build_line, fmt_month_year_genitive, fmt_pln, fmt_qty
@@ -43,6 +43,34 @@ def price_rows(changes: list[PriceChange], href: Callable[[str], str]) -> list[d
         }
         for c in changes
     ]
+
+
+def _pack(qty: float, unit: str) -> str:
+    """Opakowanie z ilości bazowej: „500 g”, „1,5 l”, „6 szt.”."""
+    if unit == "szt":
+        return f"{fmt_qty(qty)} szt."
+    if qty < 1:
+        return f"{fmt_qty(qty * 1000)} {'g' if unit == 'kg' else 'ml'}"
+    return f"{fmt_qty(qty)} {unit}"
+
+
+def shrink_rows(items: list[Shrink], href: Callable[[str], str]) -> list[dict[str, Any]]:
+    """Wiersze „Mniej w opakowaniu” (E18); `prices` = gramatura i ceny jednostkowe (macro ma jedno pole)."""
+    rows = []
+    for s in items:
+        packs = f"{_pack(s.old_pack, s.unit)} → {_pack(s.new_pack, s.unit)}"
+        rows.append(
+            {
+                "name": s.name,
+                "href": href(s.art_id),
+                "packs": packs,
+                "prices": f"{packs} · {fmt_pln(s.old_unit, 2)}/{s.unit} → {fmt_pln(s.new_unit, 2)}/{s.unit}",
+                "shelf": f"{fmt_pln(s.old_shelf, 2)} → {fmt_pln(s.new_shelf, 2)} na półce",
+                "date": fmt_date(date.fromisoformat(s.day)),
+                "delta": delta(s.pct),
+            }
+        )
+    return rows
 
 
 def top_changes(changes: list[PriceChange]) -> tuple[list[PriceChange], list[PriceChange]]:
@@ -108,8 +136,27 @@ def product_view(product: ProductPrices, today: date) -> dict[str, Any]:
         f"{fmt_price(points[0].shelf, weight)} do {fmt_price(points[-1].shelf, weight)}; "
         f"zapłacono najmniej {fmt_price(best.paid, weight)}"
     )
+    unit_chart: LineChart | None = None
+    if product.unit_points and product.unit:
+        label = "zł/" + product.unit
+        steps_u: list[tuple[date, float]] = []
+        for p in product.unit_points:
+            if not steps_u or steps_u[-1][1] != p.shelf:
+                steps_u.append((date.fromisoformat(p.day), p.shelf))
+        dots_u = [(date.fromisoformat(p.day), p.paid) for p in product.unit_points]
+        last_u = product.unit_points[-1]
+        aria_u = (
+            f"Cena {name} za {product.unit} od {fmt_date(first)} do {fmt_date(last)}: na półce od "
+            f"{fmt_pln(product.unit_points[0].shelf, 2)}/{product.unit} "
+            f"do {fmt_pln(last_u.shelf, 2)}/{product.unit}"
+        )
+        unit_chart = build_line(
+            steps_u, lambda v: f"{fmt_qty(v)} {label}", aria_u, dots=dots_u, step=True, last=today
+        )
     return {
         "name": name,
+        "unit_chart": unit_chart,
+        "unit_label": {"kg": "Cena za kg", "l": "Cena za litr"}.get(product.unit or ""),
         "lead": f"Cena {'za kg' if weight else 'za sztukę'} · "
         + count_text(len(points), "zakup", "zakupy", "zakupów")
         + f" od {fmt_month_year_genitive(first)}",

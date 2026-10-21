@@ -23,6 +23,7 @@ from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from .packsize import base_name, pack_size
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
 from .text import matches, month_bounds
@@ -352,6 +353,35 @@ class ProductPrices:
     weight: bool  # ceny za kg
     points: list[PricePoint]
     change: PriceChange | None  # bez zakupu w którymś z okien r/r: None
+    unit: str | None = None  # 'kg'|'l', gdy każdy zakup ma gramaturę w tej jednostce
+    unit_points: list[PricePoint] | None = None  # ceny za kg/l (półkowa i zapłacona), inaczej None
+
+
+@dataclass(frozen=True)
+class Shrink:
+    """Mniej w opakowaniu przy tej samej albo wyższej cenie (E18)."""
+
+    art_id: str  # kod ostatniego zakupu
+    name: str  # z ostatniego zakupu
+    unit: str  # 'kg'|'l'|'szt'
+    old_pack: float  # ilość w opakowaniu przed zmianą (jednostka bazowa)
+    new_pack: float
+    old_shelf: float  # mediana ceny półkowej serii przed i po zmianie
+    new_shelf: float
+    day: str  # pierwszy zakup nowej gramatury
+    spend: float  # zapłacono za grupę w 365 dni
+
+    @property
+    def old_unit(self) -> float:
+        return round(self.old_shelf / self.old_pack, 2)
+
+    @property
+    def new_unit(self) -> float:
+        return round(self.new_shelf / self.new_pack, 2)
+
+    @property
+    def pct(self) -> float:
+        return round((self.new_shelf / self.new_pack) / (self.old_shelf / self.old_pack) * 100 - 100, 1)
 
 
 @dataclass(frozen=True)
@@ -609,6 +639,75 @@ def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict
             [names[k] for k in legacy[:SPLIT_EXAMPLES]],
         )
     return out
+
+
+def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
+    """Produkty, w których opakowanie zmalało (0,5–1× poprzedniej gramatury) przy cenie półkowej nie niższej
+    niż przedtem; w ostatnich 365 dniach. Grupa = kody o tej samej `base_name`; `rows` posortowane po dniu."""
+    year = today - timedelta(days=365)
+    parent: dict[str, str] = {}
+
+    def find(k: str) -> str:
+        while parent.setdefault(k, k) != k:
+            parent[k] = parent[parent[k]]
+            k = parent[k]
+        return k
+
+    first_code: dict[str, str] = {}
+    packed: list[tuple[_PriceRow, tuple[float, str], str]] = []
+    for row in rows:
+        key, name, day, _price, _paid, _qty, weight = row
+        pack = pack_size(name)
+        if weight or day > today or pack is None:
+            continue
+        base = base_name(name)
+        if base:
+            parent[find(key)] = find(first_code.setdefault(base, key))
+        packed.append((row, pack, base))
+    groups: dict[str, list[tuple[_PriceRow, tuple[float, str]]]] = defaultdict(list)
+    for row, pack, _base in packed:
+        groups[find(row[0])].append((row, pack))
+    found = []
+    for members in groups.values():
+        runs: list[list[tuple[_PriceRow, tuple[float, str]]]] = []
+        for item in members:
+            if runs and runs[-1][0][1] == item[1]:
+                runs[-1].append(item)
+            else:
+                runs.append([item])
+        for i in range(len(runs) - 1, 0, -1):
+            old, new = runs[i - 1], runs[i]
+            (old_pack, unit), (new_pack, new_unit) = old[0][1], new[0][1]
+            old_shelf = statistics.median(r[0][3] for r in old)
+            new_shelf = statistics.median(r[0][3] for r in new)
+            changed = new[0][0][2]
+            if (
+                unit != new_unit
+                or not 0.5 <= new_pack / old_pack < 1
+                or new_shelf < old_shelf
+                or changed <= year
+                or any(m[1] == (old_pack, unit) for run in runs[i:] for m in run)
+                or any(m[1] == (new_pack, unit) for run in runs[:i] for m in run)
+            ):
+                continue
+            last = members[-1][0]
+            spend = sum(m[0][4] for m in members if m[0][2] > year)
+            found.append(
+                Shrink(
+                    last[0],
+                    last[1],
+                    unit,
+                    old_pack,
+                    new_pack,
+                    old_shelf,
+                    new_shelf,
+                    changed.isoformat(),
+                    round(spend, 2),
+                )
+            )
+            break  # najwyżej jedno (najnowsze) przejście na grupę
+    found.sort(key=lambda s: (-s.pct, s.name))
+    return found
 
 
 def _basket(changes: list[PriceChange], total: float) -> BasketInflation:
@@ -1613,7 +1712,25 @@ class History:
             PricePoint(day.isoformat(), price, round(paid / qty, 2))
             for _, _, day, price, paid, qty, _ in rows
         ]
-        return ProductPrices(rows[-1][1], rows[-1][6], points, changes[0] if changes else None)
+        packs = [pack_size(r[1]) for r in rows]
+        unit = packs[0][1] if packs[0] else None
+        per_unit = None
+        if unit in ("kg", "l") and not any(r[6] for r in rows) and all(p and p[1] == unit for p in packs):
+            per_unit = [
+                PricePoint(day.isoformat(), round(price / pack[0], 2), round(paid / qty / pack[0], 2))
+                for (_, _, day, price, paid, qty, _), pack in zip(rows, packs, strict=True)
+                if pack
+            ]
+        else:
+            unit = None
+        return ProductPrices(
+            rows[-1][1], rows[-1][6], points, changes[0] if changes else None, unit, per_unit
+        )
+
+    def shrinkflation(self, today: date | None = None) -> list[Shrink]:
+        """Mniejsze opakowanie przy nie niższej cenie (E18), od największej podwyżki ceny jednostkowej."""
+        today = today or date.today()
+        return self._cached(("shrink", today), lambda: _shrinkflation(self._price_rows(), today))
 
     def tickets(self, f: ReceiptFilter, limit: int) -> tuple[list[TicketSummary], int]:
         """Paragony od najnowszych (do `limit`) i liczba wszystkich pasujących do filtrów (E8)."""

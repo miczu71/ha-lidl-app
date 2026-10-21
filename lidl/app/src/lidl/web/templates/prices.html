@@ -63,4 +63,16 @@
   {% include "_prices_list.html" %}
 </section>
 {% endif %}
+
+{% if has_history %}
+<section class="card" aria-labelledby="mniej-h">
+  <div>
+    <h2 class="s" id="mniej-h">Mniej w opakowaniu</h2>
+    <p class="sum">Ta sama cena albo wyższa, a w opakowaniu mniej. Porównanie ceny za kg/l/szt.</p>
+  </div>
+  <ul class="rklist">
+    {% for r in shrink %}{{ price_row(r) }}{% else %}<li class="meta">Nie znaleźliśmy produktów, w których ubyło w opakowaniu.</li>{% endfor %}
+  </ul>
+</section>
+{% endif %}
 {% endblock %}

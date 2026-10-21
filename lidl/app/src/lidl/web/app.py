@@ -43,7 +43,7 @@ from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_b
 
 from .chart import build_chart, build_deposit_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
 from .months import default_month, month_banner, month_nav, month_view
-from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, top_changes
+from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, shrink_rows, top_changes
 from .products import (
     MORE_STEP,
     coupon_cards,
@@ -527,6 +527,7 @@ def create_app(settings: Settings) -> FastAPI:
             ups=price_rows(ups, lambda a: prices_href(request, a)),
             downs=price_rows(downs, lambda a: prices_href(request, a)),
             top_min_spend=TOP_MIN_SPEND,
+            shrink=shrink_rows(history.shrinkflation(today), lambda a: prices_href(request, a)),
         )
         return render(request, "prices.html", **ctx)
 
