@@ -80,9 +80,35 @@ wywołań Jev/AI, nowych zależności.
   się 200 na danych demo; pytest wskazanych plików i mypy zielone. Dane testowe neutralne („Produkt A”).
 - NIE RÓB: zmian schematu bazy, innych plików/zakładek (Ceny, Paragony), `config.yaml`/`pyproject.toml`, commitów, nowych zależności, przeformatowania sąsiedniego kodu.
 
-### E25.3 E18
-- Pliki: `history.py` (`History.shrinkflation()`, cache `_cached`), moduł Cen w `web/`, szablony Cen, testy.
-- Zmiana: grupy po kodzie/połączeniu E21/`base_name`; wiersz, gdy gramatura spadła, a cena za sztukę nie spadła; sekcja „Mniej w
-  opakowaniu” w Cenach (stara→nowa gramatura, cena za kg/l przed/po, data); cena za kg/l na wykresie `/ceny/produkt/{kod}`.
-- DONE: testy (spadek gramatury, ten sam kod, nowy kod z tą samą nazwą bazową, brak fałszywych trafień przy innej nazwie),
-  pytest i mypy zielone, sekcja renderuje się na danych demo.
+### E25.3 E18 (kontrakt doprecyzowany 2026-10-21)
+- Pliki (`lidl/app/src/lidl/`): `history.py`, `web/prices.py`, `web/app.py` (widok `prices` ~l.495 i `product_prices` ~l.534),
+  `web/templates/prices.html`, `web/templates/prices_product.html`; testy: `tests/test_history.py`, `tests/test_web.py` (obok testów cen).
+- `history.py`: `from lidl.packsize import pack_size, base_name`. Nowy `@dataclass(frozen=True) class Shrink`: `art_id` (kod ostatniego zakupu),
+  `name` (z ostatniego zakupu), `unit` ('kg'|'l'|'szt'), `old_pack`, `new_pack` (ilość bazowa), `old_shelf`, `new_shelf` (mediana ceny półkowej serii),
+  `day` (str ISO: pierwszy zakup nowej gramatury), `spend` (zapłacono za grupę w 365 dni). Własności `old_unit`/`new_unit` = cena półkowa / ilość
+  (zł za kg/l/szt), `pct` = zmiana ceny jednostkowej w %. Moduł-poziomowa `_shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]`
+  i `History.shrinkflation(today: date | None = None) -> list[Shrink]` przez `self._cached(("shrink", today), ...)` na `self._price_rows()`.
+- Algorytm `_shrinkflation`: pomiń wiersze `weight=True`, wiersze po `today` i wiersze bez `pack_size(name)`. Grupy: kody z tą samą niepustą
+  `base_name(name)` łączymy (union-find po kodach; kod już jest po moście E21). W grupie (wiersze są po dniu) seria przebiegów (runs) kolejnych
+  zakupów o tej samej gramatura+jednostka; cena przebiegu = mediana `price`. Przejście run[i]→run[i+1] liczy się, gdy: ta sama jednostka;
+  `0.5 <= new_pack/old_pack < 1`; `new_shelf >= old_shelf` (cena za sztukę nie spadła); gramatura `old_pack` NIE występuje w żadnym zakupie po
+  przejściu, a `new_pack` nie występuje przed przejściem (równoległa sprzedaż dwóch rozmiarów to nie shrinkflation); dzień przejścia w ostatnich
+  365 dniach. Na grupę najwyżej jedno (najnowsze) przejście. Wynik sortuj po `pct` malejąco, potem nazwie.
+- `ProductPrices` dostaje `unit: str | None` i `unit_points: list[PricePoint] | None`: gdy KAŻDY zakup produktu ma `pack_size(name)` w tej samej
+  jednostce `kg`/`l` (nie 'szt'), `unit_points` = `PricePoint(day, shelf/pack, paid/qty/pack)` (zaokrąglone do 2 miejsc), inaczej `None`.
+  `product_prices` ma do dyspozycji nazwy w `rows` (`r[1]`).
+- `web/prices.py`: `shrink_rows(items: list[Shrink], href) -> list[dict]` z kluczami `name`, `href`, `packs` („500 g → 450 g”, ml/g dla <1 l/kg,
+  „6 szt. → 5 szt.”), `prices` („{old_unit} → {new_unit}” w zł/kg|l|szt.), `shelf` („6,00 zł → 6,30 zł na półce”), `date` (`fmt_date`), `delta`
+  (`delta(pct)`). `product_view` dodaje `unit_chart` (`build_line` schodkowy jak `chart`, etykieta „zł/kg”/„zł/l”, aria) i `unit_label`
+  („Cena za kg”/„Cena za litr”) gdy `unit_points`.
+- `web/app.py` `prices`: `shrink=shrink_rows(history.shrinkflation(today), lambda a: prices_href(request, a))` dla pełnej strony (nie dla odpowiedzi `ceny-wyniki`).
+- Szablony: `prices.html` — sekcja `<section class="card" aria-labelledby="mniej-h">` „Mniej w opakowaniu” (lead: „Ta sama cena albo wyższa, a w opakowaniu
+  mniej. Porównanie ceny za kg/l/szt.”) PO sekcji „Wszystkie porównane produkty”, poza `{% if not basket %}` (pokazuj gdy `has_history`); wiersze przez
+  `price_row` (macro w `_macros.html` — sprawdź, jakie pola bierze; jeśli nie pasuje, osobna lista `rklist` w tym samym stylu); pusta lista: „Nie znaleźliśmy
+  produktów, w których ubyło w opakowaniu.” `prices_product.html` — druga karta „{{ product.unit_label }}” z `product.unit_chart` pod „Cena w czasie”, tylko gdy jest.
+- Test: `cd lidl/app && UV_LINK_MODE=copy uv run --extra dev pytest -q tests/test_history.py tests/test_web.py tests/test_chart.py`, potem `uv run --extra dev mypy src`.
+- DONE: testy: (1) kod z 500 g → 450 g przy tej samej/wyższej cenie → wiersz z poprawnym `pct` i dniem; (2) ten sam przypadek, ale nowy kod z identyczną
+  `base_name` → wiersz; (3) inna nazwa bazowa → brak; (4) cena za sztukę spadła → brak; (5) dwa rozmiary kupowane na przemian → brak; (6) wzrost gramatury → brak;
+  (7) produkt ważony → brak; (8) `product_prices.unit_points` dla produktu z gramaturą i `None` bez; (9) `/ceny` zwraca 200 i sekcję „Mniej w opakowaniu”,
+  `/ceny/produkt/{kod}` pokazuje kartę ceny za kg przy gramaturze; pytest wskazanych plików i mypy zielone. Dane neutralne („Produkt A 500g”).
+- NIE RÓB: zmian schematu bazy, `packsize.py` (tylko import), innych zakładek, `config.yaml`/`pyproject.toml`, commitów, nowych zależności, przeformatowania sąsiedniego kodu, Jev/AI.
