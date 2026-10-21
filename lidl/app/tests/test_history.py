@@ -1061,7 +1061,9 @@ def test_spend_series_deposits_per_bucket_for_whole_household_only(tmp_path: Pat
 def test_spend_series_splits_weight_and_piece_purchases(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     h.upsert_tickets("a", [_ticket("t1", "2026-01-05"), _ticket("t2", "2026-01-12")])
-    h.save_detail("t1", "S", ParsedReceipt(items=[ReceiptItem("1", "Produkt M", 1.5, 6.0, 9.0, is_weight=True)]))
+    h.save_detail(
+        "t1", "S", ParsedReceipt(items=[ReceiptItem("1", "Produkt M", 1.5, 6.0, 9.0, is_weight=True)])
+    )
     h.save_detail(
         "t2",
         "S",
@@ -1073,4 +1075,10 @@ def test_spend_series_splits_weight_and_piece_purchases(tmp_path: Path) -> None:
         ),
     )
     (b,) = h.spend_series(date(2026, 1, 1), date(2026, 1, 31), "month", "1")
-    assert (b.spend, b.weight_spend, b.purchases, b.weight_purchases, b.piece_purchases) == (16.0, 12.0, 2, 2, 1)
+    assert (b.spend, b.weight_spend, b.purchases, b.weight_purchases, b.piece_purchases) == (
+        16.0,
+        12.0,
+        2,
+        2,
+        1,
+    )

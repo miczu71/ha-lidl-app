@@ -644,7 +644,7 @@ def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict
     return out
 
 
-SHRINK_MIN_RUN = 2  # tyle zakupów musi mieć przebieg przed i po zmianie gramatury
+SHRINK_MIN_RUN = 2  # tyle dni zakupu (nie wierszy) musi mieć przebieg przed i po zmianie gramatury
 
 
 def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
@@ -680,7 +680,7 @@ def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
             old, new = runs[i - 1], runs[i]
             (old_pack, unit), (new_pack, new_unit) = old[0][1], new[0][1]
             changed = new[0][0][2]
-            if len(old) < SHRINK_MIN_RUN or len(new) < SHRINK_MIN_RUN:
+            if len({r[0][2] for r in old}) < SHRINK_MIN_RUN or len({r[0][2] for r in new}) < SHRINK_MIN_RUN:
                 continue
             if unit != new_unit or not 0.5 <= new_pack / old_pack < 1 or changed <= year:
                 continue
@@ -1619,8 +1619,8 @@ class History:
             raise ValueError("range")
         resolve = self._resolver()
         rows = self._db.execute(
-            "SELECT t.day, i.total + i.discount, i.quantity, i.ticket_id, i.art_id, i.name, i.is_weight FROM items i"
-            " JOIN tickets t ON t.id = i.ticket_id WHERE t.day BETWEEN ? AND ?",
+            "SELECT t.day, i.total + i.discount, i.quantity, i.ticket_id, i.art_id, i.name, i.is_weight"
+            " FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE t.day BETWEEN ? AND ?",
             (start.isoformat(), end.isoformat()),
         )
         spend: dict[date, float] = {}

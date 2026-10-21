@@ -30,6 +30,8 @@ from lidl.packsize import base_name, pack_size
         ("Produkt A 100 g x2", (0.2, "kg")),
         ("Produkt A 125g x4", (0.5, "kg")),
         ("Napój B 1,5l*6", (9.0, "l")),
+        ("Ser 200g x 40%", (0.2, "kg")),
+        ("Produkt A 500g x 0,5", (0.5, "kg")),
         ("Produkt A 500g XXL", (0.5, "kg")),
     ],
 )

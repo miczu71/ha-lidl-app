@@ -8,7 +8,7 @@ _PACK_RE = re.compile(
     r"(?P<num>\d+(?:[.,]\d+)?)\s*"
     r"(?P<unit>kg|g|ml|cl|l|szt(?:uk)?)"
     r"(?![^\W\d_])"
-    r"(?:\s*[x×*]\s*(?P<mult2>\d+)(?![^\W_]))?",
+    r"(?:\s*[x×*]\s*(?P<mult2>\d+)(?![^\W_]|%|[.,]\d))?",
     re.IGNORECASE,
 )
 

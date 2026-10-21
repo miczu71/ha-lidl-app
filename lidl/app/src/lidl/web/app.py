@@ -41,7 +41,14 @@ from lidl.settings import Settings
 from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_bounds
 
-from .chart import build_chart, build_deposit_chart, fmt_month_year, fmt_month_year_genitive, fmt_pln, parse_chart_query
+from .chart import (
+    build_chart,
+    build_deposit_chart,
+    fmt_month_year,
+    fmt_month_year_genitive,
+    fmt_pln,
+    parse_chart_query,
+)
 from .months import default_month, month_banner, month_nav, month_view
 from .prices import TOP_MIN_SPEND, basket_view, price_rows, product_view, shrink_rows, top_changes
 from .products import (
@@ -408,7 +415,11 @@ def create_app(settings: Settings) -> FastAPI:
                 series = history.spend_series(query.start, query.end, query.step, query.art_id)
                 weight_spend = sum(b.weight_spend for b in series)
                 piece_spend = sum(b.spend for b in series) - weight_spend
-                weighed = query.art_id is not None and sum(b.weight for b in series) > 0 and weight_spend > piece_spend
+                weighed = (
+                    query.art_id is not None
+                    and sum(b.weight for b in series) > 0
+                    and weight_spend > piece_spend
+                )
                 unit = "kg" if weighed else "szt."
                 chart = build_chart(series, query.step, query.metric, unit)
                 if query.art_id is not None:
@@ -421,7 +432,9 @@ def create_app(settings: Settings) -> FastAPI:
                     if kg > 0:
                         parts.append((f"{fmt_pln(weight_spend / kg, 2)} za kg", weight_bought, "na wagę"))
                     if pieces > 0:
-                        parts.append((f"{fmt_pln(piece_spend / pieces, 2)} za szt.", piece_bought, "na sztuki"))
+                        parts.append(
+                            (f"{fmt_pln(piece_spend / pieces, 2)} za szt.", piece_bought, "na sztuki")
+                        )
                     product_summary = count_text(bought, "zakup", "zakupy", "zakupów")
                     if len(parts) == 1:
                         product_summary += f", średnio {parts[0][0]}"
@@ -429,7 +442,9 @@ def create_app(settings: Settings) -> FastAPI:
                         product_summary += ", średnio " + ", ".join(f"{t} ({n} {f})" for t, n, f in parts)
                     if len(parts) == 2 and query.metric == "qty":
                         skipped, form = (piece_bought, "na sztuki") if weighed else (weight_bought, "na wagę")
-                        product_summary += f", bez {count_text(skipped, 'zakupu', 'zakupów', 'zakupów')} {form}"
+                        product_summary += (
+                            f", bez {count_text(skipped, 'zakupu', 'zakupów', 'zakupów')} {form}"
+                        )
                 if query.art_id is None and query.metric == "spend":
                     deposit_chart = build_deposit_chart(series, query.step)
                     totals = history.purchase_totals(query.start, query.end)

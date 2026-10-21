@@ -1235,17 +1235,24 @@ def _seed_mixed(client: TestClient) -> None:
     )
     for i in (0, 1):
         history.save_detail(
-            f"m{i}", "Sklep X", ParsedReceipt(items=[ReceiptItem("444", "Produkt M", 1.5, 6.0, 9.0, is_weight=True)])
+            f"m{i}",
+            "Sklep X",
+            ParsedReceipt(items=[ReceiptItem("444", "Produkt M", 1.5, 6.0, 9.0, is_weight=True)]),
         )
-    history.save_detail("m2", "Sklep X", ParsedReceipt(items=[ReceiptItem("444", "Produkt M", 2.0, 2.0, 4.0)]))
+    history.save_detail(
+        "m2", "Sklep X", ParsedReceipt(items=[ReceiptItem("444", "Produkt M", 2.0, 2.0, 4.0)])
+    )
 
 
 def test_mixed_product_summary_splits_weight_and_pieces(client: TestClient) -> None:
     _seed(client)
     _seed_mixed(client)
     text = client.get("/produkty?zakres=all&produkt=444&miara=sztuki").text
-    assert "3 zakupy, średnio 6,00 zł za kg (2 na wagę), 2,00 zł za szt. (1 na sztuki), bez 1 zakupu na sztuki" in text
-    assert "3 kg" in text  # wykres w kg
+    assert (
+        "3 zakupy, średnio 6,00 zł za kg (2 na wagę), 2,00 zł za szt. (1 na sztuki), bez 1 zakupu na sztuki"
+        in text
+    )
+    assert "Suma w zakresie: <strong>3 kg" in text  # wykres w kg
     spend = client.get("/produkty?zakres=all&produkt=444").text
     assert "6,00 zł za kg (2 na wagę), 2,00 zł za szt. (1 na sztuki)" in spend and "bez 1 zakupu" not in spend
 
@@ -1260,7 +1267,12 @@ def test_product_filter_shows_purchase_count_and_average_price_per_piece(client:
 def test_deposit_chart_only_for_spend_without_product_filter(client: TestClient) -> None:
     _seed(client)
     text = client.get("/produkty?zakres=all").text
-    assert ">Kaucje</p>" in text and "bars--pair" in text and "pobrane</span>" in text and "zwrócone</span>" in text
+    assert (
+        ">Kaucje</p>" in text
+        and "bars--pair" in text
+        and "pobrane</span>" in text
+        and "zwrócone</span>" in text
+    )
     assert "wrzesień 2026: pobrane 5,00" in text
     assert "bars--pair" not in client.get("/produkty?zakres=all&produkt=111").text
     assert "bars--pair" not in client.get("/produkty?zakres=all&miara=sztuki").text
