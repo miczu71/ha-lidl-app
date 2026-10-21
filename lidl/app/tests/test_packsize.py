@@ -27,6 +27,10 @@ from lidl.packsize import base_name, pack_size
         ("Produkt C 10 szt", (10.0, "szt")),
         ("Produkt C 10szt.", (10.0, "szt")),
         ("Produkt C 3x10 szt", (30.0, "szt")),
+        ("Produkt A 100 g x2", (0.2, "kg")),
+        ("Produkt A 125g x4", (0.5, "kg")),
+        ("Napój B 1,5l*6", (9.0, "l")),
+        ("Produkt A 500g XXL", (0.5, "kg")),
     ],
 )
 def test_pack_size(name: str, expected: tuple[float, str]) -> None:
@@ -54,6 +58,9 @@ def test_pack_size_none(name: str) -> None:
         ("Produkt A 500g bio", "produkt a bio"),
         ("  Produkt   A  - 1kg ", "produkt a"),
         ("Skyr 2", "skyr 2"),
+        ("Produkt A 100 g x2", "produkt a"),
+        ("Napój B 1,5l*6", "napój b"),
+        ("Produkt A 500g XXL", "produkt a xxl"),
     ],
 )
 def test_base_name(name: str, expected: str) -> None:

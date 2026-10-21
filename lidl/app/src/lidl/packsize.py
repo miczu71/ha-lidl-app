@@ -7,7 +7,8 @@ _PACK_RE = re.compile(
     r"(?:(?P<mult>\d+)\s*[x×]\s*)?"
     r"(?P<num>\d+(?:[.,]\d+)?)\s*"
     r"(?P<unit>kg|g|ml|cl|l|szt(?:uk)?)"
-    r"(?![^\W\d_])",
+    r"(?![^\W\d_])"
+    r"(?:\s*[x×*]\s*(?P<mult2>\d+)(?![^\W_]))?",
     re.IGNORECASE,
 )
 
@@ -32,6 +33,8 @@ def pack_size(name: str) -> tuple[float, str] | None:
     qty = float(m.group("num").replace(",", ".")) * factor
     if m.group("mult"):
         qty *= int(m.group("mult"))
+    if m.group("mult2"):
+        qty *= int(m.group("mult2"))
     if qty <= 0:
         return None
     return round(qty, 6), base

@@ -876,11 +876,11 @@ def _seed_shrink(client: TestClient) -> None:
     """Produkt A: 500 g po 6,00 zł, potem 450 g po 6,30 zł (kod 777)."""
     history = client.app.state.history  # type: ignore[attr-defined]
     today = date.today()
-    days = (today - timedelta(days=90), today - timedelta(days=20))
+    days = tuple(today - timedelta(days=n) for n in (90, 80, 20, 10))
     history.upsert_tickets(
         "osoba-1", [{"id": f"s{i}", "date": f"{d}T10:00:00+00:00"} for i, d in enumerate(days)]
     )
-    for i, (name, price) in enumerate((("Produkt A 500g", 6.0), ("Produkt A 450g", 6.3))):
+    for i, (name, price) in enumerate((("Produkt A 500g", 6.0),) * 2 + (("Produkt A 450g", 6.3),) * 2):
         history.save_detail(f"s{i}", "S", ParsedReceipt(items=[ReceiptItem("777", name, 1, price, price)]))
 
 
@@ -891,6 +891,7 @@ def test_prices_lists_shrinkflation_and_unit_chart(client: TestClient) -> None:
     section = text[text.index('id="mniej-h"') :]
     assert "500 g → 450 g · 12,00 zł/kg → 14,00 zł/kg" in section and "+16,7%" in section
     assert 'href="/ceny/produkt/777"' in section
+    assert "6,00 zł → 6,30 zł na półce" in section
     product = client.get("/ceny/produkt/777").text
     assert "Cena za kg" in product and 'id="jedn-h"' in product
     assert "Nie znaleźliśmy produktów" not in text

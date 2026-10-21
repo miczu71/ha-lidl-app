@@ -476,10 +476,11 @@ def test_shrinkflation_same_code_smaller_pack_same_price(tmp_path: Path) -> None
         ("2026-06-01", "1", "Produkt A 500g", 6.0),
         ("2026-07-01", "1", "Produkt A 500g", 6.0),
         ("2026-09-01", "1", "Produkt A 450g", 6.3),
+        ("2026-09-15", "1", "Produkt A 450g", 6.3),
     )
     (s,) = h.shrinkflation(TODAY)
     assert (s.art_id, s.name, s.unit, s.old_pack, s.new_pack) == ("1", "Produkt A 450g", "kg", 0.5, 0.45)
-    assert (s.old_shelf, s.new_shelf, s.day, s.spend) == (6.0, 6.3, "2026-09-01", 18.3)
+    assert (s.old_shelf, s.new_shelf, s.day) == (6.0, 6.3, "2026-09-01")
     assert (s.old_unit, s.new_unit, s.pct) == (12.0, 14.0, 16.7)
 
 
@@ -487,17 +488,37 @@ def test_shrinkflation_joins_codes_with_the_same_base_name(tmp_path: Path) -> No
     h = _shrink(
         tmp_path,
         ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-07-01", "1", "Produkt A 500g", 6.0),
         ("2026-09-01", "2", "Produkt A 450g", 6.0),
+        ("2026-09-15", "2", "Produkt A 450g", 6.0),
     )
     (s,) = h.shrinkflation(TODAY)
     assert (s.art_id, s.day, s.pct) == ("2", "2026-09-01", 11.1)
+
+
+def test_shrinkflation_needs_two_purchases_before_and_after(tmp_path: Path) -> None:
+    before = _shrink(
+        tmp_path / "b",
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "1", "Produkt A 450g", 6.3),
+        ("2026-09-15", "1", "Produkt A 450g", 6.3),
+    )
+    after = _shrink(
+        tmp_path / "a",
+        ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-07-01", "1", "Produkt A 500g", 6.0),
+        ("2026-09-01", "1", "Produkt A 450g", 6.3),
+    )
+    assert before.shrinkflation(TODAY) == [] and after.shrinkflation(TODAY) == []
 
 
 def test_shrinkflation_ignores_other_base_name(tmp_path: Path) -> None:
     h = _shrink(
         tmp_path,
         ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-07-01", "1", "Produkt A 500g", 6.0),
         ("2026-09-01", "2", "Produkt B 450g", 6.0),
+        ("2026-09-15", "2", "Produkt B 450g", 6.0),
     )
     assert h.shrinkflation(TODAY) == []
 
@@ -506,7 +527,9 @@ def test_shrinkflation_ignores_lower_unit_price(tmp_path: Path) -> None:
     h = _shrink(
         tmp_path,
         ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-07-01", "1", "Produkt A 500g", 6.0),
         ("2026-09-01", "1", "Produkt A 450g", 5.0),
+        ("2026-09-15", "1", "Produkt A 450g", 5.0),
     )
     assert h.shrinkflation(TODAY) == []
 
@@ -515,9 +538,13 @@ def test_shrinkflation_ignores_two_sizes_sold_side_by_side(tmp_path: Path) -> No
     h = _shrink(
         tmp_path,
         ("2026-06-01", "1", "Produkt A 500g", 6.0),
+        ("2026-06-15", "1", "Produkt A 500g", 6.0),
         ("2026-07-01", "1", "Produkt A 450g", 6.3),
+        ("2026-07-15", "1", "Produkt A 450g", 6.3),
         ("2026-08-01", "1", "Produkt A 500g", 6.0),
+        ("2026-08-15", "1", "Produkt A 500g", 6.0),
         ("2026-09-01", "1", "Produkt A 450g", 6.3),
+        ("2026-09-15", "1", "Produkt A 450g", 6.3),
     )
     assert h.shrinkflation(TODAY) == []
 
@@ -526,7 +553,9 @@ def test_shrinkflation_ignores_bigger_pack(tmp_path: Path) -> None:
     h = _shrink(
         tmp_path,
         ("2026-06-01", "1", "Produkt A 450g", 6.0),
+        ("2026-07-01", "1", "Produkt A 450g", 6.0),
         ("2026-09-01", "1", "Produkt A 500g", 6.3),
+        ("2026-09-15", "1", "Produkt A 500g", 6.3),
     )
     assert h.shrinkflation(TODAY) == []
 
@@ -543,7 +572,9 @@ def test_shrinkflation_ignores_transition_older_than_a_year(tmp_path: Path) -> N
     h = _shrink(
         tmp_path,
         ("2025-01-01", "1", "Produkt A 500g", 6.0),
+        ("2025-01-15", "1", "Produkt A 500g", 6.0),
         ("2025-02-01", "1", "Produkt A 450g", 6.3),
+        ("2025-02-15", "1", "Produkt A 450g", 6.3),
     )
     assert h.shrinkflation(TODAY) == []
 

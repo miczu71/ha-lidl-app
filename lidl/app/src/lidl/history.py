@@ -370,7 +370,6 @@ class Shrink:
     old_shelf: float  # mediana ceny półkowej serii przed i po zmianie
     new_shelf: float
     day: str  # pierwszy zakup nowej gramatury
-    spend: float  # zapłacono za grupę w 365 dni
 
     @property
     def old_unit(self) -> float:
@@ -642,6 +641,9 @@ def _spend_split(rows: list[_PriceRow], today: date, compared: set[str]) -> dict
     return out
 
 
+SHRINK_MIN_RUN = 2  # tyle zakupów musi mieć przebieg przed i po zmianie gramatury
+
+
 def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
     """Produkty, w których opakowanie zmalało (0,5–1× poprzedniej gramatury) przy cenie półkowej nie niższej
     niż przedtem; w ostatnich 365 dniach. Grupa = kody o tej samej `base_name`; `rows` posortowane po dniu."""
@@ -675,6 +677,8 @@ def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
             old, new = runs[i - 1], runs[i]
             (old_pack, unit), (new_pack, new_unit) = old[0][1], new[0][1]
             changed = new[0][0][2]
+            if len(old) < SHRINK_MIN_RUN or len(new) < SHRINK_MIN_RUN:
+                continue
             if unit != new_unit or not 0.5 <= new_pack / old_pack < 1 or changed <= year:
                 continue
             old_shelf = statistics.median(r[0][3] for r in old)
@@ -686,7 +690,6 @@ def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
             ):
                 continue
             last = members[-1][0]
-            spend = sum(m[0][4] for m in members if m[0][2] > year)
             found.append(
                 Shrink(
                     last[0],
@@ -697,7 +700,6 @@ def _shrinkflation(rows: list[_PriceRow], today: date) -> list[Shrink]:
                     old_shelf,
                     new_shelf,
                     changed.isoformat(),
-                    round(spend, 2),
                 )
             )
             break  # najwyżej jedno (najnowsze) przejście na grupę

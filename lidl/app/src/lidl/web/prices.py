@@ -65,7 +65,6 @@ def shrink_rows(items: list[Shrink], href: Callable[[str], str]) -> list[dict[st
                 "href": href(s.art_id),
                 "prices": f"{packs} · {fmt_pln(s.old_unit, 2)}/{s.unit} → {fmt_pln(s.new_unit, 2)}/{s.unit} · od {fmt_date(date.fromisoformat(s.day))}",
                 "shelf": f"{fmt_pln(s.old_shelf, 2)} → {fmt_pln(s.new_shelf, 2)} na półce",
-                "date": fmt_date(date.fromisoformat(s.day)),
                 "delta": delta(s.pct),
             }
         )

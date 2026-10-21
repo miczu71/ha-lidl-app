@@ -15,7 +15,7 @@
 
 {# Wiersz zmiany ceny (E7): cały wiersz prowadzi do wykresu produktu; `r` = prices.price_rows() #}
 {% macro price_row(r, spend=false) %}
-<li><a class="pr" href="{{ r.href }}"><span class="pr__name">{{ r.name }}</span><span class="pr__meta"><span>{{ r.prices }}</span>{% if spend %}<span>{{ r.spend }}</span>{% endif %}</span>{% set d = r.delta %}{% include "_delta.html" %}</a></li>
+<li><a class="pr" href="{{ r.href }}"><span class="pr__name">{{ r.name }}</span><span class="pr__meta"><span>{{ r.prices }}</span>{% if spend %}<span>{{ r.spend }}</span>{% endif %}{% if r.shelf %}<span>{{ r.shelf }}</span>{% endif %}</span>{% set d = r.delta %}{% include "_delta.html" %}</a></li>
 {% endmacro %}
 
 {# Wiersz paragonu albo zakupu (E8): cały wiersz prowadzi do paragonu; kwota po prawej, rabaty (`notes`) na zielono #}
