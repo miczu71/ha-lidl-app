@@ -59,10 +59,26 @@ wywołań Jev/AI, nowych zależności.
 - DONE: testy dla ≥15 form nazw (w tym brak gramatury → None, skróty „Winog.jas.bezp.500g”), pytest i mypy zielone.
 
 ### E25.2 E12 (a, b, d)
-- Pliki: `history.py` (`ranking`, zapytania wykresu), `web/products.py`, szablony Produktów, testy `test_history.py`/`test_web.py`.
-- Zmiana: jednostka kg/szt. wg `items.is_weight` zamiast mieszanej „Sztuki”; przy filtrze produktu liczba zakupów i średnia cena
-  w zakresie; kaucje pobrane/zwrócone w czasie na wykresie obok wydatków.
-- DONE: testy dla każdego z trzech punktów, pytest i mypy zielone, strona Produktów renderuje się na danych demo.
+- Pliki: `lidl/app/src/lidl/history.py` (`SpendBucket`, `spend_series`), `web/chart.py` (`build_chart`, nowy `build_deposit_chart`),
+  `web/app.py` (widok `/produkty`, ok. l.400–425), `web/templates/products.html` (miara l.138–139, podsumowanie l.159, wykres l.151–157),
+  testy `tests/test_history.py`, `tests/test_chart.py`, `tests/test_web.py` (istniejące pliki; nowe testy obok testów `spend_series`/`build_chart`).
+- (a) Jednostka: `SpendBucket.quantity` = TYLKO sztuki (`items.is_weight = 0`); nowe pole `weight: float` (kg, `is_weight = 1`;
+  ilość pozycji ważonej to kg — sprawdź w `web/receipts.py` ~l.88). `build_chart(buckets, step, metric, unit="szt.")`: `unit` "szt." → słupki
+  z `quantity`, "kg" → z `weight`; sufiks i aria z jednostką. W `app.py`: gdy `query.art_id` i produkt ważony (suma `weight` > 0 w serii) → "kg",
+  inaczej "szt."; bez filtra produktu → "szt." (podpis przy sumie: „bez produktów na wagę”). Etykieta radia „Sztuki” → „Ilość” (wartość `sztuki` w URL bez zmian).
+- (d) Filtr produktu (`query.art_id`, dowolna miara): w podsumowaniu (l.159) dopisz „{N zakup/zakupy/zakupów}, średnio {X zł} za szt./kg”:
+  N = suma `purchases` z serii, X = suma `spend` / suma ilości (ważona), `count_text` + `fmt_pln(…, 2)`; przy ilości 0 pomiń cenę.
+- (b) Kaucje w czasie: `SpendBucket` dostaje `charged`, `refunded` (z `tickets.deposit_charged/refunded`, tylko `t.parsed = 1 AND t.detail_version >= PARSER_VERSION`,
+  tak jak `purchase_totals`; dodaj w `spend_series` osobne zapytanie po `tickets`, kubełki jak dla pozycji; ZAWSZE liczone dla całego domu —
+  przy filtrze produktu zera). `build_deposit_chart(buckets, step) -> Chart | None`: osobny wykres pod głównym, własna oś, w każdej kolumnie dwa wąskie
+  słupki (pobrane / zwrócone), `None` gdy wszystkie zera; pokazywany tylko dla miary wydatki bez filtra produktu; z podpisem „Kaucje: pobrane / zwrócone”
+  i aria-label obu wartości. Styl: istniejące klasy `bars*`; dodaj minimalny CSS wariantu `bars--pair` w pliku CSS add-onu, bez nowych kolorów poza tokenami.
+- Test: `cd lidl/app && UV_LINK_MODE=copy uv run --extra dev pytest -q tests/test_history.py tests/test_chart.py tests/test_web.py`, potem `uv run --extra dev mypy src`.
+  (pełny zestaw ~235 s — uruchamiam sam po zakończeniu).
+- DONE: testy: (a) produkt ważony w jednym kubełku i sztukowy w innym nie mieszają się, filtr ważonego daje kg; (d) liczba zakupów i średnia cena
+  przy filtrze (wartości policzone ręcznie w teście); (b) kaucje w kubełkach, `None` przy zerach, brak przy filtrze produktu; strona `/produkty` renderuje
+  się 200 na danych demo; pytest wskazanych plików i mypy zielone. Dane testowe neutralne („Produkt A”).
+- NIE RÓB: zmian schematu bazy, innych plików/zakładek (Ceny, Paragony), `config.yaml`/`pyproject.toml`, commitów, nowych zależności, przeformatowania sąsiedniego kodu.
 
 ### E25.3 E18
 - Pliki: `history.py` (`History.shrinkflation()`, cache `_cached`), moduł Cen w `web/`, szablony Cen, testy.
