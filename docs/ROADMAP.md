@@ -271,7 +271,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
 
 - **E25 Gramatura: E12 (a, b, d) + E18 shrinkflation** (wywiad 2026-10-21, plan `docs/PLAN_E25_gramatura.md`): gramatura z nazwy
   regexem (bez Jev/AI), sekcja „Mniej w opakowaniu” w Cenach, cena za kg/l na wykresie, jednostki kg/szt. w Produktach, kaucje
-  w czasie, zakupy i średnia cena przy filtrze. Podetapy: E25.0 docs ✅, E25.1 gramatura, E25.2 E12, E25.3 E18, E25.4 wydanie 0.22.0.
+  w czasie, zakupy i średnia cena przy filtrze. Podetapy: E25.0 docs ✅ (240f754), E25.1 gramatura ✅ (99478f5: `packsize.py`, 34 testy, zestaw 408 OK, mypy czysty; verifier ACCEPT), E25.2 E12, E25.3 E18, E25.4 wydanie 0.22.0.
   E12(c) płatności zostaje poza zakresem.
 
 ## Ryzyka
