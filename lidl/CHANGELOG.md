@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.22.1
+
+- **Produkt na wagę i na sztuki:** przy produkcie sprzedawanym w obu formach podsumowanie pokazuje osobno średnią
+  cenę za kg i za szt. (z liczbą zakupów każdej formy); wykres w tej jednostce, w której wydano więcej.
+- **Gramatura:** rozpoznaje mnożnik po rozmiarze („100 g x2”, „1,5l*6”), nie myli go z „x 40%” ani z ułamkiem.
+- **„Mniej w opakowaniu”:** zmiana liczy się, gdy przed i po były co najmniej 2 dni zakupu (mniej fałszywych
+  alarmów); w wierszu jest cena półkowa przed i po.
+- **Kaucje w czasie:** legenda i zielony słupek dla zwrotów zamiast półprzezroczystego.
+- Naprawione sprawdzanie stylu kodu w CI (bez zmian w działaniu).
+
 ## 0.22.0
 
 - **Gramatura z nazwy produktu (E25):** add-on odczytuje gramaturę (g, kg, ml, l, szt., także „2x500 g”) z nazwy
