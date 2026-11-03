@@ -145,7 +145,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     E19.1 dane ✅, E19.2 strona ✅ (bez osobnej makiety — user: bez checkpointów; zweryfikowana w przeglądarce
     na danych demo), E19.3 push ✅, E19.4 wydanie 0.16.0. Ustalenie: HA ignoruje podstronę w `/app/<slug>/…`
     (sprawdzone na żywo), więc dotknięcie powiadomienia otwiera Konta — tam przez 7 dni link do podsumowania;
-    bieżący miesiąc bez porównań i miejsca do jego końca. Do sprawdzenia: push 2026-11-01 10:00.
+    bieżący miesiąc bez porównań i miejsca do jego końca. ✅ Push 2026-11-01 10:00 wysłany (Status: „Podsumowanie 2026-10: wysłane”, sprawdzone 2026-11-03).
   - **E20 Zdrapki, progi nagród, Pieczątka Plus:** postęp do progu („brakuje 23 zł do nagrody”), przypomnienie
     o niezdrapanych zdrapkach i ich ważności. **Najpierw rozpoznanie:** czy API (biblioteka upstream lub ruch
     aplikacji) udostępnia te dane; bez tego etap odpada. Wstępne rozpoznanie (2026-10-07): klienci open source tego
@@ -209,7 +209,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   bo aktywuje je E3; dziś 4 zwykłe obniżki na lidl.pl + 16 ofert sklepu, 1 trafienie w nasze produkty),
   E4.2 próba AI ✅ (2026-10-08: tekst PDF niewystarczający, obrazy Gemini najlepsze; limity darmowe 20 zapytań/dzień
   na model Gemini Flash), E4.3 AI w add-onie ✅ wydane (0.9.0 + 0.9.1, 2026-10-08: obrazy stron w paczkach po 5,
-  kolejka modeli, postęp w bazie) — czeka weryfikacja pełnego przebiegu gazetki i pierwszej porannej linii z gazetki. **0.12.2 (2026-10-08, diagnoza):** (1) lidl.pl odpowiadał 401 na KAŻDE
+  kolejka modeli, postęp w bazie) — ✅ zweryfikowane 2026-11-03: gazetki 22.10, 26.10, 29.10 i 2.11 przetworzone w całości (17–19 paczek, pojedyncze HTTP 502 ponawiane), poranne przebiegi z liczbą promocji i powiadomieniem. **0.12.2 (2026-10-08, diagnoza):** (1) lidl.pl odpowiadał 401 na KAŻDE
   zapytanie add-onu przez `Accept: application/json` (CDN cache'uje 200 na 5 min bez względu na Accept, stąd pozorna
   losowość) — lidl.pl pytamy bez `Accept`; (2) poranna linia brała tylko promocje ze startem dziś, więc gazetka
   przetworzona po 07:00 dnia startu przepadała — teraz „Nowe promocje” = trwające i jeszcze niezgłoszone (klucze `m:`
