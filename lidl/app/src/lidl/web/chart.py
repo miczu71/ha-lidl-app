@@ -214,13 +214,13 @@ def build_savings_chart(months: list[SavingsMonth]) -> Chart | None:
     if not any(m.coupons or m.promos for m in months):
         return None
     by_month = {m.month: m for m in months}
-    y, mo = map(int, min(by_month).split("-"))
-    last_y, last_mo = map(int, max(by_month).split("-"))
+    d = date.fromisoformat(min(by_month) + "-01")
+    last = date.fromisoformat(max(by_month) + "-01")
     series: list[tuple[date, float, float]] = []
-    while (y, mo) <= (last_y, last_mo):
-        m = by_month.get(f"{y:04d}-{mo:02d}")
-        series.append((date(y, mo, 1), m.coupons if m else 0.0, m.promos if m else 0.0))
-        y, mo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+    while d <= last:
+        m = by_month.get(d.strftime("%Y-%m"))
+        series.append((d, m.coupons if m else 0.0, m.promos if m else 0.0))
+        d = _next_month(d)
     axis_max = _nice_axis_max(max(c + p for _, c, p in series))
     every = max(1, math.ceil(len(series) / 6))  # wąskie kolumny: mało etykiet, żeby się nie zlewały
     bars = [

@@ -38,7 +38,7 @@
       <span class="pr__name">{{ r.name }}</span>
       <span class="pr__meta">
         <span{% if r.repeat %} class="sv-rep"{% endif %}>użyty {{ r.uses }}</span>
-        {% if r.uses != '1×' %}<span>średnio {{ r.average }}</span>{% endif %}
+        {% if r.repeat %}<span>średnio {{ r.average }}</span>{% endif %}
         <span>ostatnio {{ r.last }}</span>
         {% if r.title %}<span class="sv-title">{{ r.title }}{% if r.discount %} · {{ r.discount }}{% endif %}</span>{% endif %}
       </span>

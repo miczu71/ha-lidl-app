@@ -1900,7 +1900,11 @@ class History:
     def savings_breakdown(self, f: ReceiptFilter | None = None) -> Savings:
         """Kupony i promocje (zł, dodatnie) z pozycji paragonów w zakresie `f` (E27): produkty z kuponami,
         rodzaje promocji, trend miesięczny. Kupony ogólne (różnica nagłówka i pozycji) osobno, poza sumami."""
-        where, args = _receipt_where(f or ReceiptFilter())
+        f = f or ReceiptFilter()
+        return self._cached(("savings", f), lambda: self._savings_breakdown(f))
+
+    def _savings_breakdown(self, f: ReceiptFilter) -> Savings:
+        where, args = _receipt_where(f)
         ticket_rows = self._db.execute(
             f"SELECT t.id, t.day, t.total, t.savings, t.detail_fetched FROM tickets t WHERE 1 = 1{where}",
             args,

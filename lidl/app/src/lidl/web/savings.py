@@ -49,7 +49,7 @@ def _coupon_view(r: CouponRow, href: Callable[[str], str]) -> CouponView:
         href=href(r.art_id),
         amount=fmt_pln(r.amount, 2),
         uses=f"{r.uses}×",
-        average=fmt_pln(r.amount / r.uses, 2) if r.uses else "",
+        average=fmt_pln(r.amount / r.uses, 2),
         last=fmt_date(date.fromisoformat(r.last_day)),
         title=r.title,
         discount=r.discount,
