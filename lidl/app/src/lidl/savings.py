@@ -9,7 +9,10 @@ from dataclasses import dataclass
 COUPON_LABELS = frozenset({"lidl plus kupon", "lidl plus voucher"})
 GROUP_OTHER = "Inne"
 GROUP_MULTI = "Kilka promocji naraz"
-_PERCENT = re.compile(r"rabat -\d+(?:[.,]\d+)?%")
+GROUP_CODE = "Kody promocji (stary format paragonu)"
+_PERCENT = re.compile(r"rabat -?\d+(?:[.,]\d+)?%|\d+(?:[.,]\d+)?% taniej")
+_GRATIS = re.compile(r"\d+ ?\+ ?\d+ gratis")
+_CODE = re.compile(r"\d+_\S*")
 _TANIEJ = re.compile(r"taniej za \d+")
 
 
@@ -32,6 +35,10 @@ def classify_promo(label: str) -> tuple[str, str]:
     key = _norm(label)
     if _PERCENT.fullmatch(key):
         return "Rabat procentowy", exact
+    if _GRATIS.fullmatch(key):
+        return "Gratis", exact
+    if _CODE.fullmatch(key):  # wewnętrzny kod ze starego formatu paragonu: bez treści, więc jedna pozycja
+        return GROUP_CODE, "Kod promocji"
     if key == "rabat grupowy":
         return "Rabat grupowy", exact
     if _TANIEJ.fullmatch(key):

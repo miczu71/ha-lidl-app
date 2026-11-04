@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.1
+
+- **Oszczędności — rodzaje promocji:** na żywo „Inne” obejmowało 67% promocji, głównie wewnętrzne kody ze starego
+  formatu paragonu. Teraz kody trafiają do jednej pozycji „Kody promocji (stary format paragonu)”, a „N% taniej”,
+  „RABAT N%” do „Rabat procentowy”; nowa grupa „Gratis” (np. „1+1 gratis”).
+
 ## 0.23.0
 
 - **Zakładka „Oszczędności” (E27):** ile dały kupony Lidl Plus i promocje na pozycjach paragonów — suma, udział
