@@ -260,10 +260,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     na żywo 15 z 15 sklepów ze współrzędnymi, 524 z 524 paragonów z godziną, wizyty sklepu = liczba paragonów
     w Paragonach z jego filtrem (262 = 262). Jeden paragon ma godzinę 01:46 (dane Lidla), więc heatmapa „Cała
     historia” zaczyna się od 1:00. Do decyzji: nazwa sklepu powtarza adres („Miasto A, ul. X” + „X, kod Miasto A”).
-  - **Analiza kuponów i promocji** (pierwotny opis E11; zakres E11 zmieniony 2026-10-07 na listę produktów
-    kuponowych — poniższe zostaje jako opcjonalne rozszerzenie później): które kupony faktycznie wykorzystujemy i jak często (`ticket_coupons`: tytuł, opis, rabat),
-    ile dają złotówek, jakie promocje cenowe łapiemy („Rabat grupowy”, „Taniej za 2”, opisy rabatów przy pozycjach `items.promo`),
-    kupony z wielokrotnym użyciem. Wejście dla E3: wiemy, na czym oszczędzamy dziś, zanim add-on zacznie aktywować kupony.
+  - **E27 Zakładka „Oszczędności” (analiza kuponów i promocji)** (wywiad 2026-11-04; plan: `docs/PLAN_E27_oszczednosci.md`;
+    zastępuje pierwotny opis E11): ciekawostka bez powiadomień; filtry jak w Rytmie (konto, 12 mies./cała historia), KPI, trend
+    miesięczny kupony + promocje (stos), ranking kuponów po produkcie z kolumną „użyty N×” (kupony wielokrotne),
+    rodzaje promocji w grupach z rozwinięciem. Bez migracji. Podetapy: E27.0 docs, E27.1 dane (`savings.py`, `History.savings`),
+    E27.2 strona `/oszczednosci`, E27.3 wydanie 0.23.0.
   - **E12 Drobne usprawnienia ekranu Produkty:** (a) miara „Sztuki” mieszała kilogramy ze sztukami — rozdzielić po `items.is_weight`
     (jednostka przy produkcie: kg albo szt.); (b) kaucje w czasie (pobrane/zwrócone) na wykresie obok wydatków; (c) struktura płatności
     (`tickets.payment`) gdy pojawi się więcej niż jedna metoda; (d) przy filtrze na produkt pokazać też liczbę zakupów i średnią cenę
