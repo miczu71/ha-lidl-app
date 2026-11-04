@@ -27,6 +27,16 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from .packsize import base_name, pack_size
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
+from .savings import (
+    CouponRow,
+    PromoGroup,
+    Savings,
+    SavingsMonth,
+    is_coupon_label,
+    match_title,
+    promo_group,
+    split_promo,
+)
 from .text import matches, month_bounds
 
 if TYPE_CHECKING:
@@ -1886,6 +1896,95 @@ class History:
                 visits[key] += 1
                 spend[key] += t.total
         return Rhythm(dict(visits), {k: round(v, 2) for k, v in spend.items()}, tickets)
+
+    def savings_breakdown(self, f: ReceiptFilter | None = None) -> Savings:
+        """Kupony i promocje (zł, dodatnie) z pozycji paragonów w zakresie `f` (E27): produkty z kuponami,
+        rodzaje promocji, trend miesięczny. Kupony ogólne (różnica nagłówka i pozycji) osobno, poza sumami."""
+        where, args = _receipt_where(f or ReceiptFilter())
+        ticket_rows = self._db.execute(
+            f"SELECT t.id, t.day, t.total, t.savings, t.detail_fetched FROM tickets t WHERE 1 = 1{where}",
+            args,
+        ).fetchall()
+        items = self._db.execute(
+            "SELECT t.id, t.day, i.art_id, i.name, i.discount, i.coupon, i.promo FROM items i"
+            f" JOIN tickets t ON t.id = i.ticket_id WHERE 1 = 1{where} ORDER BY t.day, t.id, i.line",
+            args,
+        ).fetchall()
+        coupons: defaultdict[str, list[dict[str, str]]] = defaultdict(list)
+        for tid, title, coupon_title, description, discount in self._db.execute(
+            "SELECT c.ticket_id, c.title, c.coupon_title, c.description, c.discount FROM ticket_coupons c"
+            f" JOIN tickets t ON t.id = c.ticket_id WHERE 1 = 1{where} ORDER BY c.ticket_id, c.line",
+            args,
+        ):
+            coupons[tid].append(
+                {
+                    "title": title,
+                    "coupon_title": coupon_title,
+                    "description": description,
+                    "discount": discount,
+                }
+            )
+        resolve = self._resolver()
+        months: dict[str, list[float]] = {}  # miesiąc → [kupony, promocje]
+        products: dict[str, list[Any]] = {}  # kod → [nazwa, kwota, paragony, ostatni dzień, tytuł, rabat]
+        groups: defaultdict[str, defaultdict[str, float]] = defaultdict(lambda: defaultdict(float))
+        item_discount: defaultdict[str, float] = defaultdict(float)
+        coupons_sum = promos_sum = 0.0
+        for tid, day, art_id, name, discount, coupon, promo in items:
+            coupon_amt = -coupon
+            promo_amt = -discount - coupon_amt  # `discount` zawiera kupony (jak w SavingsKpi)
+            coupons_sum += coupon_amt
+            promos_sum += promo_amt
+            item_discount[tid] -= discount
+            month = months.setdefault(day[:7], [0.0, 0.0])
+            month[0] += coupon_amt
+            month[1] += promo_amt
+            if coupon:
+                row = products.setdefault(resolve(art_id, name), [name, 0.0, set(), "", None, None])
+                row[0], row[1] = name, row[1] + coupon_amt
+                row[2].add(tid)
+                row[3] = max(row[3], day)
+                matched = match_title(name, coupons.get(tid, []))
+                if matched:
+                    row[4], row[5] = matched["title"], matched["discount"]
+            if promo_amt:
+                labels = [p for p in split_promo(promo) if not is_coupon_label(p)]
+                group, label = promo_group(labels)
+                groups[group][label] += promo_amt
+        general = 0.0
+        spend = 0.0
+        for tid, day, total, savings, fetched in ticket_rows:
+            spend += total
+            months.setdefault(day[:7], [0.0, 0.0])
+            if fetched:  # paragon bez szczegółów nie ma pozycji, więc jego nagłówek nie jest rozbity
+                general += max(0.0, savings - item_discount.get(tid, 0.0))
+        coupon_rows = [
+            CouponRow(key, row[0], round(row[1], 2), len(row[2]), row[3], row[4], row[5])
+            for key, row in products.items()
+        ]
+        coupon_rows.sort(key=lambda r: -r.amount)
+        promo_groups = [
+            PromoGroup(
+                name,
+                round(sum(labels.values()), 2),
+                [
+                    (label, round(amount, 2))
+                    for label, amount in sorted(labels.items(), key=lambda kv: -kv[1])
+                ],
+            )
+            for name, labels in groups.items()
+        ]
+        promo_groups.sort(key=lambda g: -g.amount)
+        return Savings(
+            coupons_total=round(coupons_sum, 2),
+            promos_total=round(promos_sum, 2),
+            spend_total=round(spend, 2),
+            months=[SavingsMonth(m, round(c, 2), round(p, 2)) for m, (c, p) in sorted(months.items())],
+            coupon_rows=coupon_rows,
+            general_coupons_amount=round(general, 2),
+            repeat_products=sum(1 for r in coupon_rows if r.uses >= 2),
+            groups=promo_groups,
+        )
 
     def ticket(self, ticket_id: str) -> TicketDetail | None:
         """Paragon z pozycjami (kod produktu po moście nazw) i użytymi kuponami."""
