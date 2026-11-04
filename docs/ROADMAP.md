@@ -265,6 +265,10 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     miesięczny kupony + promocje (stos), ranking kuponów po produkcie z kolumną „użyty N×” (kupony wielokrotne),
     rodzaje promocji w grupach z rozwinięciem. Bez migracji. Podetapy: E27.0 docs, E27.1 dane (`savings.py`, `History.savings`),
     E27.2 strona `/oszczednosci`, E27.3 wydanie 0.23.0.
+    **E27.0 docs ✅ (1c0272e, 6971a30: decyzja B — kupony ogólne poza sumami). E27.1 dane ✅ (c3a383c; `savings.py`, `History.savings_breakdown`,
+    20 nowych testów, pełny zestaw 461 OK, mypy i ruff czyste; haiku-worker, claimcheck bez punktów, verifier REJECT → poprawka asercji
+    mypy w testach → potwierdzone przez rodzica). NIEBLOKUJĄCE: `general_coupons_amount` tylko z paragonów `detail_fetched=1`
+    (odstępstwo od B, rozsądne); asercja `zero` w teście kuponów ogólnych słaba; brak testu filtra `store`.** Następny: E27.2.
   - **E12 Drobne usprawnienia ekranu Produkty:** (a) miara „Sztuki” mieszała kilogramy ze sztukami — rozdzielić po `items.is_weight`
     (jednostka przy produkcie: kg albo szt.); (b) kaucje w czasie (pobrane/zwrócone) na wykresie obok wydatków; (c) struktura płatności
     (`tickets.payment`) gdy pojawi się więcej niż jedna metoda; (d) przy filtrze na produkt pokazać też liczbę zakupów i średnią cenę
