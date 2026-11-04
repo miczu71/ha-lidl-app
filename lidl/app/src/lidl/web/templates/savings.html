@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Oszczędności — Lidl Plus{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Oszczędności</h1>
+  <p class="lead">Ile dały kupony i promocje, które i jak często.</p>
+</div>
+
+{% if not has_history %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Brak historii zakupów. Pobierz ją w zakładce Produkty.</span>
+</p>
+{% else %}
+<div class="stack" hx-get="{{ base }}/oszczednosci" hx-trigger="change" hx-include="#filtry-oszczednosci" hx-target="#oszczednosci-wyniki" hx-select="#oszczednosci-wyniki" hx-swap="outerHTML" hx-indicator="#oszczednosci-wyniki" hx-replace-url="true" hx-sync="this:replace">
+<form class="ctl" id="filtry-oszczednosci" method="get" action="{{ base }}/oszczednosci">
+  {% if accounts|length > 1 %}
+  <fieldset>
+    <legend>Konto</legend>
+    <div class="seg seg--narrow">
+      <label><input type="radio" name="konto" value=""{% if not f.account %} checked{% endif %}><span>Wszystkie</span></label>
+      {% for slug, label in accounts.items() %}<label><input type="radio" name="konto" value="{{ slug }}"{% if f.account == slug %} checked{% endif %}><span>{{ label }}</span></label>{% endfor %}
+    </div>
+  </fieldset>
+  {% endif %}
+  <fieldset>
+    <legend>Okres</legend>
+    <div class="seg seg--narrow">
+      <label><input type="radio" name="okres" value=""{% if f.start %} checked{% endif %}><span>Ostatnie 12 mies.</span></label>
+      <label><input type="radio" name="okres" value="all"{% if not f.start %} checked{% endif %}><span>Cała historia</span></label>
+    </div>
+  </fieldset>
+  <noscript><div><button class="ds-btn" type="submit">Pokaż</button></div></noscript>
+</form>
+{% include "_savings_results.html" %}
+</div>
+{% endif %}
+{% endblock %}

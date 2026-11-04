@@ -536,3 +536,20 @@ a.st:hover .st__name { color: var(--blue); text-decoration: underline; text-unde
 .tl__day + .tl__i { border-top: 0; }
 .tl__i .lv { padding-top: 1px; }
 .tl__t, .tl__d { color: var(--ink-muted); }
+
+/* Oszczędności (E27): słupki w stosie (promocje na kuponach), ranking kuponów, grupy promocji */
+.bars--stack { gap: 1px; }
+.plot:has(.bars--stack) .xl { gap: 1px; overflow: hidden; }
+.bars--stack .bars__col { flex-direction: column; justify-content: flex-end; }
+.bars--stack .bars__bar { flex: none; border-radius: 0; min-height: 0; }
+.bars--stack .bars__bar:first-child { background: var(--green); border-radius: 4px 4px 0 0; }
+.sv-list { margin: 0; padding: 0; list-style: none; }
+.sv-rep { color: var(--green-deep); font-weight: 700; }
+.sv-title { white-space: normal !important; }
+.sv-group { border-top: 1.5px solid var(--line); }
+.sv-group:first-child { border-top: 0; }
+.sv-labels { margin: 0 0 var(--space-3); padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-1); }
+.sv-labels li { display: flex; justify-content: space-between; gap: var(--space-3); color: var(--ink-muted); font: 400 14px/20px var(--font-sans); font-variant-numeric: tabular-nums; }
+.sv-labels li span:first-child { overflow-wrap: anywhere; }
+.sv-total { margin: 0; }
+.sv-group > summary .pr__amt { margin-left: auto; }

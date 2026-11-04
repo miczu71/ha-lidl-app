@@ -1,0 +1,69 @@
+<div id="oszczednosci-wyniki" class="live stack">
+{% if not chart %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>W tym okresie nie ma rabatów na pozycjach. Wybierz „Cała historia”.</span>
+</p>
+{% else %}
+<section class="card" aria-labelledby="razem-h">
+  <h2 class="s" id="razem-h">Razem zaoszczędzone</h2>
+  <p class="kpi__num sv-total">{{ view.total }}</p>
+  <dl class="facts">
+    <div><dt>Kupony</dt><dd class="save">{{ view.coupons }}</dd></div>
+    <div><dt>Promocje</dt><dd class="save">{{ view.promos }}</dd></div>
+    {% if view.percent %}<div><dt>Rabaty w zakupach</dt><dd>{{ view.percent }}</dd></div>{% endif %}
+  </dl>
+  {% if view.general %}<p class="sum">Poza tym <strong>{{ view.general }}</strong> to kupony na cały paragon (bez przypisania do produktu) — nie wchodzą do sum powyżej.</p>{% endif %}
+</section>
+
+<section class="card" aria-labelledby="trend-h">
+  <h2 class="s" id="trend-h">Miesiąc po miesiącu</h2>
+  <p class="legend"><span><i aria-hidden="true"></i>kupony</span><span><i aria-hidden="true"></i>promocje</span></p>
+  <div class="plot">
+    <div class="yl" aria-hidden="true">{% for t in chart.ticks %}<span>{{ t }}</span>{% endfor %}</div>
+    <div class="bars bars--stack">
+      {% for b in chart.bars %}<div class="bars__col" role="img" aria-label="{{ b.aria }}"><div class="bars__bar" style="height: {{ b.height2 }}"></div><div class="bars__bar" style="height: {{ b.height }}"></div></div>{% endfor %}
+    </div>
+    <div class="xl" aria-hidden="true">{% for b in chart.bars %}<span>{{ b.label }}</span>{% endfor %}</div>
+  </div>
+  <p class="sum">Średnio <strong>{{ chart.average }}</strong> {{ chart.per }}.</p>
+</section>
+
+<section class="card" aria-labelledby="kupony-h">
+  <h2 class="s" id="kupony-h">Kupony według produktu</h2>
+  {% if view.rows %}
+  <p class="sum">{{ view.repeat }} z kuponem użytym co najmniej 2 razy.</p>
+  <ol class="sv-list">
+    {% for r in view.rows %}<li><a class="pr pr--amt" href="{{ r.href }}">
+      <span class="pr__name">{{ r.name }}</span>
+      <span class="pr__meta">
+        <span{% if r.repeat %} class="sv-rep"{% endif %}>użyty {{ r.uses }}</span>
+        {% if r.uses != '1×' %}<span>średnio {{ r.average }}</span>{% endif %}
+        <span>ostatnio {{ r.last }}</span>
+        {% if r.title %}<span class="sv-title">{{ r.title }}{% if r.discount %} · {{ r.discount }}{% endif %}</span>{% endif %}
+      </span>
+      <span class="pr__amt">{{ r.amount }}</span>
+    </a></li>{% endfor %}
+  </ol>
+  {% else %}
+  <p class="sum">W tym okresie nie użyto kuponów na produkty.</p>
+  {% endif %}
+</section>
+
+<section class="card" aria-labelledby="promo-h">
+  <h2 class="s" id="promo-h">Rodzaje promocji</h2>
+  {% if view.groups %}
+  <div class="sv-groups">
+    {% for g in view.groups %}<details class="ef__more sv-group">
+      <summary><span class="ef__sumtxt"><span>{{ g.name }}</span><span class="sum">{{ g.share }}% promocji</span></span><span class="pr__amt">{{ g.amount }}</span></summary>
+      <ul class="sv-labels">
+        {% for label, amount in g.labels %}<li><span>{{ label }}</span><span>{{ amount }}</span></li>{% endfor %}
+      </ul>
+    </details>{% endfor %}
+  </div>
+  {% else %}
+  <p class="sum">W tym okresie nie było promocji poza kuponami.</p>
+  {% endif %}
+</section>
+{% endif %}
+</div>

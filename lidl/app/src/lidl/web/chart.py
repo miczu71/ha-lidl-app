@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from lidl.history import SpendBucket
+from lidl.savings import SavingsMonth
 from lidl.text import GENITIVE_MONTHS
 from lidl.text import SHORT_MONTHS as _SHORT
 from lidl.text import fmt_day_month as fmt_day_month
@@ -203,6 +204,41 @@ def build_deposit_chart(buckets: list[SpendBucket], step: str) -> Chart | None:
         total=f"{fmt_pln(total_c, 2)} / {fmt_pln(total_r, 2)}",
         average=f"{fmt_pln(total_c / len(buckets), 2)} / {fmt_pln(total_r / len(buckets), 2)}",
         per=_PER[step],
+        empty=False,
+    )
+
+
+def build_savings_chart(months: list[SavingsMonth]) -> Chart | None:
+    """Oszczędności miesięcznie (E27): słupek w stosie — kupony (`height`) u dołu, promocje (`height2`) wyżej.
+    Miesiące bez rabatów w środku zakresu są uzupełniane zerami; `None` gdy brak jakichkolwiek rabatów."""
+    if not any(m.coupons or m.promos for m in months):
+        return None
+    by_month = {m.month: m for m in months}
+    y, mo = map(int, min(by_month).split("-"))
+    last_y, last_mo = map(int, max(by_month).split("-"))
+    series: list[tuple[date, float, float]] = []
+    while (y, mo) <= (last_y, last_mo):
+        m = by_month.get(f"{y:04d}-{mo:02d}")
+        series.append((date(y, mo, 1), m.coupons if m else 0.0, m.promos if m else 0.0))
+        y, mo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+    axis_max = _nice_axis_max(max(c + p for _, c, p in series))
+    every = max(1, math.ceil(len(series) / 6))  # wąskie kolumny: mało etykiet, żeby się nie zlewały
+    bars = [
+        Bar(
+            height=_height(c, axis_max),
+            label=_label("month", d) if i % every == 0 else "",
+            aria=_aria("month", d, f"kupony {fmt_pln(c, 2)}, promocje {fmt_pln(p, 2)}"),
+            height2=_height(p, axis_max),
+        )
+        for i, (d, c, p) in enumerate(series)
+    ]
+    total = sum(c + p for _, c, p in series)
+    return Chart(
+        bars=bars,
+        ticks=[fmt_pln(axis_max * k / 4) for k in (4, 3, 2, 1)] + ["0"],
+        total=fmt_pln(total, 2),
+        average=fmt_pln(total / len(series), 2),
+        per=_PER["month"],
         empty=False,
     )
 

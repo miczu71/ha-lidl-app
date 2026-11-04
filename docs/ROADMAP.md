@@ -268,7 +268,11 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     **E27.0 docs ✅ (1c0272e, 6971a30: decyzja B — kupony ogólne poza sumami). E27.1 dane ✅ (c3a383c; `savings.py`, `History.savings_breakdown`,
     20 nowych testów, pełny zestaw 461 OK, mypy i ruff czyste; haiku-worker, claimcheck bez punktów, verifier REJECT → poprawka asercji
     mypy w testach → potwierdzone przez rodzica). NIEBLOKUJĄCE: `general_coupons_amount` tylko z paragonów `detail_fetched=1`
-    (odstępstwo od B, rozsądne); asercja `zero` w teście kuponów ogólnych słaba; brak testu filtra `store`.** Następny: E27.2.
+    (odstępstwo od B, rozsądne); asercja `zero` w teście kuponów ogólnych słaba; brak testu filtra `store`.**
+    **E27.2 strona ✅** (`/oszczednosci`: KPI, trend w stosie `build_savings_chart`, ranking kuponów po produkcie, grupy promocji w `<details>`;
+    widok w `web/savings.py`, chip „Oszczędności”, 4 testy trasy; Playwright 390 i 1280 px bez przewijania poziomego, konsola czysta;
+    demo `~/lidl_dev/savings_demo2` z dopisanymi `ticket_coupons`). Pułapka: przy 90 miesiącach odstęp słupków 6 px zjadał szerokość —
+    wykres w stosie ma odstęp 1 px i etykiety co ⌈n/6⌉. Następny: E27.3 (wydanie 0.23.0).
   - **E12 Drobne usprawnienia ekranu Produkty:** (a) miara „Sztuki” mieszała kilogramy ze sztukami — rozdzielić po `items.is_weight`
     (jednostka przy produkcie: kg albo szt.); (b) kaucje w czasie (pobrane/zwrócone) na wykresie obok wydatków; (c) struktura płatności
     (`tickets.payment`) gdy pojawi się więcej niż jedna metoda; (d) przy filtrze na produkt pokazać też liczbę zakupów i średnią cenę

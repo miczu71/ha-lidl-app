@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from lidl import __version__
 from lidl.client.exceptions import LidlPlusAuthError
 from lidl.history import CouponCandidate, PriceChange
-from lidl.receipt_html import ParsedReceipt, ReceiptItem
+from lidl.receipt_html import ParsedReceipt, ReceiptCoupon, ReceiptItem
 from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
 from lidl.service import LidlService
 from lidl.settings import Settings
@@ -1276,3 +1276,83 @@ def test_deposit_chart_only_for_spend_without_product_filter(client: TestClient)
     assert "wrzesień 2026: pobrane 5,00" in text
     assert "bars--pair" not in client.get("/produkty?zakres=all&produkt=111").text
     assert "bars--pair" not in client.get("/produkty?zakres=all&miara=sztuki").text
+
+
+def _seed_savings(client: TestClient) -> tuple[str, str]:
+    """Dwa konta; kupon na „Mleko” dwa razy (konto 1), promocja procentowa, paragon sprzed roku."""
+    history = client.app.state.history  # type: ignore[attr-defined]
+    one, two = _connect(client, "Osoba 1"), _connect(client, "Osoba 2")
+    recent = date.today() - timedelta(days=10)
+    rows = [
+        (
+            one,
+            "s1",
+            recent,
+            ReceiptItem("111", "Mleko", 1, 5.0, 3.0, discount=-2.0, coupon=-2.0, promo="Lidl Plus kupon"),
+        ),
+        (
+            one,
+            "s2",
+            recent - timedelta(days=5),
+            ReceiptItem("111", "Mleko", 1, 5.0, 3.5, discount=-1.5, coupon=-1.5, promo="Lidl Plus kupon"),
+        ),
+        (
+            two,
+            "s3",
+            recent - timedelta(days=3),
+            ReceiptItem("222", "Ser", 1, 10.0, 8.0, discount=-2.0, promo="Rabat -20%"),
+        ),
+        (
+            one,
+            "s4",
+            date.today() - timedelta(days=500),
+            ReceiptItem("333", "Chleb", 1, 4.0, 3.0, discount=-1.0, promo="Rabat grupowy"),
+        ),
+    ]
+    for slug, tid, day, item in rows:
+        history.upsert_tickets(
+            slug,
+            [
+                {
+                    "id": tid,
+                    "date": f"{day}T10:00:00+00:00",
+                    "totalAmount": item.total,
+                    "totalDiscount": -item.discount,
+                }
+            ],
+        )
+        coupons = [ReceiptCoupon("Mleko", "-2 zł", "Mleko", "-2 zł")] if item.coupon else []
+        history.save_detail(tid, None, ParsedReceipt(items=[item], coupons=coupons))
+    return one, two
+
+
+def test_savings_page_shows_totals_ranking_and_promo_groups(client: TestClient) -> None:
+    _seed_savings(client)
+    text = client.get("/oszczednosci").text
+    assert 'aria-current="page">Oszczędności' in text
+    assert "5,50 zł" in text  # razem: kupony 3,50 + promocje 2,00, bez paragonu sprzed roku
+    assert "użyty 2×" in text and "średnio 1,75 zł" in text and "/paragony/produkt/111" in text
+    assert "1 produkt z kuponem użytym co najmniej 2 razy" in text
+    assert "Mleko · -2 zł" in text  # tytuł kuponu dopasowany do pozycji
+    assert "Rabat procentowy" in text and "Rabat grupowy" not in text
+    all_time = client.get("/oszczednosci?okres=all").text
+    assert "6,50 zł" in all_time and "Rabat grupowy" in all_time
+
+
+def test_savings_live_filter_returns_only_results_for_account(client: TestClient) -> None:
+    one, _ = _seed_savings(client)
+    live = client.get(f"/oszczednosci?konto={one}", headers={"hx-target": "oszczednosci-wyniki"}).text
+    assert 'id="oszczednosci-wyniki"' in live and "<h1" not in live
+    assert "Rabat procentowy" not in live and "użyty 2×" in live
+
+
+def test_savings_without_history_says_where_to_import(client: TestClient) -> None:
+    assert "Pobierz ją w zakładce Produkty" in client.get("/oszczednosci").text
+
+
+def test_savings_without_discounts_in_period_offers_whole_history(client: TestClient) -> None:
+    _connect(client)
+    client.app.state.history.upsert_tickets(
+        "osoba-1", [{"id": "z1", "date": "2020-01-01T10:00:00+00:00", "totalAmount": 5.0}]
+    )  # type: ignore[attr-defined]
+    assert "Wybierz „Cała historia”" in client.get("/oszczednosci").text

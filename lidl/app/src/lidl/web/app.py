@@ -44,6 +44,7 @@ from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_b
 from .chart import (
     build_chart,
     build_deposit_chart,
+    build_savings_chart,
     fmt_month_year,
     fmt_month_year_genitive,
     fmt_pln,
@@ -65,6 +66,7 @@ from .products import (
 )
 from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
 from .rhythm import heatmap, map_points, store_rows
+from .savings import savings_view
 from .status import FILTERS as STATUS_FILTERS
 from .status import LEVELS as STATUS_LEVELS
 from .status import Problem, Snapshot
@@ -682,6 +684,24 @@ def create_app(settings: Settings) -> FastAPI:
         if request.headers.get("hx-target") == "rytm-wyniki":  # filtry na żywo: tylko wyniki
             return render(request, "_rhythm_results.html", **ctx)
         return render(request, "rhythm.html", **ctx, has_history=history.ticket_count() > 0)
+
+    @app.get("/oszczednosci")
+    async def savings(request: Request, konto: str = "", okres: str = "") -> Response:
+        history: History = request.app.state.history
+        labels = account_labels(request)
+        start = None if okres == "all" else date.today() - timedelta(days=365)
+        f = ReceiptFilter(account=konto if konto in labels else None, start=start)
+        result = history.savings_breakdown(f)
+        ctx: dict[str, Any] = {
+            "section": "oszczednosci",
+            "accounts": labels,
+            "f": f,
+            "view": savings_view(result, lambda a: purchases_href(request, a)),
+            "chart": build_savings_chart(result.months),
+        }
+        if request.headers.get("hx-target") == "oszczednosci-wyniki":  # filtry na żywo: tylko wyniki
+            return render(request, "_savings_results.html", **ctx)
+        return render(request, "savings.html", **ctx, has_history=history.ticket_count() > 0)
 
     @app.get("/paragony/produkt/{art_id}")
     async def receipt_product(request: Request, art_id: str, q: str = "") -> Response:
