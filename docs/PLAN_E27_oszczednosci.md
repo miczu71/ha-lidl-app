@@ -75,7 +75,10 @@ Kontrakt dla workera. TDD: testy czerwone przed kodem. Skill `addon-conventions`
    (`history.py` ok. l. 1496–1503: `0 − SUM(...)`). Kupony = `−SUM(i.coupon)`; promocje = `−SUM(i.discount) − kupony`.
    Istniejąca klasa `SavingsKpi` i jej metoda zostają nietknięte; nowa metoda nazywa się `savings_breakdown`
    (nie `savings`), wynik to `Savings` z `savings.py`. Trend: miesiąc z `t.day[:7]`.
-   Kupony ogólne = `ticket_coupons` danego paragonu bez pasującej pozycji (kwota z różnicy `t.savings` − suma pozycji, ≥0).
+   Kupony ogólne (rabat na cały paragon, poza pozycjami; decyzja B, 2026-11-04): `general_coupons_amount` = suma po paragonach
+   z `max(0, t.savings − (−SUM(items.discount)))`, raportowane OSOBNO i NIE wchodzą do `coupons_total` ani `promos_total`
+   (sumy domykają się z `SavingsKpi`). Test (a): suma `coupon_rows.amount` = `coupons_total`; (e): `coupons_total + promos_total`
+   = `SavingsKpi.total` dla tego samego zakresu.
    `uses` = liczba różnych paragonów z `i.coupon != 0` na produkt; `repeat_products` = produkty z `uses >= 2`.
 3. `tests/test_savings.py` (nowy) — tabela przykładów `classify_promo` (w tym nieznana etykieta → „Inne”), `split_promo`,
    `match_title`, oraz test integracyjny na `History` w pamięci/tmp (wzór: `tests/test_history.py:253` i fixtury tam użyte):
