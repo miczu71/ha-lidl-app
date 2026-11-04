@@ -269,7 +269,7 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
     20 nowych testów, pełny zestaw 461 OK, mypy i ruff czyste; haiku-worker, claimcheck bez punktów, verifier REJECT → poprawka asercji
     mypy w testach → potwierdzone przez rodzica). NIEBLOKUJĄCE: `general_coupons_amount` tylko z paragonów `detail_fetched=1`
     (odstępstwo od B, rozsądne); asercja `zero` w teście kuponów ogólnych słaba; brak testu filtra `store`.**
-    **E27.2 strona ✅** (`/oszczednosci`: KPI, trend w stosie `build_savings_chart`, ranking kuponów po produkcie, grupy promocji w `<details>`;
+    **E27.2 strona ✅ (a2b3adf, pełny zestaw 465 OK, ruff i mypy czyste)** (`/oszczednosci`: KPI, trend w stosie `build_savings_chart`, ranking kuponów po produkcie, grupy promocji w `<details>`;
     widok w `web/savings.py`, chip „Oszczędności”, 4 testy trasy; Playwright 390 i 1280 px bez przewijania poziomego, konsola czysta;
     demo `~/lidl_dev/savings_demo2` z dopisanymi `ticket_coupons`). Pułapka: przy 90 miesiącach odstęp słupków 6 px zjadał szerokość —
     wykres w stosie ma odstęp 1 px i etykiety co ⌈n/6⌉. Następny: E27.3 (wydanie 0.23.0).
