@@ -1936,7 +1936,7 @@ class History:
         coupons_sum = promos_sum = 0.0
         for tid, day, art_id, name, discount, coupon, promo in items:
             coupon_amt = -coupon
-            promo_amt = -discount - coupon_amt  # `discount` zawiera kupony (jak w SavingsKpi)
+            promo_amt = round(-discount - coupon_amt, 2)  # `discount` zawiera kupony (jak w SavingsKpi)
             coupons_sum += coupon_amt
             promos_sum += promo_amt
             item_discount[tid] -= discount

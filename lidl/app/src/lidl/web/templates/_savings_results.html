@@ -2,7 +2,7 @@
 {% if not chart %}
 <p class="notice notice--info" role="status">
   <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
-  <span>W tym okresie nie ma rabatów na pozycjach. Wybierz „Cała historia”.</span>
+  <span>{% if f.start %}W tym okresie nie ma rabatów na pozycjach. Wybierz „Cała historia”.{% else %}Brak rabatów na pozycjach paragonów.{% endif %}</span>
 </p>
 {% else %}
 <section class="card" aria-labelledby="razem-h">
