@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.23.0
+
+- **Zakładka „Oszczędności” (E27):** ile dały kupony Lidl Plus i promocje na pozycjach paragonów — suma, udział
+  w zakupach, trend miesięczny w stosie (kupony / promocje), ranking produktów z kuponami (ile razy użyty, średnio,
+  ostatnio, tytuł kuponu) i rodzaje promocji w grupach z rozwinięciem. Filtry konta i okresu jak w Rytmie.
+  Kupony ogólne (różnica nagłówka paragonu i pozycji) są pokazane osobno, poza sumami. Bez powiadomień i bez
+  zmian w aktywacji kuponów.
+
 ## 0.22.1
 
 - **Produkt na wagę i na sztuki:** przy produkcie sprzedawanym w obu formach podsumowanie pokazuje osobno średnią
