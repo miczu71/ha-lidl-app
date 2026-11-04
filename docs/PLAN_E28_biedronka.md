@@ -104,6 +104,16 @@ Najpierw kopia tego planu do `docs/ROADMAP.md` (sekcja E28) i `docs/PLAN_E28_bie
   linia „Biedronka” w porannym powiadomieniu (vouchery wygasające, nowe oferty). **Wydanie 0.26.0** po pełnym
   łańcuchu simplify → code-review (+ silent-failure-hunter, pr-test-analyzer, security) → release → weryfikacja na żywo.
 
+## Sesja i logowanie Biedronki (ustalenia 2026-11-04)
+- Add-on trzyma tylko tokeny (refresh + access) w `/data/accounts/<slug>.json` (0600, zapis atomowy); hasła, telefon i SMS nigdy.
+  Access token odświeża się sam (~60 s przed wygaśnięciem albo po 401), nowy refresh token zapisywany przy rotacji.
+- Logowanie ręczne raz na konto: captcha Cloudflare + SMS w przeglądarce usera, wklejenie `app://cma20.biedronka.pl?code=…`
+  (kod ~1 min); limit ~10 SMS, potem blokada ~30 min. Tokeny wchodzą do backupu add-onu — dane poufne.
+- **Nieznane:** maksymalny czas życia sesji Keycloak. E28.0 mierzy rotację po >1 h i po kilku dniach. Bramka: sesja wygasa
+  co kilka dni → staję i pytam usera, czy ręczne logowanie jest do przyjęcia (kilka tygodni = OK).
+- Wygaśnięcie: konto „rozłączone”, alert w Statusie + push `notify.<alert_notify>` raz na problem; historia zostaje, import
+  rusza po ponownym zalogowaniu.
+
 ## Propozycje na później (poza E28, do decyzji usera)
 - **P1 Gdzie kupić taniej z listy zakupów:** produkty z `todo.*` z podpowiedzią sieci na podstawie „Porównania”.
 - **P2 Cena na półce teraz:** `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) dla obserwowanych produktów
