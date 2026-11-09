@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.0
+
+- **Wersja 1.0.0** — uznana za stabilną; bez zmian w działaniu.
+
 ## 0.23.1
 
 - **Oszczędności — rodzaje promocji:** na żywo „Inne” obejmowało 67% promocji, głównie wewnętrzne kody ze starego
