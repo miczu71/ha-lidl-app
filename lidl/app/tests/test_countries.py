@@ -292,6 +292,17 @@ def test_compare_mixed_pack_units_fall_back_to_piece() -> None:
     assert (c.rows[0].unit, c.rows[0].diff) == ("szt", "+25,0%")
 
 
+def test_compare_weight_vs_piece_without_pack_is_missing() -> None:
+    # zagr. na wagę (zł/kg), PL na sztuki bez gramatury (i odwrotnie): nieporównywalne → „Bez ceny PL”
+    c = compare(
+        [_line("CZ", "Sýr", "a", 1, 100.0, 0.2, weight=True), _line("CZ", "Máslo", "b", 1, 50.0, 0.2)],
+        [_pl("a", "Ser", date(2026, 9, 1), 30.0, 1), _pl("b", "Masło", date(2026, 9, 1), 8.0, 1, True)],
+        {"CZ": 2},
+    )
+    assert c.rows == [] and c.baskets == []
+    assert sorted(m.name for m in c.missing) == ["máslo", "sýr"]
+
+
 def test_compare_empty() -> None:
     c = compare([], [], {})
     assert (c.rows, c.baskets, c.missing) == ([], [], [])

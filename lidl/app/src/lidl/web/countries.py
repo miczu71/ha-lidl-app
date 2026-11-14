@@ -165,6 +165,9 @@ def compare(lines: list[PairLine], pl_prices: list[PlPrice], line_counts: dict[s
         elif f_pack and p_pack and f_pack[1] == p_pack[1] and f_pack[1] in ("kg", "l"):
             unit, qty = f_pack[1], ln.quantity * f_pack[0]
             f_unit, p_unit = foreign_pln / f_pack[0], pl_avg / p_pack[0]
+        elif ln.is_weight != last.is_weight:  # zł/kg kontra zł/szt bez wspólnej gramatury: nieporównywalne
+            missing[(ln.country, ln.foreign_name)] += 1
+            continue
         else:
             unit, qty, f_unit, p_unit = "szt", ln.quantity, foreign_pln, pl_avg
         covered[ln.country] += 1
