@@ -1287,3 +1287,50 @@ def test_foreign_items_are_invisible_to_polish_views(tmp_path: Path) -> None:
     assert (h.ranking(), h.price_overview(date(2026, 10, 8))) == before
     assert [r.art_id for r in h.ranking()] == ["1"]
     assert h.reparse(lambda d: ParsedReceipt()) == 0  # reparse PL nie rusza zagranicznych
+
+
+def test_v2_database_migrates_to_current_schema_keeping_data(tmp_path: Path) -> None:
+    import sqlite3
+
+    from lidl.history import SCHEMA_VERSION
+
+    path = tmp_path / "h.db"
+    db = sqlite3.connect(path)
+    db.executescript(
+        """
+        CREATE TABLE tickets (id TEXT PRIMARY KEY, account TEXT NOT NULL, day TEXT NOT NULL,
+            total REAL NOT NULL, savings REAL NOT NULL, coupons_used INTEGER NOT NULL, store TEXT,
+            detail_fetched INTEGER NOT NULL DEFAULT 0, articles INTEGER NOT NULL DEFAULT -1,
+            parsed INTEGER NOT NULL DEFAULT 0);
+        CREATE TABLE items (ticket_id TEXT NOT NULL, line INTEGER NOT NULL, art_id TEXT NOT NULL,
+            name TEXT NOT NULL, quantity REAL NOT NULL, unit_price REAL NOT NULL, total REAL NOT NULL,
+            discount REAL NOT NULL, coupon REAL NOT NULL DEFAULT 0, PRIMARY KEY (ticket_id, line));
+        INSERT INTO tickets VALUES ('t1', 'a', '2026-01-01', 10, 0, 0, 'S', 1, 1, 1);
+        INSERT INTO items VALUES ('t1', 0, '1', 'A', 1, 5, 5, 0, 0);
+        PRAGMA user_version = 2;
+        """
+    )
+    db.commit()
+    db.close()
+
+    h = History(path)
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
+    assert (tmp_path / "h.db.pre-countries").exists()
+    cols = {r[1] for r in h._db.execute("PRAGMA table_info(tickets)")}
+    assert {"country", "currency", "total_orig", "fx_rate"} <= cols
+    tables = {r[0] for r in h._db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    assert {"fx_rates", "foreign_items"} <= tables
+    assert h._db.execute("SELECT total, country, currency FROM tickets").fetchone() == (10, "PL", "PLN")
+    assert [r.art_id for r in h.ranking()] == ["1"]
+
+
+def test_pending_foreign_details_filters_by_countries(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    fx = lambda cur, day: 0.2  # noqa: E731
+    h.upsert_tickets("a", [_foreign("cz-1", "2026-05-04", 100.0)], "CZ", fx)
+    h.upsert_tickets("a", [_foreign("it-1", "2026-05-05", 50.0, "EUR")], "IT", fx)
+    h.upsert_tickets("a", [_ticket("pl-1", "2026-05-06")])
+    assert h.pending_foreign_details("a", ("CZ",)) == [("cz-1", "CZ")]
+    assert h.pending_foreign_details("a", ("CZ", "IT", "PL")) == [("it-1", "IT"), ("cz-1", "CZ")]
+    assert h.pending_foreign_details("a", ("PL",)) == []
+    assert h.pending_foreign_details("a", ()) == []

@@ -410,3 +410,17 @@ async def test_manual_start_includes_extra_countries(history: History) -> None:
     assert sync.start("a", full=False, after=False)
     await sync.wait("a")
     assert plain.cz_calls == []
+
+
+async def test_run_for_cz_skips_details_of_italian_receipt_already_stored(history: History) -> None:
+    src = CzSource()
+    history.upsert_tickets(
+        "a",
+        [{"id": "it-1", "date": "2026-05-02T10:00:00+00:00", "totalAmount": 50.0, "currency": "EUR"}],
+        country="IT",
+        fx=lambda cur, day: 4.3,
+    )
+    sync = HistorySync(src, history, sleep=lambda s: asyncio.sleep(0), rates=FakeRates(history).rates)
+    await sync.import_account("a", full=False, countries=("CZ",))
+    assert "it-1" not in src.detail_calls
+    assert "cz-1" in src.detail_calls

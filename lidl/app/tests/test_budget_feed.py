@@ -9,7 +9,7 @@ import aiohttp
 import pytest
 
 from lidl import llm
-from lidl.budget_feed import BudgetFeed, write_export
+from lidl.budget_feed import MAX_ITEMS, BudgetFeed, _capped, write_export
 from lidl.history import History
 from lidl.llm import ModelRefused
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
@@ -155,3 +155,28 @@ def test_prompt_mentions_czech_or_italian_names() -> None:
     from lidl.budget_feed import PROMPT
 
     assert "Nazwy mogą być po czesku lub włosku." in PROMPT
+
+
+def _codes(prefix: str, n: int) -> dict[str, str]:
+    return {f"{prefix}{i:04d}": f"Produkt {i}" for i in range(n)}
+
+
+def test_capped_keeps_all_abroad_when_pl_backlog_is_large() -> None:
+    items = {**_codes("", 100), **_codes("CZ:", 10)}
+    out = _capped(items)
+    assert len(out) <= MAX_ITEMS
+    assert all(f"CZ:{i:04d}" in out for i in range(10))
+    assert len(out) == MAX_ITEMS - 10 + 10
+
+
+def test_capped_gives_abroad_at_least_half_of_slots() -> None:
+    items = {**_codes("", 100), **_codes("CZ:", 5)}
+    out = _capped(items)
+    assert len(out) == MAX_ITEMS
+    assert sum(1 for c in out if c.startswith("CZ:")) == 5
+    assert sum(1 for c in out if ":" not in c) == MAX_ITEMS - 5
+
+
+def test_capped_only_pl_takes_first_max_items() -> None:
+    items = _codes("", 100)
+    assert _capped(items) == dict(list(items.items())[:MAX_ITEMS])

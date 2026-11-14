@@ -220,3 +220,21 @@ def test_month_summary_message_first_place_and_no_previous_month(tmp_path: Any) 
         "Zaoszczędziliśmy 0,50 zł · najdroższy miesiąc w historii",
         "Więcej w panelu, zakładka Miesiące",
     ]
+
+
+def test_month_summary_shows_abroad_line_only_when_abroad_spend(tmp_path: Any) -> None:
+    from dataclasses import replace
+
+    from lidl.history import History
+    from lidl.notify import compose_month
+    from lidl.receipt_html import ParsedReceipt, ReceiptItem
+
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("osoba-1", [{"id": "s", "date": "2026-09-10T10:00:00+00:00", "totalAmount": 9.5}])
+    h.save_detail("s", "Sklep X", ParsedReceipt(items=[ReceiptItem("1", "Produkt A", 1, 10.0, 10.0, -0.5)]))
+    s = h.month_summary("2026-09")
+    assert s is not None
+    abroad = replace(s, abroad_total=42.5, abroad_countries=("CZ", "IT"))
+    assert "W tym za granicą: 42,50 zł (CZ, IT)" in compose_month(abroad)[1].splitlines()
+    no_abroad = compose_month(replace(s, abroad_total=0.0))[1].splitlines()
+    assert not any("W tym za granicą" in ln for ln in no_abroad)
