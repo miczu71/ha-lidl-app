@@ -13,6 +13,17 @@ Zależy od K2 (pozycje) i K1. Wartość: zagraniczne zakupy w Budżecie z katego
   „lidl” w opisie i dokładnie jeden kandydat po obu stronach bez zmian; po sparowaniu w Budżecie liczy się kwota z banku;
   niejednoznaczne → `receipts_for_txn` do ręcznego wyboru jak dziś. W UI Budżetu przy powiązaniu: kraj i oryginał.
 
+## Stan po K2 (uzgodnione 2026-11-14)
+- `foreign_items`: `art_id` z prefiksem (`CZ:123`, `IT:…`); CZ ważone bez kodu = samo `CZ:` (pusty kod) — takich pozycji **nie wysyłamy do LLM**
+  (nie mają klucza w `product_category`); w eksporcie idą do `food` jak niesklasyfikowane (UNSET → `food`).
+- `uncategorized` obejmuje `foreign_items` (klucz = `art_id`, nazwa = ostatnia po `ticket_id, line`); filtr „nowy” po `tickets.day` ≥ since;
+  `_products()` (PL, po moście) zostaje bez zmian — zagranica to osobne zapytanie w `uncategorized`, bez mostu nazw.
+- `tickets.total` dla zagranicy to już PLN; `total_orig`/`currency`/`fx_rate` są w `tickets`. Eksport: `paid_orig=total_orig` (null dla PL).
+  Pola opcjonalne dla PL: `country="PL"`, `currency="PLN"`, `paid_orig=null`, `fx_rate=1.0` — dopisujemy do wszystkich (Budżet czyta brak = PL);
+  test „PL bez zmian” sprawdza tylko stare pola (`id…parts`) i ich wartości.
+- UI Budżetu: `receipt` przy transakcji to sam id paragonu (bez danych) — etykieta kraju/oryginału tylko na chipach wyboru (`lidl_choices`),
+  nie na już połączonym paragonie (świadome ograniczenie K4).
+
 ## Wykonawca
 Repo Lidl:
 1. `history.py`: `uncategorized(since)` zwraca też pozycje z `foreign_items`; `receipts_export` jak wyżej (testy
