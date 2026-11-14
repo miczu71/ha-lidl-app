@@ -37,10 +37,11 @@ from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
 from lidl.rewards import RewardsRunner
 from lidl.service import LidlService
-from lidl.settings import Settings
+from lidl.settings import COUNTRY, Settings
 from lidl.sync import HistorySync
 from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_bounds
 
+from . import countries
 from .chart import (
     build_chart,
     build_deposit_chart,
@@ -835,6 +836,84 @@ def create_app(settings: Settings) -> FastAPI:
     async def toggle_watched(request: Request, art_id: str, on: str = Form(...)) -> Response:
         request.app.state.history.set_watched(art_id, on == "1")
         return toggled(request, art_id)
+
+    @app.get("/kraje")
+    async def countries_page(request: Request) -> Response:
+        history: History = request.app.state.history
+        return render(
+            request,
+            "countries.html",
+            section="kraje",
+            extra_countries=settings.extra_countries,
+            llm_enabled=settings.llm_enabled,
+            **countries_ctx(history),
+        )
+
+    def countries_ctx(history: History) -> dict[str, Any]:
+        proposals = countries.proposal_cards(history)
+        approved, rejected = (
+            countries.decided_rows(history, "approved"),
+            countries.decided_rows(history, "rejected"),
+        )
+        return {
+            "proposals": proposals,
+            "approved": approved,
+            "rejected": rejected,
+            "any_foreign": bool(proposals or approved or rejected),
+        }
+
+    @app.get("/kraje/szukaj")
+    async def countries_search(request: Request, country: str = "", name: str = "", q: str = "") -> Response:
+        history: History = request.app.state.history
+        return render(
+            request,
+            "_countries_search.html",
+            country=country,
+            foreign_name=name,
+            q=q.strip(),
+            results=countries.search(history, q),
+        )
+
+    @app.post("/kraje/para")
+    async def countries_pair(
+        request: Request,
+        country: str = Form(...),
+        foreign_name: str = Form(...),
+        action: str = Form(...),
+        pl_art_id: str = Form(""),
+    ) -> Response:
+        history: History = request.app.state.history
+        known = {(c, n) for c, n, _ in history.pair_pending()} | {
+            (r["country"], r["foreign_name"]) for r in history.pair_list("proposed")
+        }
+        if action in ("approve", "reject") and (country, foreign_name) not in known:
+            action = ""  # tylko nazwy z paragonów zagranicznych, bez śmieciowych wierszy
+        if action == "approve":
+            if countries.has_catalog_item(history, pl_art_id):
+                history.pair_propose(country, foreign_name, [])  # ręczna para bez propozycji AI
+                history.pair_decide(country, foreign_name, "approved", pl_art_id)
+        elif action == "reject":
+            history.pair_propose(country, foreign_name, [])
+            history.pair_decide(country, foreign_name, "rejected")
+        elif action == "undo":
+            history.pair_decide(country, foreign_name, "proposed")
+        if not request.headers.get("hx-request"):
+            return go(request, "/kraje")
+        return render(request, "_countries_body.html", **countries_ctx(history))
+
+    @app.post("/kraje/sprawdz")
+    async def countries_check(request: Request) -> Response:
+        history: History = request.app.state.history
+        for account in service(request).store.list():
+            if account.connected and history.ticket_count(account.slug) > 0:
+                request.app.state.sync.start(
+                    account.slug, full=False, countries=(COUNTRY, *settings.extra_countries)
+                )
+        if not request.headers.get("hx-request"):
+            return go(request, "/kraje")
+        return Response(
+            '<p class="meta" role="status">Import trwa… Propozycje pojawią się po jego zakończeniu.</p>'
+        )
 
     @app.post("/accounts/{slug}/history")
     async def start_history(request: Request, slug: str) -> Response:

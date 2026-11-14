@@ -1,0 +1,58 @@
+{% from "_macros.html" import flag %}
+{# Wszystkie sekcje zakładki; decyzja (htmx) podmienia całość, bez JS — przekierowanie na /kraje. #}
+{% macro pair_form(country, name, action, label, art_id="", cls="ds-btn ds-btn--secondary") %}
+<form method="post" action="{{ base }}/kraje/para" hx-post="{{ base }}/kraje/para" hx-target="#kraje-body" hx-swap="outerHTML">
+  <input type="hidden" name="country" value="{{ country }}">
+  <input type="hidden" name="foreign_name" value="{{ name }}">
+  <input type="hidden" name="action" value="{{ action }}">
+  {% if art_id %}<input type="hidden" name="pl_art_id" value="{{ art_id }}">{% endif %}
+  <button class="{{ cls }}" type="submit">{{ label }}</button>
+</form>
+{% endmacro %}
+<div class="stack" id="kraje-body">
+  <section class="card" aria-labelledby="kr-p">
+    <h2 class="s" id="kr-p">Do zatwierdzenia</h2>
+    {% if not proposals %}
+    <p class="meta">{% if any_foreign %}Nic nie czeka na decyzję.{% else %}Brak zagranicznych paragonów. Kliknij „Sprawdź teraz”, żeby pobrać je z włączonych krajów.{% endif %}</p>
+    {% endif %}
+    {% for c in proposals %}
+    <div class="card">
+      <div class="row2">{{ flag(c.country) }}<span class="meta">{{ c.country_name }}</span></div>
+      <div>
+        <strong>{{ c.foreign_name }}</strong>
+        <p class="meta" style="margin: 0">{{ c.sample }}{% if c.price %} · {{ c.price }}{% endif %}</p>
+      </div>
+      {% if c.candidates %}
+      <div class="row2">
+        {% for k in c.candidates %}{{ pair_form(c.country, c.foreign_name, "approve", k.name ~ " · " ~ k.price, k.art_id) }}{% endfor %}
+      </div>
+      {% else %}
+      <p class="meta" style="margin: 0">Brak propozycji. Wyszukaj produkt poniżej.</p>
+      {% endif %}
+      <form method="get" action="{{ base }}/kraje/szukaj" role="search" hx-get="{{ base }}/kraje/szukaj" hx-trigger="input changed delay:200ms from:find input, submit" hx-target="next .kraje-wyniki" hx-swap="innerHTML">
+        <input type="hidden" name="country" value="{{ c.country }}">
+        <input type="hidden" name="name" value="{{ c.foreign_name }}">
+        <label class="search">Szukaj w polskich produktach<input class="field" type="search" name="q" placeholder="np. mleko" autocomplete="off" spellcheck="false"></label>
+      </form>
+      <div class="kraje-wyniki" aria-live="polite"></div>
+      <div class="row2">{{ pair_form(c.country, c.foreign_name, "reject", "Bez odpowiednika", cls="ds-btn ds-btn--link") }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="card" aria-labelledby="kr-a">
+    <h2 class="s" id="kr-a">Zatwierdzone</h2>
+    {% if not approved %}<p class="meta">Jeszcze nic nie zatwierdzono.</p>{% endif %}
+    {% for r in approved %}
+    <div class="row2">{{ flag(r.country) }}<span><strong>{{ r.foreign_name }}</strong> → {{ r.pl_name }}</span>{{ pair_form(r.country, r.foreign_name, "undo", "Cofnij", cls="ds-btn ds-btn--link") }}</div>
+    {% endfor %}
+  </section>
+
+  <section class="card" aria-labelledby="kr-r">
+    <h2 class="s" id="kr-r">Bez odpowiednika</h2>
+    {% if not rejected %}<p class="meta">Brak odrzuconych.</p>{% endif %}
+    {% for r in rejected %}
+    <div class="row2">{{ flag(r.country) }}<span><strong>{{ r.foreign_name }}</strong></span>{{ pair_form(r.country, r.foreign_name, "undo", "Cofnij", cls="ds-btn ds-btn--link") }}</div>
+    {% endfor %}
+  </section>
+</div>

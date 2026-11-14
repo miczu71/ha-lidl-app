@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "_macros.html" import flag_sprite %}
+{% block title %}Kraje — Lidl Plus{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Kraje</h1>
+  <p class="lead">Produkty z paragonów zagranicznych i ich polskie odpowiedniki. Zatwierdzone pary posłużą do porównania cen.</p>
+</div>
+{{ flag_sprite() }}
+
+{% if not extra_countries %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Włącz kraje w opcjach add-onu: extra_countries (np. CZ, IT), a potem pobierz paragony zagraniczne.</span>
+</p>
+{% else %}
+{% if not llm_enabled %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Propozycje AI wymagają klucza modelu w opcjach add-onu. Ręczne parowanie przez wyszukiwarkę działa bez niego.</span>
+</p>
+{% endif %}
+<div class="row2">
+  <form method="post" action="{{ base }}/kraje/sprawdz" hx-post="{{ base }}/kraje/sprawdz" hx-target="#kraje-info" hx-swap="innerHTML">
+    <button class="ds-btn ds-btn--secondary" type="submit">Sprawdź teraz</button>
+  </form>
+  <div id="kraje-info" aria-live="polite"></div>
+</div>
+{% include "_countries_body.html" %}
+{% endif %}
+{% endblock %}

@@ -1942,6 +1942,20 @@ class History:
             out.setdefault((ctry, base), name)
         return [(c, n, example) for (c, n), example in sorted(out.items())]
 
+    def pair_foreign_sample(self, country: str, foreign_name: str) -> tuple[str, float] | None:
+        """Przykład z najnowszego zakupu: nazwa z paragonu i cena jednostkowa w PLN."""
+        rows = self._db.execute(
+            "SELECT i.name, i.unit_price * t.fx_rate FROM foreign_items i"
+            " JOIN tickets t ON t.id = i.ticket_id"
+            " WHERE t.country = ? AND t.fx_rate IS NOT NULL"
+            " ORDER BY t.day DESC, i.ticket_id DESC, i.line",
+            (country,),
+        )
+        for name, price in rows:
+            if base_name(name) == foreign_name:
+                return str(name), float(price)
+        return None
+
     def pl_catalog(self, limit: int = 600) -> list[CatalogItem]:
         """Produkty PL kupowane w ostatnich 12 miesiącach, od największego wydatku."""
         since = date.today() - timedelta(days=365)

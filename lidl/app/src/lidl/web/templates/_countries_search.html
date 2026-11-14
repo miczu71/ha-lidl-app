@@ -1,0 +1,8 @@
+{% from "_countries_body.html" import pair_form with context %}
+{# Wyniki wyszukiwarki PL przy karcie pary; „Wybierz” zatwierdza parę. #}
+{% if q and not results %}
+<p class="meta">Nic nie pasuje do „{{ q }}”.</p>
+{% endif %}
+{% for r in results %}
+<div class="row2"><span>{{ r.name }} · {{ r.price }}</span>{{ pair_form(country, foreign_name, "approve", "Wybierz", r.art_id) }}</div>
+{% endfor %}
