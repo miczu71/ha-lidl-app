@@ -80,6 +80,12 @@ Rollback: brak zmian do cofnięcia.
   **Korekta po weryfikacji w trybie planu (2026-11-14):** `pack_size()` łapie gramaturę tylko w ~11% pozycji cs/it, więc zamiast „base_name + brak gramatury = poza koszykiem” para wskazuje konkretny produkt PL, a zatwierdzenie = porównywalne opakowanie (ważone zł/kg; obie gramatury → za kg/l; inaczej za sztukę);
   koszyk = Σ po zatwierdzonych parach (ilość z paragonu zagranicznego × cena jednostkowa) vs ta sama ilość po cenie PL, w PLN po kursie z dnia zakupu, z pokryciem „X z Y pozycji”; link z Budżetu wymaga też rozszerzenia obejścia głębokich linków w `base.html` Lidla o `/kraje`;
   wydanie: Lidl (minor) + Budżet z samym linkiem do zakładki (wybór usera, wbrew rekomendacji „tylko Lidl”).
+  Etapy (szczegóły i rollback w `docs/PLAN_COUNTRIES_K6.md`, plan zatwierdzony przez usera 2026-11-14 w trybie planu, commit `6958a0c`): K6a → K6b → K6c → K6d → wydanie zbiorcze.
+  - **K6a ✅ 2026-11-14 (`b51cbba`, lokalnie, bez pusha)** migracja v7 + `country_pairs` + `pairs.propose` po imporcie (hook `after_import` w `web/app.py`) — `sonnet-worker` (migracja = ryzyko).
+    Wynik: pytest 506 zielone (`--deselect tests/test_leaflet.py`), ruff/format/mypy czyste; verifier ACCEPT (zero blokujących); pełny pytest uruchomiłem sam po zmianie `web/app.py` (exit 0).
+    Odstępstwa: dwa stare testy migracji miały na sztywno wersję 6 → 7; kraj w `pair_pending` z `tickets.country`; `pair_propose/pair_decide` zwracają bool; okno `pl_catalog` = ostatnie 365 dni od dziś (plan: 12 mies. przed najstarszą oczekującą pozycją); `use="pary"` w dzienniku LLM.
+    Nieblokujące: brak testu hooka `after_import` (wyjątek z `propose` nie przerywa `refresh`); ta sama nazwa w dwóch krajach idzie do promptu dwa razy; wyjątek spoza `KeyRejected/ModelRefused/TryLater` przerywa pętlę porcji (hook go łapie); `uv run` wymaga `--extra dev`.
+    Na żywo: dopiero po wydaniu (propozycje wymagają klucza LLM w opcjach add-onu).
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
