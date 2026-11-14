@@ -86,6 +86,10 @@ Rollback: brak zmian do cofnięcia.
     Odstępstwa: dwa stare testy migracji miały na sztywno wersję 6 → 7; kraj w `pair_pending` z `tickets.country`; `pair_propose/pair_decide` zwracają bool; okno `pl_catalog` = ostatnie 365 dni od dziś (plan: 12 mies. przed najstarszą oczekującą pozycją); `use="pary"` w dzienniku LLM.
     Nieblokujące: brak testu hooka `after_import` (wyjątek z `propose` nie przerywa `refresh`); ta sama nazwa w dwóch krajach idzie do promptu dwa razy; wyjątek spoza `KeyRejected/ModelRefused/TryLater` przerywa pętlę porcji (hook go łapie); `uv run` wymaga `--extra dev`.
     Na żywo: dopiero po wydaniu (propozycje wymagają klucza LLM w opcjach add-onu).
+  - **K6b ✅ 2026-11-14 (`ae633c5`)** zakładka `/kraje`: karty do zatwierdzenia (kandydaci AI + wyszukiwarka katalogu PL), Zatwierdzone / Bez odpowiednika z cofnięciem, `POST /kraje/para`, `POST /kraje/sprawdz` (`full=False`, kraje z opcji), chip po „Rytm”, regex głębokiego linku o `/kraje`, test hooka `after_import` — `sonnet-worker`.
+    Wynik: pytest 516 zielone (`--deselect tests/test_leaflet.py`), ruff/format/mypy czyste; verifier ACCEPT (zero blokujących); Playwright na demo (seed CZ + propozycja): strona, wyszukiwanie z Enter, konsola bez błędów.
+    Odstępstwa: bez klucza LLM karty biorą też nazwy z `pair_pending()` (do 50, bez kandydatów), żeby ręczne parowanie działało; htmx zwraca cały `#kraje-body`; bez `extra_countries` tylko komunikat (bez przycisku). Moje poprawki po verifierze: `POST /kraje/para` approve/reject tylko dla nazw z `pair_pending`/`proposed` (+ test), wyszukiwarka jako `hx-get` na formularzu (Enter nie nawiguje na fragment).
+    Nieblokujące: `pair_foreign_sample` skanuje `foreign_items` per karta (N+1, skala domowa); nieznana `action` to cichy no-op; brak testu JS regexu głębokiego linku (analiza ręczna); link z Budżetu zadziała dopiero z K6d.
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
