@@ -53,6 +53,22 @@ Pliki: `web/countries.py` (czysta funkcja `compare(...)`), `history.py` (odczyt 
 DONE: testy liczb co do grosza (CZK, EUR, ważone, gramatura, sztuka, brak ceny PL), demo.
 Rollback: revert commita.
 
+**Wykonawca (K6c, `sonnet-worker`, ryzyko: pieniądze)** — repo `/config/addons/ha-lidl-app`, kod w `lidl/app/`.
+- Skill `addon-conventions`. Test: `cd lidl/app && uv run --extra dev pytest --deselect tests/test_leaflet.py tests/test_countries.py tests/test_history.py tests/test_web.py -q` + `uv run --extra dev ruff check`, `ruff format --check`, `mypy src`. Pełny pytest robi rodzic.
+- `history.py` (tylko dopisać, nic nie zmieniać w istniejących metodach):
+  - `@dataclass(frozen=True) PairLine`: `country, foreign_name, pl_art_id, name, day: date, quantity, unit_price, fx_rate, is_weight`.
+  - `History.pair_lines() -> list[PairLine]`: pozycje `foreign_items` z biletów z `fx_rate IS NOT NULL`, których `(t.country, base_name(i.name))` ma wiersz `country_pairs` ze `status='approved'` i niepustym `pl_art_id`; `quantity > 0 AND unit_price > 0`; sort po dniu.
+  - `History.pl_price_history(art_ids: set[str]) -> list[PlPrice]` (`PlPrice`: `art_id, name, day, price, qty, is_weight`) z `self._price_rows()` filtrowane po `art_id`.
+  - `History.foreign_line_counts() -> dict[str, int]`: kraj → liczba pozycji `foreign_items` z `fx_rate IS NOT NULL` (mianownik pokrycia „X z Y”).
+- `web/countries.py`: czysta funkcja `compare(lines, pl_prices, line_counts) -> Comparison` (bez I/O, `today` niepotrzebne). Dla każdej linii: okno PL = wiersze `pl_prices` tego `pl_art_id` z `day` w `[linia.day − 365 dni, linia.day)`; cena PL = średnia ważona `qty` z `price`; brak wierszy → linia „brak ceny PL”, poza koszykiem. Cena zagr. w PLN = `unit_price × fx_rate`.
+  Tryb linii (kolejność): (1) `line.is_weight` i ostatni wiersz okna `is_weight` → `kg`: ceny już za kg, ilość = `quantity`; (2) `pack_size(line.name)` i `pack_size(nazwa PL z ostatniego wiersza okna)` oba znane i ta sama jednostka bazowa `kg`/`l` → `kg`/`l`: cena za jednostkę = cena ÷ ilość opakowania, ilość = `quantity × pack zagr.`; (3) inaczej `szt`: cena i ilość wprost (`quantity`).
+  Koszt zagr. = ilość × cena zagr. PLN za jednostkę trybu; koszt PL = ta sama ilość × cena PL za jednostkę trybu. Wynik: wiersze par (grupa `country, foreign_name, tryb`: cena zagr./PL za jednostkę = Σkoszt ÷ Σilość, różnica % = zagr/PL − 1 ×100, zaokr. 1 miejsce) + koszyk per kraj (Σ kosztów zagr. vs PL w PLN po 2 miejscach, różnica %, `covered` = liczba linii w koszyku, `total` = `line_counts[kraj]`) + lista „brak ceny PL” (kraj, nazwa, liczba linii). Kwoty zaokrąglać dopiero na wyjściu. Formatowanie przez `fmt_pln`; dodatni % = za granicą drożej.
+- `web/app.py`: `countries_ctx` dopina `comparison` (wołanie `compare(history.pair_lines(), history.pl_price_history({l.pl_art_id …}), history.foreign_line_counts())`).
+- Szablon `_countries_body.html`: nowa pierwsza sekcja „Porównanie cen” (karta na kraj: koszyk, różnica %, „X z Y pozycji”; pod nią tabela par: para, cena PL, cena kraj, różnica %, jednostka `/kg` `/l` `/szt`; pod spodem „Bez ceny PL”). Bez zatwierdzonych par: jedno zdanie zachęty. Klasy z `docs/DESIGN.md` i istniejące (`card`, `row2`, `meta`, `s`); `static/app.css` tylko jeśli konieczne, bez inline JS.
+- Testy (`tests/test_countries.py`, `tests/test_history.py`, `tests/test_web.py`): `compare` na ręcznych liczbach co do grosza — CZK (kurs np. 0,1755), EUR (4,2), ważone za kg, gramatura g→kg (np. 500 g zagr. vs 1 kg PL), sztuka, brak ceny PL (okno puste, w tym zakup PL z tego samego dnia lub po dniu zakupu = poza oknem), średnia ważona z dwóch zakupów PL, pokrycie „X z Y”; `pair_lines` pomija pary `proposed`/`rejected` i bilety bez kursu; web: `/kraje` z zatwierdzoną parą pokazuje sekcję i % (200).
+- DONE: komendy testowe zielone, wyrenderowana sekcja na `/kraje`, liczby w testach policzone ręcznie w komentarzu testu.
+- NIE RÓB: zmian migracji/schematu, `items`, `foreign_items`, `country_pairs`, `packsize.py`, `pairs.py`, `budget_feed.py`, istniejących metod `History` (tylko dopisywanie), `settings`, wydań, commitów, plików poza listą (`history.py`, `web/countries.py`, `web/app.py`, `_countries_body.html`, `app.css`, testy).
+
 ### K6d — link z Budżetu (`/config/addons/ha-budget-app`, `wt new`)
 Przy paragonie zagranicznym w `budget/app/src/budget/web/templates/_txn_category.html:40` (obok „paragon Lidl”) dochodzi link `data-ha-nav` do `{{ lidl_panel }}/kraje` (`lidl_link.LIDL_PANEL`) i test renderu. Działa dopiero razem z regexem z K6b.
 Rollback: revert.
