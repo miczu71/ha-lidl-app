@@ -1985,6 +1985,9 @@ class History:
 
     def pl_catalog(self, limit: int = 600) -> list[CatalogItem]:
         """Produkty PL kupowane w ostatnich 12 miesiącach, od największego wydatku."""
+        return self._cached(("pl_catalog", limit), lambda: self._pl_catalog(limit))
+
+    def _pl_catalog(self, limit: int) -> list[CatalogItem]:
         since = date.today() - timedelta(days=365)
         last: dict[str, tuple[str, float]] = {}
         spend: dict[str, float] = defaultdict(float)
