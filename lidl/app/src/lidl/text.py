@@ -46,14 +46,18 @@ def month_bounds(month: str) -> tuple[date, date]:
     return start, (start + timedelta(days=31)).replace(day=1) - timedelta(days=1)
 
 
+def _pl_number(value: float, decimals: int) -> str:
+    return f"{value:,.{decimals}f}".replace(",", "\u00a0").replace(".", ",")
+
+
 def fmt_pln(value: float, decimals: int = 0) -> str:
     """„1 234,56 zł” (twarda spacja tysięcy, przecinek dziesiętny)."""
-    return f"{value:,.{decimals}f}".replace(",", "\u00a0").replace(".", ",") + " zł"
+    return _pl_number(value, decimals) + " zł"
 
 
 def fmt_money(amount: float, currency: str) -> str:
     """„175,40 CZK” (twarda spacja tysięcy, przecinek, dwa miejsca, kod waluty po twardej spacji)."""
-    return f"{amount:,.2f}".replace(",", "\u00a0").replace(".", ",") + f"\u00a0{currency}"
+    return f"{_pl_number(amount, 2)}\u00a0{currency}"
 
 
 def fmt_pct(value: float, decimals: int = 1) -> str:

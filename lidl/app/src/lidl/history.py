@@ -55,7 +55,7 @@ def elapsed_ms(began: float) -> int:
 
 
 SCHEMA_VERSION = 6
-FOREIGN_PARSER_VERSION = 1  # K2: własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
+FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
@@ -109,14 +109,14 @@ CREATE TABLE IF NOT EXISTS items (
     PRIMARY KEY (ticket_id, line)
 );
 CREATE INDEX IF NOT EXISTS items_art ON items(art_id);
--- K1: kursy średnie NBP (tabela A) z ostatniego dnia roboczego przed dniem zakupu; `day` = dzień zakupu
+-- kursy średnie NBP (tabela A) z ostatniego dnia roboczego przed dniem zakupu; `day` = dzień zakupu
 CREATE TABLE IF NOT EXISTS fx_rates (
     code TEXT NOT NULL,
     day TEXT NOT NULL,
     mid REAL NOT NULL,
     PRIMARY KEY (code, day)
 );
--- K1: pozycje paragonów zagranicznych (osobno od `items`); art_id z prefiksem kraju (`CZ:`, `IT:`)
+-- pozycje paragonów zagranicznych (osobno od `items`); art_id z prefiksem kraju (`CZ:`, `IT:`)
 CREATE TABLE IF NOT EXISTS foreign_items (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     line INTEGER NOT NULL,
@@ -864,7 +864,7 @@ class History:
             self._db.execute("ALTER TABLE coupons ADD COLUMN online INTEGER NOT NULL DEFAULT 0")
 
     def _migrate_v5(self, path: Path) -> None:
-        """v5 → v6 (K1): kraj, waluta, kwota oryginalna i kurs paragonu; wcześniej kopia `.pre-countries`."""
+        """v5 → v6: kraj, waluta, kwota oryginalna i kurs paragonu; wcześniej kopia `.pre-countries`."""
         if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
             return
         backup = path.with_name(path.name + ".pre-countries")
@@ -1235,7 +1235,7 @@ class History:
             args,
         ):
             paid = round(paid, 2)
-            rate = 1.0 if country == "PL" else fx_rate
+            rate = fx_rate  # PL ma 1.0 z DEFAULT
             parts = {c: round(v * rate, 2) for c, v in sums.get(tid, {}).items() if round(v * rate, 2)}
             if parts:  # kaucja (butelki) i grosze różnicy: do spożywczych, bez nich do największej części
                 rest = "food" if "food" in parts else max(parts, key=lambda c: abs(parts[c]))
@@ -1253,7 +1253,7 @@ class History:
                     "parts": parts,
                     "country": country,
                     "currency": currency,
-                    "paid_orig": None if country == "PL" else total_orig,
+                    "paid_orig": total_orig,
                     "fx_rate": rate,
                 }
             )

@@ -21,13 +21,13 @@ from .fx import NbpRates, currency_code
 from .history import History, elapsed_ms
 from .receipt import parse_detail, sanitize_detail
 from .receipt_html import ParsedReceipt
+from .settings import COUNTRY
 
 log = logging.getLogger(__name__)
 
 MAX_YEAR_OFFSET = 10  # bezpiecznik; zwykle historia kończy się HTTP 400 przy yearOffset=6
 
 
-COUNTRY = "PL"
 SKIPPED_STATUSES = (400, 403, 404)  # kraj bez konta/historii Lidl Plus: pomijany, nie przerywa konta
 
 
@@ -233,10 +233,7 @@ class HistorySync:
         new = 0
         for offset in range(MAX_YEAR_OFFSET if full else 1):
             try:
-                if country == COUNTRY:
-                    batch = await self._source.tickets(slug, offset)
-                else:
-                    batch = await self._source.tickets(slug, offset, country=country)
+                batch = await self._source.tickets(slug, offset, country=country)
             except LidlPlusError as err:
                 if err.status == 400 and offset > 0:
                     break  # koniec historii

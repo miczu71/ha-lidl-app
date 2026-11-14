@@ -33,7 +33,7 @@ class FakeSource:
         self.native: set[str] = set()
         self.empty: set[str] = set()
 
-    async def tickets(self, slug: str, year_offset: int) -> list[dict[str, Any]]:
+    async def tickets(self, slug: str, year_offset: int, country: str = "PL") -> list[dict[str, Any]]:
         self.list_calls.append(year_offset)
         if self.fail_list:
             raise self.fail_list
@@ -148,9 +148,9 @@ async def test_start_refuses_second_run_and_reports_progress(history: History) -
     src = FakeSource({0: ["a"]})
     original = src.tickets
 
-    async def slow(slug: str, year_offset: int) -> list[dict[str, Any]]:
+    async def slow(slug: str, year_offset: int, country: str = "PL") -> list[dict[str, Any]]:
         await gate.wait()
-        return await original(slug, year_offset)
+        return await original(slug, year_offset, country)
 
     src.tickets = slow  # type: ignore[method-assign]
     sync, _ = _sync(src, history)
@@ -332,7 +332,7 @@ class CzSource(FakeSource):
         self.cz_status = cz_status
         self.cz_calls: list[int] = []
 
-    async def tickets(self, slug: str, year_offset: int, country: str = "PL") -> list[dict[str, Any]]:  # type: ignore[override]
+    async def tickets(self, slug: str, year_offset: int, country: str = "PL") -> list[dict[str, Any]]:
         if country == "PL":
             return await super().tickets(slug, year_offset)
         self.cz_calls.append(year_offset)

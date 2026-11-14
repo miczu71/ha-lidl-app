@@ -1,4 +1,4 @@
-"""Waluty i kursy NBP dla paragonów zagranicznych (K1).
+"""Waluty i kursy NBP dla paragonów zagranicznych.
 
 Kurs paragonu = średni kurs NBP (tabela A) z ostatniego dnia roboczego PRZED dniem zakupu. Pobierany
 asynchronicznie przed zapisem (`prefetch`), a `History.upsert_tickets` czyta go synchronicznie z bazy.

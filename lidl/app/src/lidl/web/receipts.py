@@ -41,6 +41,11 @@ def minus(value: float) -> str:
     return "−" + fmt_pln(abs(value), 2)
 
 
+def _flag(t: TicketSummary) -> str | None:
+    """Kod kraju tylko dla paragonu zagranicznego."""
+    return t.country if t.country != "PL" else None
+
+
 def _orig(t: TicketSummary) -> str | None:
     """Oryginał kwoty w walucie paragonu (tylko zagranica)."""
     if t.country == "PL" or t.total_orig is None:
@@ -88,7 +93,7 @@ def month_groups(
                 "notes": [f"taniej o {fmt_pln(t.savings, 2)}"] if t.savings > 0 else [],
                 "status": _STATUS.get(t.status),
                 "total": fmt_pln(t.total, 2),
-                "flag": t.country if t.country != "PL" else None,
+                "flag": _flag(t),
                 "orig": _orig(t),
                 "href": href(t.id),
             }
@@ -154,7 +159,7 @@ def detail_view(
         "account": account,
         "payment": d.payment,
         "total": fmt_pln(t.total, 2),
-        "flag": t.country if t.country != "PL" else None,
+        "flag": _flag(t),
         "orig": _orig(t),
         "savings": fmt_pln(t.savings, 2) if t.savings > 0 else None,
         "status": t.status,
