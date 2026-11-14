@@ -28,21 +28,24 @@ Skrypt: `docs/spike_countries.py`. Tokeny zostają w pamięci, wypisuje tylko li
 
 Rollback: brak zmian do cofnięcia.
 
-## Etapy po spike'u (szkic; przed startem wywiad `grill-me` i plan etapu z sekcją Wykonawca)
-1. **Model danych** — migracja `history.py`: kolumny `country`, `currency`, `total_orig`, `fx_rate` w `tickets` (domyślnie PL/PLN/1).
-   Kopia bazy `*.pre-countries` przed migracją. Ryzyko (migracja) → `sonnet-worker`. Rollback: przywrócenie kopii.
-2. **Pobieranie** — opcja add-onu `extra_countries` (np. `[CZ, IT]`), `sync.py:_import_lists` iteruje po krajach;
-   parser paragonu (`receipt*.py`) odporny na czeski/włoski format (fixtures z neutralnymi nazwami).
-3. **Kurs NBP** — moduł z tabelą A (`api.nbp.pl`, ostatni dzień roboczy przed zakupem), cache w bazie.
-4. **Widoki i Budżet** — sumy/KPI w PLN po przeliczeniu, na paragonie oryginalna kwota i kraj;
-   `budget_feed` wysyła PLN z adnotacją waluty. Do ustalenia w wywiadzie: statystyki cen produktów tylko PL?
-5. **Wydanie zbiorcze** — `simplify` → `code-review` → `release` → weryfikacja na żywo (paragony CZ/IT w historii).
+## Decyzje z wywiadu (2026-11-14)
+- Produkty, Ceny, Oszczędności, kupony i nagrody zostają polskie; pozycje zagraniczne w osobnej tabeli `foreign_items`.
+  Porównanie między krajami = osobna zakładka „Kraje” (K6), nie standardowe porównania.
+- Sumy, Paragony, Miesiące i Budżet liczą zagranicę w PLN po kursie NBP (ostatni dzień roboczy przed zakupem), oryginał w nawiasie. Rytm (mapa, heatmapa) tylko PL.
+- Kategorie dla Budżetu: AI na pozycjach CZ/IT. Parowanie z transakcją z karty: tolerancja kwoty 5%, kwota z banku po sparowaniu.
+- Kraje z opcji `extra_countries` (start CZ, IT); import raz dziennie 07:00 + „Sprawdź teraz”; oba konta; pełna historia, dedup po `id`.
+- Jedno wydanie zbiorcze po K1–K5 (Lidl, potem Budżet); K6 osobno po obejrzeniu prawdziwych danych.
+- Zgoda usera 2026-11-14 („Go”): etapy idą po kolei bez czekania na zgodę; stop przy kroku spoza planu.
 
-## Otwarte pytania do wywiadu
-- Wariant A czy B (po etapie 0).
-- Czy paragony zagraniczne wchodzą do statystyk produktów i kategorii, czy tylko do sum i Budżetu.
-- Kategoryzacja LLM (`budget_feed.classify_new`) dla czeskich i włoskich nazw produktów.
-- Kupony i nagrody (`coupons.py`, `rewards.py`) są per kraj — pominąć dla krajów dodatkowych?
+## Etapy (kontrakt Wykonawca w `docs/PLAN_COUNTRIES_K<n>.md`)
+- **K1** model danych + pobieranie list + kurs NBP (migracja v6, `.pre-countries`, `extra_countries`) — `sonnet-worker` (migracja = ryzyko).
+- **K2** szczegóły i pozycje zagraniczne (parser cs/it, `foreign_items`) — czeka na fixtures od usera (anonimowy fragment HTML CZ i IT) — `sonnet-worker`.
+- **K3** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
+- **K4** kategorie AI + eksport do Budżetu + parowanie 5% w Budżecie (dwa repo) — `sonnet-worker`.
+- **K5** wydanie zbiorcze: `simplify` → `code-review` (+ `silent-failure-hunter`, `pr-test-analyzer`, security-review diffu) → `release` Lidl, potem Budżet → weryfikacja na żywo (4 paragony CZ/IT).
+- **K6** (później, osobny wywiad) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.
+
+Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
 ## Wynik etapu 0
 **2026-11-14: wariant A.** Jedno logowanie „PL” wystarcza; `/v3/CZ|IT/tickets` działają na tym samym tokenie
