@@ -94,6 +94,9 @@ Rollback: brak zmian do cofnięcia.
     Wynik: pytest 524 zielone (`--deselect tests/test_leaflet.py`, pełny, sam), ruff/format/mypy czyste; verifier ACCEPT (zero blokujących, arytmetyka sprawdzona ręcznie: CZK, EUR, kg, 500 g→kg, koszyk 34,04 vs 41); demo Playwright: sekcja +200,0%, konsola bez błędów.
     Moja poprawka po verifierze: `_fmt_pct` bez „−0,0%”. Odstępstwa: minus U+2212 w %, test strony w `test_countries.py` (nie `test_web.py`), brak przypadku „bilet bez kursu” w teście (`fx_rate NOT NULL`).
     Nieblokujące do raportu wydania: mianownik „X z Y” liczy też pozycje z qty=0/ceną=0 (pokrycie nie dojdzie do Y); importy w środku `test_countries.py` (`noqa: E402`).
+  - **K6d ✅ 2026-11-14 (Budżet `180c7ae`, wypchnięte)** link „ceny za granicą” → `{{ lidl_panel }}/kraje` obok „paragon Lidl” przy paragonie zagranicznym (`lidl_link.foreign_ids` czyta plik add-onu; Transakcje + edytor) + test `test_foreign_lidl_receipt_links_to_countries_tab` (CZ ma link, ten sam paragon jako PL nie) — zrobione przeze mnie (4 edycje, bez workera).
+    Wynik: Budżet pytest 1462 zielone, ruff/format/mypy czyste. Nieblokujące: `foreign_ids` parsuje cały plik paragonów przy każdym renderze listy (skala domowa).
+    Dalej: wydanie zbiorcze (baza Lidl `a2e4897` = v1.1.0, Budżet `ab2ee68` = v0.75.0).
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
