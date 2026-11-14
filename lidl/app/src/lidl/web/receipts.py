@@ -36,9 +36,16 @@ def parse_filter(
     return f, bool(start and end and start > end)
 
 
-def minus(value: float) -> str:
-    """Rabat jako „−2,00 zł” (zawsze z minusem typograficznym)."""
-    return "−" + fmt_pln(abs(value), 2)
+Money = Callable[[float], str]
+
+
+def _pln(value: float) -> str:
+    return fmt_pln(value, 2)
+
+
+def minus(value: float, money: Money = _pln) -> str:
+    """Rabat jako „−2,00 zł” (zawsze z minusem typograficznym); `money` formatuje kwotę (waluta paragonu)."""
+    return "−" + money(abs(value))
 
 
 def _flag(t: TicketSummary) -> str | None:
@@ -101,24 +108,24 @@ def month_groups(
     return groups
 
 
-def _qty(line: ReceiptLine) -> str | None:
+def _qty(line: ReceiptLine, money: Money = _pln) -> str | None:
     """„2 × 3,49 zł”, „0,532 kg × 12,99 zł/kg”; przy jednej sztuce nic (cena = wartość)."""
     if line.is_weight:
-        return f"{fmt_qty(line.quantity)} kg × {fmt_price(line.unit_price, True)}"
+        return f"{fmt_qty(line.quantity)} kg × {money(line.unit_price)}/kg"
     if line.quantity == 1:
         return None
-    return f"{fmt_qty(line.quantity)} × {fmt_pln(line.unit_price, 2)}"
+    return f"{fmt_qty(line.quantity)} × {money(line.unit_price)}"
 
 
-def discounts(line: ReceiptLine) -> list[dict[str, str]]:
+def discounts(line: ReceiptLine, money: Money = _pln) -> list[dict[str, str]]:
     """Rabaty pozycji: kupon Lidl Plus i reszta (promocja, z opisem z paragonu, gdy jest)."""
     out = []
     if line.coupon < 0:
-        out.append({"label": "Kupon Lidl Plus", "amount": minus(line.coupon)})
+        out.append({"label": "Kupon Lidl Plus", "amount": minus(line.coupon, money)})
     promo = round(line.discount - line.coupon, 2)
     if promo < 0:
         names = [p for p in line.promo.split("; ") if p and "lidl plus" not in p.casefold()]
-        out.append({"label": ", ".join(names) or "Promocja", "amount": minus(promo)})
+        out.append({"label": ", ".join(names) or "Promocja", "amount": minus(promo, money)})
     return out
 
 
@@ -127,31 +134,34 @@ def detail_view(
 ) -> dict[str, Any]:
     """Szczegół paragonu: pozycje z rabatami (szukany produkt wyróżniony) i rozliczenie do zapłaty."""
     t = d.ticket
+    foreign = t.country != "PL"
+    # pozycje zagraniczne są w walucie paragonu i nie mają strony produktu (kody `IT:…` poza historią PL)
+    money: Money = (lambda v: fmt_money(v, t.currency)) if foreign else _pln
     lines: list[dict[str, Any]] = []
     for line in d.lines:
         hit = product is not None and line.product == product
         lines.append(
             {
                 "name": line.name,
-                "href": product_href(line.product),
-                "qty": _qty(line),
-                "total": fmt_pln(line.total, 2),
-                "discounts": discounts(line),
+                "href": None if foreign else product_href(line.product),
+                "qty": _qty(line, money),
+                "total": money(line.total),
+                "discounts": discounts(line, money),
                 "hit": hit,
                 "anchor": hit and not any(x["hit"] for x in lines),
             }
         )
     coupon = sum(x.coupon for x in d.lines)
     promo = sum(x.discount for x in d.lines) - coupon
-    summary = [{"label": "Suma pozycji", "value": fmt_pln(sum(x.total for x in d.lines), 2)}]
+    summary = [{"label": "Suma pozycji", "value": money(sum(x.total for x in d.lines))}]
     if coupon < 0:
-        summary.append({"label": "Kupony Lidl Plus", "value": minus(coupon)})
+        summary.append({"label": "Kupony Lidl Plus", "value": minus(coupon, money)})
     if promo < -0.004:
-        summary.append({"label": "Promocje", "value": minus(promo)})
+        summary.append({"label": "Promocje", "value": minus(promo, money)})
     if d.deposit_charged:
-        summary.append({"label": "Kaucje pobrane", "value": "+" + fmt_pln(d.deposit_charged, 2)})
+        summary.append({"label": "Kaucje pobrane", "value": "+" + money(d.deposit_charged)})
     if d.deposit_refunded:
-        summary.append({"label": "Kaucje i opakowania zwrócone", "value": minus(d.deposit_refunded)})
+        summary.append({"label": "Kaucje i opakowania zwrócone", "value": minus(d.deposit_refunded, money)})
     store, account = _where(t, labels)
     return {
         "when": _when(t, year=True),
@@ -159,6 +169,7 @@ def detail_view(
         "account": account,
         "payment": d.payment,
         "total": fmt_pln(t.total, 2),
+        "bill_total": money(t.total_orig) if foreign and t.total_orig is not None else fmt_pln(t.total, 2),
         "flag": _flag(t),
         "orig": _orig(t),
         "savings": fmt_pln(t.savings, 2) if t.savings > 0 else None,

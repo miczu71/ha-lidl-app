@@ -604,8 +604,10 @@ class MonthSummary:
 # kolumny `TicketSummary` (alias `t` = tickets)
 _TICKET_COLS = (
     "t.id, t.account, t.day, t.purchased_at, COALESCE(NULLIF(t.store_name, ''), t.store, ''), t.total,"
-    " (SELECT -COALESCE(SUM(discount), 0) FROM items WHERE ticket_id = t.id),"
-    " (SELECT COUNT(*) FROM items WHERE ticket_id = t.id), t.detail_fetched, t.parsed,"
+    " CASE WHEN t.country = 'PL' THEN (SELECT -COALESCE(SUM(discount), 0) FROM items WHERE ticket_id = t.id)"
+    " ELSE (SELECT -COALESCE(SUM(discount), 0) * t.fx_rate FROM foreign_items WHERE ticket_id = t.id) END,"
+    " CASE WHEN t.country = 'PL' THEN (SELECT COUNT(*) FROM items WHERE ticket_id = t.id)"
+    " ELSE (SELECT COUNT(*) FROM foreign_items WHERE ticket_id = t.id) END, t.detail_fetched, t.parsed,"
     " t.country, t.currency, t.total_orig"
 )
 _TICKET_N = 13  # liczba kolumn `_TICKET_COLS`; dalsze kolumny zapytania idą po nich
@@ -2392,19 +2394,21 @@ class History:
         ).fetchone()
         if row is None:
             return None
-        resolve = self._resolver()
+        summary = _summary(row[:_TICKET_N])
+        foreign = (
+            summary.country != "PL"
+        )  # pozycje zagraniczne: osobna tabela, waluta paragonu, bez mostu nazw
+        resolve = (lambda art, _name: art) if foreign else self._resolver()
         lines = [
             ReceiptLine(resolve(art, name), name, qty, price, total, disc, coupon, bool(weight), promo)
             for art, name, qty, price, total, disc, coupon, weight, promo in self._db.execute(
                 "SELECT art_id, name, quantity, unit_price, total, discount, coupon, is_weight, promo"
-                " FROM items WHERE ticket_id = ? ORDER BY line",
+                f" FROM {'foreign_items' if foreign else 'items'} WHERE ticket_id = ? ORDER BY line",
                 (ticket_id,),
             )
         ]
         payment, charged, refunded = row[_TICKET_N:]
-        return TicketDetail(
-            _summary(row[:_TICKET_N]), payment, charged, refunded, lines, self.coupons(ticket_id)
-        )
+        return TicketDetail(summary, payment, charged, refunded, lines, self.coupons(ticket_id))
 
     def product_purchases(self, art_id: str) -> list[Purchase]:
         """Każdy zakup produktu (po moście nazw) od najnowszych, z paragonem."""

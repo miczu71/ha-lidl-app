@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1
+
+- **Paragony z zagranicy (CZ, IT) pokazują pozycje:** szczegół paragonu i lista Paragonów czytały tylko polską
+  tabelę pozycji, więc zagraniczny paragon miał „0 pozycji”, mimo że pozycje były zapisane. Teraz szczegół
+  wylicza je w walucie paragonu (kwoty, rabaty, „Suma pozycji”, „Zapłacono”), lista pokazuje ich liczbę, a „taniej o”
+  jest przeliczone na zł. Pozycje zagraniczne nie mają strony produktu, więc nie są linkami. Bez migracji bazy.
+
 ## 1.2.0
 
 - **Zakładka „Kraje”:** porównanie cen produktów kupionych za granicą z cenami w Polsce. Model językowy sam

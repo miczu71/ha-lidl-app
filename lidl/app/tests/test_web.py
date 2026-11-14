@@ -1382,6 +1382,24 @@ def test_receipts_show_flag_original_and_filter_by_country(client: TestClient) -
     assert "i-flag-cz" in detail.text and "875,00 CZK" in detail.text
 
 
+def test_foreign_receipt_detail_lists_items_in_original_currency_without_product_links(
+    client: TestClient,
+) -> None:
+    _seed_abroad(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    items = [
+        ReceiptItem("1", "Banány", 1, 800.0, 800.0, discount=-25.0),
+        ReceiptItem("2", "Mléko", 1, 100.0, 100.0),
+    ]
+    assert history.save_detail("c-1", None, ParsedReceipt(items=items), country="CZ") is True
+    text = client.get("/paragony/c-1").text.replace("\u00a0", " ")
+    assert "2 pozycje" in text and "Banány" in text and "800,00 CZK" in text
+    assert "Suma pozycji" in text and "900,00 CZK" in text and "−25,00 CZK" in text
+    assert "/paragony/produkt/CZ" not in text  # zagraniczne pozycje nie mają strony produktu
+    listed = client.get("/paragony").text.replace("\u00a0", " ")
+    assert "taniej o 5,00 zł" in listed  # 25 CZK × 0,2 zł na liście
+
+
 def test_receipts_without_foreign_have_no_country_filter(client: TestClient) -> None:
     _seed_receipts(client)
     r = client.get("/paragony")

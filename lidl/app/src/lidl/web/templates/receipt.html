@@ -51,7 +51,7 @@
     {% for x in receipt.lines %}
     <li class="rl{% if x.hit %} rl--hit{% endif %}"{% if x.anchor %} id="szukany"{% endif %}>
       <div class="rl__main">
-        <a class="rl__name" href="{{ x.href }}">{{ x.name }}</a>
+        {% if x.href %}<a class="rl__name" href="{{ x.href }}">{{ x.name }}</a>{% else %}<span class="rl__name">{{ x.name }}</span>{% endif %}
         {% if x.qty or x.hit %}<span class="rl__sub">{% if x.qty %}<span>{{ x.qty }}</span>{% endif %}{% if x.hit %}<span class="tag tag--own">Szukany produkt</span>{% endif %}</span>{% endif %}
       </div>
       <span class="rl__amt">{{ x.total }}</span>
@@ -61,7 +61,7 @@
   </ul>
   <dl class="bill">
     {% for s in receipt.summary %}<div><dt>{{ s.label }}</dt><dd>{{ s.value }}</dd></div>{% endfor %}
-    <div class="bill__total"><dt>Zapłacono</dt><dd>{{ receipt.total }}</dd></div>
+    <div class="bill__total"><dt>Zapłacono</dt><dd>{{ receipt.bill_total }}</dd></div>
   </dl>
 </section>
 {% endif %}

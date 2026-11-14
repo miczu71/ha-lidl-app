@@ -1299,6 +1299,26 @@ def test_foreign_reparse_replaces_old_items(tmp_path: Path) -> None:
     assert h._db.execute("SELECT COUNT(*) FROM foreign_items").fetchone()[0] == 0
 
 
+def test_foreign_ticket_shows_its_items_in_detail_and_list(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    h = History(tmp_path / "h.db")
+    _foreign_ticket(h)  # 100 CZK, 1 CZK = 0,2 zł
+    receipt = _foreign_receipt(60.0, 40.0)
+    receipt.items[0].discount = -10.0
+    receipt.items.append(ReceiptItem("", "Banány", 1, 10.0, 10.0))
+    assert h.save_detail("cz-1", None, receipt, country="CZ") is True
+    d = h.ticket("cz-1")
+    assert d is not None
+    assert [(x.product, x.name, x.total, x.discount) for x in d.lines] == [
+        ("CZ:1", "Pozycja 1", 60.0, -10.0),
+        ("CZ:2", "Pozycja 2", 40.0, 0.0),
+        ("CZ:", "Banány", 10.0, 0.0),
+    ]
+    listed = h.tickets(ReceiptFilter(), 10)[0][0]
+    assert (listed.items, listed.savings, listed.status) == (3, 2.0, "ok")  # 10 CZK × 0,2 = 2 zł
+
+
 def test_foreign_items_are_invisible_to_polish_views(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     h.upsert_tickets("a", [_ticket("pl-1", "2026-05-01")])
