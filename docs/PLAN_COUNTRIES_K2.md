@@ -12,10 +12,17 @@ Wykonawca: `sonnet-worker` (parser na nieznanym formacie, niejasne ryzyko).
 - `PARSER_VERSION` bez zmian dla PL; zagraniczne mają własny `detail_version`.
 
 ## Wykonawca
-1. **Rozpoznanie formatu (bez tokenów usera):** na pierwszym imporcie add-on zapisuje oczyszczoną kopię (`ticket_raw`, już
-   istnieje). Worker NIE sięga po prawdziwe dane: fixtures piszemy po tym, jak USER wklei 1 zanonimizowany fragment HTML
-   z każdego kraju (CZ, IT) do `tests/fixtures/receipt_cz.html`/`receipt_it.html` z neutralnymi nazwami („Sklep X”, „Produkt A”).
-   Jeśli fixtures brak → worker zatrzymuje się i zgłasza „czeka na fixtures” (nie wymyśla formatu).
+1. **Fixtures są gotowe** (zanonimizowane, w repo, `8554b56`): `lidl/app/tests/fixtures/foreign/{cz_0,cz_1,it_0}.json` (pola `htmlPrintedReceipt`,
+   `languageCode`, `totalAmount`, `id`, `date`). Worker NIE sięga po prawdziwe dane ani sieć. Format (sprawdzony 2026-11-14):
+   - pozycja = `span.article` z `data-art-id/-quantity/-unit-price/-tax-type/-art-description`; przecinek dziesiętny (`"19,90"`, `"2,374"`);
+     pozycja z ilością ma dwie linie article (nazwa+kwota, potem „3 ks   x 19,90  Kč/ks” / IT „Cad 0,99 Pz. 3” / IT waga „  2,374 kg x 0,89  EUR/kg”) —
+     druga linia nie tworzy pozycji (nie pasuje do `_DETAIL_LINE` PL: inne jednostki/układ; potrzebny wzorzec per `locale`);
+   - CZ pozycje ważone NIE mają `class="article"`: zwykły `span` w `purchase_list` „Banány   16,20 B” + następny „N   0,406 kg   x 39,90  Kč/kg ”
+     (kwota = ostatnia liczba pierwszej linii przed literą stawki, ilość/cena z drugiej); `art_id` brak → pusty (`CZ:` + nazwa znormalizowana NIE; zostaw `CZ:` + pusty = pozycja bez art_id, nie wchodzi do statystyk);
+   - rabaty `span.discount` („2+1 zdarma …  -19,90”, „Lidl Plus sleva na nákup”, IT „Offerta Lidl Plus   10%   -0,59”): kwota = OSTATNIA liczba w linii
+     (uwaga IT: procent „10%” stoi przed kwotą — ostatnia liczba nadal dobra); `coupon` gdy opis zawiera „Lidl Plus”; linie „Cena po slevě N” (plain span) ignorujemy;
+   - waluta: `span.currency[data-currency]` („Kč”, „€”), suma w sekcji `purchase_summary` („K PLATBĚ 175,40”, IT „VALORE/TOTALE”); płatność: `data-tender-description` na `purchase_summary_*`
+     (CZ „Karta”) — wyciągnij do `payment`, jeśli proste; inaczej `None`.
 2. `receipt_html.py`: parametr `locale` (`pl`/`cs`/`it`) wybierający wzorce liczb/etykiet (separatory dziesiętne, słowa „SUMA/CELKEM/TOTALE”);
    PL bez zmian zachowania (istniejące testy `test_receipt_html.py` muszą przejść bez edycji).
 3. `receipt.py`: `parse_detail(detail, country="PL")` przekazuje `locale`; `language` z pola `languageCode` jako podpowiedź.
