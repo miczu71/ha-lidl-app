@@ -38,8 +38,14 @@ Rollback: brak zmian do cofnięcia.
 - Wywiad zatwierdzony przez usera 2026-11-14 („Go”). **Plany K1–K4 czekają na jego zgodę przed implementacją**; po zgodzie etapy idą po kolei, stop przy kroku spoza planu.
 
 ## Etapy (kontrakt Wykonawca w `docs/PLAN_COUNTRIES_K<n>.md`)
-- **K1** model danych + pobieranie list + kurs NBP (migracja v6, `.pre-countries`, `extra_countries`) — `sonnet-worker` (migracja = ryzyko).
+- **K1 ✅ 2026-11-14 (`f53da88`, wypchnięte)** model danych + pobieranie list + kurs NBP (migracja v6, `.pre-countries`, `extra_countries`) — `sonnet-worker` (migracja = ryzyko).
+  Wynik: pełny pytest 474 zielone + 13 czerwonych w `tests/test_leaflet.py` (zahardkodowane daty z października, **te same 13 padają na `4973f64`** — dług niezwiązany z K1);
+  ruff/format/mypy czyste; verifier REJECT → blokujące (ręczny import historii z panelu pomijał kraje) poprawione przeze mnie: `HistorySync.start()` bez `countries` bierze PL + `extra_countries` (+ test).
+  Odstępstwa od planu: `web/app.py` podpięty przeze mnie (plan K1 błędnie zakazywał `web/`); kolumny też w `CREATE TABLE tickets`; `NbpRates.cached/prefetch`, `History.fx_get/fx_put`;
+  `pending_details` ma `AND country='PL'`; zagraniczny duplikat bez kursu tylko odświeża `articles`. Nieblokujące: błąd 5xx/auth kraju przerywa konto po PL (zgodne z planem), nieznany kraj bez `currency` dostaje EUR.
+  Na żywo dopiero po wydaniu K5 (`extra_countries` domyślnie puste = zero zmian zachowania).
 - **K2** szczegóły i pozycje zagraniczne (parser cs/it, `foreign_items`) — czeka na fixtures od usera (anonimowy fragment HTML CZ i IT) — `sonnet-worker`.
+- **Kolejność: K3 przed K2** (K2 blokuje brak fixtures od usera; K3 zależy tylko od K1).
 - **K3** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
 - **K4** kategorie AI + eksport do Budżetu + parowanie 5% w Budżecie (dwa repo) — `sonnet-worker`.
 - **K5** wydanie zbiorcze: `simplify` → `code-review` (+ `silent-failure-hunter`, `pr-test-analyzer`, security-review diffu) → `release` Lidl, potem Budżet → weryfikacja na żywo (4 paragony CZ/IT).
