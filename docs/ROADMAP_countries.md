@@ -72,7 +72,14 @@ Rollback: brak zmian do cofnięcia.
   Testy (`haiku-worker` W1 + ja w Budżecie): `_api/_drop_apis/save_tokens`, `_http_fetch`, `settings._countries`, migracja v2→v6, filtr krajów, `_capped`, powiadomienie, sync z filtrem; Budżet: dokładnie 5%, PL+zagraniczny na jedną transakcję (ręcznie), `_scaled` przy sumie 0.
   Wynik: Lidl pytest 500 zielone (26 zdeselektowanych = cały `test_leaflet.py`, 13 z nich starych czerwonych), ruff/format/mypy czyste; Budżet test_lidl_link 17 zielone, ruff czyste; verifier ACCEPT bez blokujących.
   Nieblokujące: brak testu `classify_new` end-to-end (tylko `_capped`, bez mocka LLM); test sync zależy od ścieżki z bazy. W długu zostaje: osobna tabela `foreign_items`, rejestr `COUNTRIES`, szeregowe kursy NBP, `_drop_apis` przy rotacji tokenu, błąd szczegółu zagranicznego zapisuje `detail_version`.
-- **K6** (po D1, wywiad `grill-me` na prawdziwych danych; poprosić usera o decyzje) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.
+- **K6** zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza), koszyk porównawczy w PLN. Wywiad `grill-me` zamknięty 2026-11-14 (user: „Tak, zapisz i przygotuj plan”); plan: `docs/PLAN_COUNTRIES_K6.md`. **Czeka na zgodę usera na plan przed implementacją.**
+  Korekta: „jak E21” to uproszczenie — E21 nie miała w add-onie propozycji AI ani UI zatwierdzania (pary układał Claude poza add-onem); K6 buduje to od zera na `llm.py`.
+  Decyzje: cel = ciekawostka „ile taniej/drożej za granicą” (tylko dla usera, nic do Budżetu poza linkiem); budujemy teraz na 4 paragonach / 93 pozycjach;
+  AI automatycznie po imporcie (hook `after`) → top-3 konkretnych produktów PL z katalogu `pl_catalog` (bez EAN — schemat go nie ma), propozycje czekają na zatwierdzenie; „bez odpowiednika” = odrzucenie z pamięcią, do cofnięcia;
+  tabela `country_pairs` (migracja v7, kopia `.pre-countries-pairs`, rollback = DROP); przycisk „Sprawdź teraz” na zakładce Kraje (`full=False`, nie `/history/resume`); cena PL = średnia z 12 mies. przed zakupem zagranicznym;
+  **Korekta po weryfikacji w trybie planu (2026-11-14):** `pack_size()` łapie gramaturę tylko w ~11% pozycji cs/it, więc zamiast „base_name + brak gramatury = poza koszykiem” para wskazuje konkretny produkt PL, a zatwierdzenie = porównywalne opakowanie (ważone zł/kg; obie gramatury → za kg/l; inaczej za sztukę);
+  koszyk = Σ po zatwierdzonych parach (ilość z paragonu zagranicznego × cena jednostkowa) vs ta sama ilość po cenie PL, w PLN po kursie z dnia zakupu, z pokryciem „X z Y pozycji”; link z Budżetu wymaga też rozszerzenia obejścia głębokich linków w `base.html` Lidla o `/kraje`;
+  wydanie: Lidl (minor) + Budżet z samym linkiem do zakładki (wybór usera, wbrew rekomendacji „tylko Lidl”).
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
