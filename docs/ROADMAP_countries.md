@@ -46,7 +46,9 @@ Rollback: brak zmian do cofnięcia.
   Na żywo dopiero po wydaniu K5 (`extra_countries` domyślnie puste = zero zmian zachowania).
 - **K2** szczegóły i pozycje zagraniczne (parser cs/it, `foreign_items`) — czeka na fixtures od usera (anonimowy fragment HTML CZ i IT) — `sonnet-worker`.
 - **Kolejność: K3 przed K2** (K2 blokuje brak fixtures od usera; K3 zależy tylko od K1).
-- **K3** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
+- **K3 ✅ 2026-11-14 (`bf64073`)** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
+  Wynik: pytest 469 zielone (bez `test_leaflet.py`, 13 starych czerwonych), ruff/format/mypy czyste; verifier ACCEPT; demo (seed PL + 3 CZ + 1 IT): lista z flagą i oryginałem, `?kraj=CZ` filtruje, Miesiące „w tym za granicą”, Rytm liczy tylko PL.
+  Nieblokujące do K5: brak linii „za granicą” w `notify.py` (powiadomienie miesięczne); słaba asercja `i-flag-cz` w `test_web.py` (sprite zawsze na stronie); test `fmt_money` w `test_chart.py`; `stores/rhythm/_savings_breakdown` przy `ReceiptFilter(country='CZ')` dają pusty wynik; `coupon_effect` tylko PL de facto (zagranica bez `items`, do K2).
 - **K4** kategorie AI + eksport do Budżetu + parowanie 5% w Budżecie (dwa repo) — `sonnet-worker`.
 - **K5** wydanie zbiorcze: `simplify` → `code-review` (+ `silent-failure-hunter`, `pr-test-analyzer`, security-review diffu) → `release` Lidl, potem Budżet → weryfikacja na żywo (4 paragony CZ/IT).
 - **K6** (później, osobny wywiad) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.

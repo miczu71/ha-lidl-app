@@ -28,10 +28,21 @@ Komenda testu: `cd /config/addons/ha-lidl-app/lidl/app && uv run pytest -q && uv
 
 DONE: testy zielone; tabela audytu uzupełniona; na danych demo (seed z zagranicznymi paragonami, `~/dev/lidl-spike/seed_*` wzorem
 `seed_receipts_demo.py`) Paragony pokazują flagę i oryginał, a Rytm liczy tylko PL (zrzut Playwright).
-NIE RÓB: zmian w `budget_feed.py`, `receipt*.py`, `coupons.py`; zmiany sum PL przy danych tylko polskich (wynik ma być identyczny).
+NIE RÓB: zmian w `budget_feed.py`, `receipt*.py`, `coupons.py`, `sync.py`, `service.py`, `fx.py`, schematu/migracji; `history.budget_tickets` (≈l.1143) zostaje jak jest (K4);
+zmian sum PL przy danych tylko polskich (wynik ma być identyczny). `web/` (szablony, `web/app.py`, `web/receipts.py`, `web/months.py`) jest DOZWOLONE
+(poprawka błędu z K1).
 
 ## Rollback
 Revert commitów etapu; dane nietknięte.
+
+## Ustalenia z rozpoznania (2026-11-14, po K1)
+- Kolumny `tickets.total`/`savings` są już w PLN (K1); `country`, `currency`, `total_orig` (oryginał), `fx_rate` istnieją. Zagraniczne paragony nie mają `items`
+  (K2), więc zapytania przez `JOIN items` i tak ich nie widzą — audyt dotyczy zapytań tylko po `tickets`.
+- Tylko PL (dodać `AND t.country = 'PL'`): `rhythm`, `stores`, `stores_without_geo`, `main_store`, ticketowa część `_savings_breakdown` (`ticket_rows`) i `savings_kpi`
+  (`COUNT/SUM FROM tickets`). `ReceiptFilter` dostaje pole `country: str | None` (filtr `?kraj=`); funkcje „tylko PL” wymuszają PL niezależnie od filtra.
+- „+zagranica” (bez zmian lub z oryginałem): `tickets`, `ticket_months`, `purchase_totals`, `month_summary` (+ `abroad_total`, `abroad_countries`), `ticket`, `spend_series` (kaucje 0).
+- `TicketSummary` dostaje `country='PL'`, `currency='PLN'`, `total_orig: float | None = None` (domyślne wartości → istniejące testy bez zmian); `_TICKET_COLS` rozszerzone o 3 kolumny, `_TICKET_N` odpowiednio.
+- Flagi tylko CZ, IT (+ neutralna ikona „obcy kraj” dla innych), symbole SVG w jednym sprite (makro w `_macros.html`).
 
 ## Audyt
 Zapytania `FROM/JOIN tickets` w `history.py` (łącznie z zapisem/migracją). „Tylko PL” = `country = 'PL'` w SQL.
