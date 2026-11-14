@@ -55,6 +55,7 @@ def elapsed_ms(began: float) -> int:
 
 
 SCHEMA_VERSION = 6
+FOREIGN_PARSER_VERSION = 1  # K2: własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
@@ -974,29 +975,59 @@ class History:
         )
         return [r[0] for r in rows]
 
+    def pending_foreign_details(self, account: str) -> list[tuple[str, str]]:
+        """Zagraniczne paragony (id, kraj) bez pozycji albo zapisane starszym parserem zagranicznym."""
+        rows = self._db.execute(
+            "SELECT id, country FROM tickets WHERE account = ? AND country != 'PL'"
+            " AND (detail_fetched = 0 OR detail_version < ?)"
+            " ORDER BY day DESC, id DESC",
+            (account, FOREIGN_PARSER_VERSION),
+        )
+        return [(r[0], r[1]) for r in rows]
+
     def save_detail(
         self,
         ticket_id: str,
         store: str | None,
         receipt: ParsedReceipt,
         raw: dict[str, Any] | None = None,
+        country: str = "PL",
     ) -> bool:
         """Zapisuje pozycje i kopertę paragonu; zwraca False, gdy paragon miał artykuły, a nic nie rozpoznano.
 
         `raw` to oczyszczona kopia szczegółu (zapisywana skompresowana); bez niej istniejąca kopia zostaje.
+        Dla kraju innego niż PL pozycje idą do `foreign_items` (art_id z prefiksem kraju) i tylko wtedy,
+        gdy suma (kwota + rabat) zgadza się z `total_orig` paragonu w tolerancji 0,01 — inaczej `parsed = 0`
+        i brak pozycji (nigdy zgadywanych).
         """
-        row = self._db.execute("SELECT articles FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
-        parsed = bool(receipt.items) or (row is not None and row[0] == 0)
+        row = self._db.execute(
+            "SELECT articles, total_orig FROM tickets WHERE id = ?", (ticket_id,)
+        ).fetchone()
+        foreign = country != "PL"
+        if foreign:
+            total_orig = row[1] if row is not None else None
+            matches = (
+                total_orig is not None
+                and abs(sum(i.total + i.discount for i in receipt.items) - total_orig) <= 0.01
+            )
+            parsed = matches if receipt.items else (row is not None and row[0] == 0)
+            items = receipt.items if matches else []
+            table, version = "foreign_items", FOREIGN_PARSER_VERSION
+        else:
+            parsed = bool(receipt.items) or (row is not None and row[0] == 0)
+            items = receipt.items
+            table, version = "items", PARSER_VERSION
+        prefix = f"{country}:" if foreign else ""
         st = receipt.store or {}
         with self._db:
-            self._db.execute("DELETE FROM items WHERE ticket_id = ?", (ticket_id,))
+            self._db.execute(f"DELETE FROM {table} WHERE ticket_id = ?", (ticket_id,))
             self._db.executemany(
-                "INSERT INTO items (ticket_id, line, art_id, name, quantity, unit_price, total, discount,"
+                f"INSERT INTO {table} (ticket_id, line, art_id, name, quantity, unit_price, total, discount,"
                 " coupon, is_weight, promo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
-                    (ticket_id, n, i.art_id, i.name, i.quantity, i.unit_price, i.total, i.discount,
+                    (ticket_id, n, prefix + i.art_id, i.name, i.quantity, i.unit_price, i.total, i.discount,
                      i.coupon, int(i.is_weight), i.promo)
-                    for n, i in enumerate(receipt.items)
+                    for n, i in enumerate(items)
                 ],
             )  # fmt: skip
             self._db.execute("DELETE FROM ticket_coupons WHERE ticket_id = ?", (ticket_id,))
@@ -1015,7 +1046,7 @@ class History:
                 (
                     int(parsed), store, receipt.purchased_at, st.get("code"), st.get("name"),
                     st.get("address"), st.get("postal"), st.get("locality"), receipt.payment,
-                    receipt.deposit_charged, receipt.deposit_refunded, PARSER_VERSION, ticket_id,
+                    receipt.deposit_charged, receipt.deposit_refunded, version, ticket_id,
                 ),
             )  # fmt: skip
             if raw is not None:
@@ -1046,7 +1077,8 @@ class History:
     def reparse(self, parse: Callable[[dict[str, Any]], ParsedReceipt]) -> int:
         """Przetwarza ponownie paragony z zapisanej kopii (po zmianie parsera), bez pytania Lidla."""
         rows = self._db.execute(
-            "SELECT t.id FROM tickets t JOIN ticket_raw r ON r.ticket_id = t.id WHERE t.detail_version < ?",
+            "SELECT t.id FROM tickets t JOIN ticket_raw r ON r.ticket_id = t.id"
+            " WHERE t.detail_version < ? AND t.country = 'PL'",
             (PARSER_VERSION,),
         ).fetchall()
         done = 0

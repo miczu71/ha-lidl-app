@@ -27,6 +27,7 @@ class FakeSource:
         self.years = years
         self.list_calls: list[int] = []
         self.detail_calls: list[str] = []
+        self.detail_countries: dict[str, str] = {}
         self.fail_detail: dict[str, Exception] = {}
         self.fail_list: Exception | None = None
         self.native: set[str] = set()
@@ -48,8 +49,9 @@ class FakeSource:
             for n, t in enumerate(self.years[year_offset])
         ]
 
-    async def ticket(self, slug: str, ticket_id: str) -> dict[str, Any]:
+    async def ticket(self, slug: str, ticket_id: str, country: str = "PL") -> dict[str, Any]:
         self.detail_calls.append(ticket_id)
+        self.detail_countries[ticket_id] = country
         if ticket_id in self.fail_detail:
             raise self.fail_detail[ticket_id]
         if ticket_id in self.empty:
@@ -362,7 +364,16 @@ async def test_import_account_pulls_extra_country_with_pln_total(history: Histor
         "SELECT total, total_orig, currency, country FROM tickets WHERE id = 'cz-1'"
     ).fetchone()
     assert row == (20.0, 100.0, "CZK", "CZ")
-    assert src.detail_calls == ["pl-1"]  # szczegóły tylko polskie
+    assert src.detail_calls == ["pl-1", "cz-1"]  # K2: szczegóły także zagraniczne (kraj z wiersza)
+    assert src.detail_countries == {"pl-1": "PL", "cz-1": "CZ"}
+
+
+async def test_quiet_run_fetches_only_polish_details(history: History) -> None:
+    src = CzSource()
+    history.upsert_tickets("a", [{"id": "pl-1", "date": "2026-05-01T10:00:00+00:00", "totalAmount": 2.0}])
+    sync = HistorySync(src, history, sleep=lambda s: asyncio.sleep(0), rates=FakeRates(history).rates)
+    await sync.import_account("a", full=True, quiet=True, countries=("PL", "CZ"))
+    assert src.detail_calls == ["pl-1"]
 
 
 async def test_import_account_ignores_polish_only_by_default(history: History) -> None:

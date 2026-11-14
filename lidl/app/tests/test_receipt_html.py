@@ -143,3 +143,71 @@ def test_payment_weight_flag_and_discount_description() -> None:
     assert parsed.payment == "Karta płatnicza"
     assert [i.is_weight for i in parsed.items] == [False, False, True, False]
     assert [i.promo for i in parsed.items] == ["Rabat grupowy", "Lidl Plus kupon", "", ""]
+
+
+# --- K2: zagraniczne paragony (zanonimizowane fixtures) ---
+
+import json  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from lidl.receipt import parse_detail  # noqa: E402
+
+_FOREIGN = Path(__file__).parent / "fixtures" / "foreign"
+
+
+def _foreign(name: str, country: str):  # type: ignore[no-untyped-def]
+    detail = json.loads((_FOREIGN / f"{name}.json").read_text(encoding="utf-8"))
+    return parse_detail(detail, country), detail["totalAmount"]
+
+
+def _net(receipt) -> float:  # type: ignore[no-untyped-def]
+    return round(sum(i.total + i.discount for i in receipt.items), 2)
+
+
+def test_cz_small_receipt_weight_item_without_article_class_and_sum() -> None:
+    r, total = _foreign("cz_0", "CZ")
+    assert [i.name for i in r.items] == [
+        "Secco Rosato",
+        "Banány",
+        "Inst. pol. česnek.",
+        "Orion Lentilky 38g",
+        "Ml. čokol. s dražé",
+    ]
+    assert _net(r) == total == 175.4
+    secco, bananas = r.items[0], r.items[1]
+    assert (secco.quantity, secco.unit_price, secco.total, secco.discount) == (3, 19.9, 59.7, -19.9)
+    assert secco.coupon == 0  # „2+1 zdarma” to nie kupon Lidl Plus
+    assert (bananas.art_id, bananas.is_weight, bananas.quantity, bananas.unit_price) == (
+        "",
+        True,
+        0.406,
+        39.9,
+    )
+    assert bananas.total == 16.2
+    assert r.payment == "Karta"
+
+
+def test_cz_large_receipt_lidl_plus_coupons_and_sum() -> None:
+    r, total = _foreign("cz_1", "CZ")
+    assert len(r.items) == 59
+    assert _net(r) == total == 2433.8
+    first = r.items[0]
+    assert (first.discount, first.coupon) == (-7.88, -7.88)  # „Cena po slevě” ignorowana, kupon rozpoznany
+    assert sum(1 for i in r.items if i.is_weight) == 4
+
+
+def test_it_receipt_weights_quantities_and_lidl_plus_offer() -> None:
+    r, total = _foreign("it_0", "IT")
+    assert len(r.items) == 18
+    assert _net(r) == total == 43.91
+    by_name = {i.name: i for i in r.items}
+    melon = by_name["BABY ANGURIA"]
+    assert (melon.is_weight, melon.quantity, melon.unit_price, melon.total) == (True, 2.374, 0.89, 2.11)
+    assert by_name["HIGH PROT.FIOCCHI LA"].quantity == 3  # linia „Cad 0,99 Pz. 3” nie tworzy pozycji
+    pork = by_name["PORCHET.ARRO.TOSCANA"]
+    assert (pork.discount, pork.coupon) == (-0.59, -0.59)
+    assert r.payment == "Pagamento elettronico"
+
+
+def test_polish_locale_is_default_and_unchanged() -> None:
+    assert parse_receipt(RECEIPT).items == parse_receipt(RECEIPT, "pl").items

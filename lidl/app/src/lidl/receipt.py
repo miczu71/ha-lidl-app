@@ -22,13 +22,16 @@ _DROP_KEYS = {
 _CARD_NUMBER = re.compile(r"\*{2,}\s?\d{2,4}|(?:\d{4}[ -]){3}\d{2,4}")
 
 
-def parse_detail(detail: dict[str, Any]) -> ParsedReceipt:
+_LOCALES = {"PL": "pl", "CZ": "cs", "IT": "it"}
+
+
+def parse_detail(detail: dict[str, Any], country: str = "PL") -> ParsedReceipt:
     """Starsze paragony to `itemsLine` (NATIVE), nowsze HTML; nieznany format daje pusty wynik."""
     html = detail.get("htmlPrintedReceipt")
     if isinstance(detail.get("itemsLine"), list):
         receipt = parse_native(detail)
     elif isinstance(html, str):
-        receipt = parse_receipt(html)
+        receipt = parse_receipt(html, _LOCALES.get(country, "pl"))
     else:
         receipt = ParsedReceipt()
     if detail.get("date"):

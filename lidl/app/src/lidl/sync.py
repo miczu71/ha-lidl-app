@@ -34,7 +34,7 @@ SKIPPED_STATUSES = (400, 403, 404)  # kraj bez konta/historii Lidl Plus: pomijan
 class TicketSource(Protocol):
     async def tickets(self, slug: str, year_offset: int, country: str = ...) -> list[dict[str, Any]]: ...
 
-    async def ticket(self, slug: str, ticket_id: str) -> dict[str, Any]: ...
+    async def ticket(self, slug: str, ticket_id: str, country: str = ...) -> dict[str, Any]: ...
 
 
 @dataclass
@@ -175,12 +175,14 @@ class HistorySync:
                 for country in countries:
                     if country != COUNTRY:
                         new += await self._import_lists(slug, full, country)
-                pending = self._history.pending_details(slug)
+                pending = [(t, COUNTRY) for t in self._history.pending_details(slug)]
+                if not quiet:  # godzinny przebieg: tylko PL
+                    pending += self._history.pending_foreign_details(slug)
                 progress.total = len(pending)
-                for ticket_id in pending:
+                for ticket_id, ticket_country in pending:
                     await self._sleep(self._pause)
                     try:
-                        detail = await self._source.ticket(slug, ticket_id)
+                        detail = await self._source.ticket(slug, ticket_id, ticket_country)
                     except LidlPlusError as err:
                         if is_fatal(err):
                             raise
@@ -188,11 +190,17 @@ class HistorySync:
                         if (
                             not quiet
                         ):  # godzinny przebieg: świeży paragon bywa jeszcze niegotowy — zostaje w kolejce
-                            self._history.save_detail(ticket_id, None, ParsedReceipt())
+                            self._history.save_detail(
+                                ticket_id, None, ParsedReceipt(), country=ticket_country
+                            )
                         continue
-                    parsed = parse_detail(detail)
+                    parsed = parse_detail(detail, ticket_country)
                     if not self._history.save_detail(
-                        ticket_id, _store_name(detail), parsed, raw=sanitize_detail(detail)
+                        ticket_id,
+                        _store_name(detail),
+                        parsed,
+                        raw=sanitize_detail(detail),
+                        country=ticket_country,
                     ):
                         unparsed += 1
                     details += 1

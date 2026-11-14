@@ -13,6 +13,14 @@ from html.parser import HTMLParser
 
 _NUMBER = re.compile(r"-?\d+(?:[.,]\d+)?")
 _DETAIL_LINE = re.compile(r"^\d[\d.,]*\s*(?:kg|szt|g|l)?\s*[*x]\s*\d[\d.,]*\s+-?\d[\d.,]*(?:\s+[A-Z])?$")
+# druga linia pozycji (ilość/waga) per locale; PL ma własną logikę, bo niesie kwotę; nie tworzy pozycji
+_FOREIGN_DETAIL = {
+    "cs": re.compile(r"^\d[\d.,]*\s*(?:ks|kg)\s+x\s+\d[\d.,]*\s+\S+/(?:ks|kg)$"),
+    "it": re.compile(r"^(?:\d[\d.,]*\s*kg\s+x\s+\d[\d.,]*\s+\S+/kg|Cad\s+\d[\d.,]*\s+Pz\.\s+\d+)$"),
+}
+# CZ: pozycje ważone bez class=article — „Banány   16,20 B” i następna linia „N   0,406 kg   x 39,90  Kč/kg”
+_CS_WEIGHT_HEAD = re.compile(r"^(?P<name>.+?)\s+(?P<amount>-?\d[\d.,]*)\s+[A-Z]$")
+_CS_WEIGHT_LINE = re.compile(r"^[A-Z]\s+(?P<qty>\d[\d.,]*)\s*kg\s+x\s+(?P<unit>\d[\d.,]*)\s+\S+/kg$")
 _DEPOSIT_LINE = re.compile(r"\d\s*\*\s*[\d.,]+\s+-?\d[\d.,]*$")
 _PAYMENT = re.compile(r"^Płatność\s+(.+?)\s+-?\d[\d.,]*$")
 _TRAILING_AMOUNT = re.compile(r"\s*-?\d[\d.,]*\s*$")
@@ -67,8 +75,10 @@ def add_promo(item: ReceiptItem, description: str) -> None:
 
 
 class _Parser(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, locale: str = "pl") -> None:
         super().__init__(convert_charrefs=True)
+        self._locale = locale
+        self._weight_open = False  # CZ: ostatnia pozycja czeka na linię „N 0,406 kg x …”
         self.receipt = ParsedReceipt()
         self._attrs: dict[str, str] | None = None
         self._text: list[str] = []
@@ -79,7 +89,8 @@ class _Parser(HTMLParser):
             return
         a = {k: v or "" for k, v in attrs}
         kind = a.get("class", "").split()
-        if "article" in kind or "discount" in kind or a.get("id", "").startswith("purchase_summary"):
+        plain = self._locale == "cs" and a.get("id", "").startswith("purchase_list_line")
+        if "article" in kind or "discount" in kind or a.get("id", "").startswith("purchase_summary") or plain:
             self._attrs, self._text = a, []
 
     def handle_data(self, data: str) -> None:
@@ -96,8 +107,23 @@ class _Parser(HTMLParser):
             self._article(attrs, text)
         elif "discount" in kind:
             self._discount(text)
+        elif attrs.get("id", "").startswith("purchase_list_line"):
+            self._plain(text)
         else:
+            if self._locale != "pl" and attrs.get("data-tender-description") and self.receipt.payment is None:
+                self.receipt.payment = attrs["data-tender-description"].strip()
             self._summary(text)
+
+    def _plain(self, text: str) -> None:
+        """CZ: zwykłe linie listy — pozycje ważone; „Cena po slevě N” i reszta są ignorowane."""
+        items = self.receipt.items
+        if self._weight_open and items and (m := _CS_WEIGHT_LINE.match(text)):
+            items[-1].quantity, items[-1].unit_price = _num(m.group("qty")), _num(m.group("unit"))
+            self._weight_open = False
+        elif not text.startswith("Cena po slev") and (m := _CS_WEIGHT_HEAD.match(text)):
+            amount = _num(m.group("amount"))
+            items.append(ReceiptItem("", m.group("name").strip(), 1.0, amount, amount, is_weight=True))
+            self._weight_open = True
 
     def _discount(self, text: str) -> None:
         amount = _last_number(text)
@@ -128,27 +154,46 @@ class _Parser(HTMLParser):
 
     def _article(self, attrs: dict[str, str], text: str) -> None:
         items = self.receipt.items
+        self._weight_open = False
+        if self._locale != "pl":
+            self._foreign_article(attrs, text)
+            return
         if _DETAIL_LINE.match(text):
             total = _last_number(text.rstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ ").strip())
             if items and total is not None:
                 items[-1].total = total
                 items[-1].is_weight = bool(re.search(r"\dkg\b|\d\s+kg\b", text))
             return
-        quantity = _num(attrs.get("data-art-quantity") or "1")
-        unit = _num(attrs.get("data-unit-price") or "0")
-        items.append(
+        self._add_article(
+            attrs,
+            round(_num(attrs.get("data-art-quantity") or "1") * _num(attrs.get("data-unit-price") or "0"), 2),
+        )
+
+    def _add_article(self, attrs: dict[str, str], total: float) -> None:
+        self.receipt.items.append(
             ReceiptItem(
                 art_id=attrs.get("data-art-id", ""),
                 name=attrs.get("data-art-description", "").strip(),
-                quantity=quantity,
-                unit_price=unit,
-                total=round(quantity * unit, 2),
+                quantity=_num(attrs.get("data-art-quantity") or "1"),
+                unit_price=_num(attrs.get("data-unit-price") or "0"),
+                total=total,
             )
         )
 
+    def _foreign_article(self, attrs: dict[str, str], text: str) -> None:
+        pattern = _FOREIGN_DETAIL.get(self._locale)
+        if pattern is not None and pattern.match(text):
+            if self.receipt.items and re.search(r"\bkg\b", text):
+                self.receipt.items[-1].is_weight = True
+            return
+        total = _last_number(text.rstrip("ABCDEFGHIJKLMNOPQRSTUVWXYZ ").strip())
+        quantity = _num(attrs.get("data-art-quantity") or "1")
+        unit = _num(attrs.get("data-unit-price") or "0")
+        self._add_article(attrs, total if total is not None else round(quantity * unit, 2))
 
-def parse_receipt(html: str) -> ParsedReceipt:
-    parser = _Parser()
+
+def parse_receipt(html: str, locale: str = "pl") -> ParsedReceipt:
+    parser = _Parser(locale)
     parser.feed(html)
     parser.close()
     receipt = parser.receipt

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from lidl.history import History
+from lidl.history import FOREIGN_PARSER_VERSION, History
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 
 
@@ -1209,3 +1209,80 @@ def test_main_store_ignores_foreign_stores(tmp_path: Path) -> None:
         h._db.execute("UPDATE tickets SET store_code = 'PL0001' WHERE country = 'PL'")
         h._db.execute("UPDATE tickets SET store_code = 'CZ0001' WHERE country = 'CZ'")
     assert h.main_store(date(2026, 6, 1)) == "PL0001"
+
+
+# --- K2: szczegóły zagranicznych paragonów ---
+
+
+def _foreign_ticket(h: History, tid: str = "cz-1", total_orig: float = 100.0) -> None:
+    h.upsert_tickets(
+        "a",
+        [{"id": tid, "date": "2026-05-04T10:00:00+00:00", "totalAmount": total_orig, "currency": "CZK"}],
+        country="CZ",
+        fx=lambda cur, day: 0.2,
+    )
+
+
+def _foreign_receipt(*totals: float) -> ParsedReceipt:
+    return ParsedReceipt(
+        items=[ReceiptItem(f"{n}", f"Pozycja {n}", 1, t, t) for n, t in enumerate(totals, start=1)]
+    )
+
+
+def test_foreign_detail_goes_to_foreign_items_with_country_prefix(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("pl-1", "2026-05-01")])
+    _foreign_ticket(h)
+    assert h.pending_foreign_details("a") == [("cz-1", "CZ")]
+    assert h.pending_details("a") == ["pl-1"]  # lista PL bez zmian
+    receipt = _foreign_receipt(60.0, 40.0)
+    receipt.items.append(ReceiptItem("", "Banány", 0.4, 40.0, 16.0, is_weight=True))
+    receipt.items[0].discount = -16.0
+    assert h.save_detail("cz-1", None, receipt, country="CZ") is True
+    rows = h._db.execute("SELECT art_id, total FROM foreign_items WHERE ticket_id = 'cz-1' ORDER BY line")
+    assert rows.fetchall() == [("CZ:1", 60.0), ("CZ:2", 40.0), ("CZ:", 16.0)]
+    assert h._db.execute("SELECT COUNT(*) FROM items WHERE ticket_id = 'cz-1'").fetchone()[0] == 0
+    assert h.ticket_row("cz-1")["detail_version"] == FOREIGN_PARSER_VERSION
+    assert h.pending_foreign_details("a") == []
+
+
+def test_foreign_sum_mismatch_is_unparsed_and_stores_no_items(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _foreign_ticket(h)
+    assert h.save_detail("cz-1", None, _foreign_receipt(60.0, 39.0), country="CZ") is False
+    assert h.ticket_row("cz-1")["parsed"] == 0
+    assert h._db.execute("SELECT COUNT(*) FROM foreign_items").fetchone()[0] == 0
+    assert (
+        h.save_detail("cz-1", None, _foreign_receipt(60.0, 40.005), country="CZ") is True
+    )  # tolerancja 0,01
+
+
+def test_foreign_sum_mismatch_stores_no_items_even_when_ticket_listed_zero_articles(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _foreign_ticket(h)
+    h._db.execute("UPDATE tickets SET articles = 0 WHERE id = 'cz-1'")
+    assert h.save_detail("cz-1", None, _foreign_receipt(60.0, 39.0), country="CZ") is False
+    assert h.ticket_row("cz-1")["parsed"] == 0
+    assert h._db.execute("SELECT COUNT(*) FROM foreign_items").fetchone()[0] == 0
+
+
+def test_foreign_reparse_replaces_old_items(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _foreign_ticket(h)
+    h.save_detail("cz-1", None, _foreign_receipt(60.0, 40.0), country="CZ")
+    h.save_detail("cz-1", None, _foreign_receipt(100.0), country="CZ")
+    assert h._db.execute("SELECT COUNT(*) FROM foreign_items").fetchone()[0] == 1
+    h.save_detail("cz-1", None, _foreign_receipt(1.0), country="CZ")  # niezgodne: stare pozycje znikają
+    assert h._db.execute("SELECT COUNT(*) FROM foreign_items").fetchone()[0] == 0
+
+
+def test_foreign_items_are_invisible_to_polish_views(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("pl-1", "2026-05-01")])
+    h.save_detail("pl-1", "S", _receipt(("1", "Produkt A", 1, 5.0)))
+    before = (h.ranking(), h.price_overview(date(2026, 10, 8)))
+    _foreign_ticket(h)
+    h.save_detail("cz-1", None, _foreign_receipt(100.0), country="CZ")
+    assert (h.ranking(), h.price_overview(date(2026, 10, 8))) == before
+    assert [r.art_id for r in h.ranking()] == ["1"]
+    assert h.reparse(lambda d: ParsedReceipt()) == 0  # reparse PL nie rusza zagranicznych
