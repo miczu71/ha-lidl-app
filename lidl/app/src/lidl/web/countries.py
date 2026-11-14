@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import timedelta
 from typing import Any
 
-from lidl.history import CatalogItem, History
+from lidl.history import CatalogItem, History, PairLine, PlPrice
+from lidl.packsize import pack_size
 from lidl.text import matches
 
 from .chart import fmt_pln
@@ -80,3 +84,117 @@ def search(history: History, q: str, limit: int = 8) -> list[dict[str, str]]:
 
 def has_catalog_item(history: History, art_id: str) -> bool:
     return art_id in _catalog(history)
+
+
+PL_WINDOW_DAYS = 365
+
+
+@dataclass(frozen=True)
+class PairRow:
+    country: str
+    country_name: str
+    foreign_name: str
+    pl_name: str
+    unit: str  # „kg” | „l” | „szt”
+    pl_price: str
+    foreign_price: str
+    diff_pct: float
+    diff: str
+
+
+@dataclass(frozen=True)
+class Basket:
+    country: str
+    country_name: str
+    foreign_total: str
+    pl_total: str
+    diff_pct: float
+    diff: str
+    covered: int
+    total: int
+
+
+@dataclass(frozen=True)
+class Missing:
+    country: str
+    country_name: str
+    name: str
+    lines: int
+
+
+@dataclass(frozen=True)
+class Comparison:
+    rows: list[PairRow]
+    baskets: list[Basket]
+    missing: list[Missing]
+
+
+def _pct(foreign: float, pl: float) -> float:
+    return round((foreign / pl - 1) * 100, 1)
+
+
+def _fmt_pct(v: float) -> str:
+    v = round(v, 1) + 0.0  # \u22120,0 \u2192 0,0 (bez ujemnego zera)
+    return f"{v:+.1f}".replace(".", ",").replace("-", "\u2212") + "%"
+
+
+def compare(lines: list[PairLine], pl_prices: list[PlPrice], line_counts: dict[str, int]) -> Comparison:
+    """Koszyk porównawczy w PLN (czysta funkcja). Dodatni % = za granicą drożej."""
+    by_art: dict[str, list[PlPrice]] = defaultdict(list)
+    for p in sorted(pl_prices, key=lambda r: r.day):
+        by_art[p.art_id].append(p)
+    # grupa (kraj, nazwa, tryb) -> [Σ ilość, Σ koszt zagr., Σ koszt PL, nazwa PL]
+    groups: dict[tuple[str, str, str], list[Any]] = {}
+    missing: dict[tuple[str, str], int] = defaultdict(int)
+    covered: dict[str, int] = defaultdict(int)
+    for ln in lines:
+        window = [
+            p
+            for p in by_art.get(ln.pl_art_id, [])
+            if ln.day - timedelta(days=PL_WINDOW_DAYS) <= p.day < ln.day
+        ]
+        if not window:
+            missing[(ln.country, ln.foreign_name)] += 1
+            continue
+        last = window[-1]
+        pl_avg = sum(p.price * p.qty for p in window) / sum(p.qty for p in window)
+        foreign_pln = ln.unit_price * ln.fx_rate
+        f_pack, p_pack = pack_size(ln.name), pack_size(last.name)
+        if ln.is_weight and last.is_weight:
+            unit, qty, f_unit, p_unit = "kg", ln.quantity, foreign_pln, pl_avg
+        elif f_pack and p_pack and f_pack[1] == p_pack[1] and f_pack[1] in ("kg", "l"):
+            unit, qty = f_pack[1], ln.quantity * f_pack[0]
+            f_unit, p_unit = foreign_pln / f_pack[0], pl_avg / p_pack[0]
+        else:
+            unit, qty, f_unit, p_unit = "szt", ln.quantity, foreign_pln, pl_avg
+        covered[ln.country] += 1
+        g = groups.setdefault((ln.country, ln.foreign_name, unit), [0.0, 0.0, 0.0, last.name])
+        g[0] += qty
+        g[1] += qty * f_unit
+        g[2] += qty * p_unit
+        g[3] = last.name
+    rows: list[PairRow] = []
+    totals: dict[str, list[float]] = {}
+    for (country, foreign_name, unit), (qty, f_cost, p_cost, pl_name) in sorted(groups.items()):
+        pct = _pct(f_cost, p_cost)
+        rows.append(
+            PairRow(
+                country, country_name(country), foreign_name, pl_name, unit,
+                fmt_pln(p_cost / qty, 2), fmt_pln(f_cost / qty, 2), pct, _fmt_pct(pct),
+            )
+        )  # fmt: skip
+        t = totals.setdefault(country, [0.0, 0.0])
+        t[0] += f_cost
+        t[1] += p_cost
+    baskets = [
+        Basket(
+            country, country_name(country), fmt_pln(f, 2), fmt_pln(p, 2), _pct(f, p), _fmt_pct(_pct(f, p)),
+            covered[country], line_counts.get(country, covered[country]),
+        )
+        for country, (f, p) in sorted(totals.items())
+    ]  # fmt: skip
+    return Comparison(
+        rows,
+        baskets,
+        [Missing(c, country_name(c), n, k) for (c, n), k in sorted(missing.items())],
+    )

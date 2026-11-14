@@ -855,11 +855,15 @@ def create_app(settings: Settings) -> FastAPI:
             countries.decided_rows(history, "approved"),
             countries.decided_rows(history, "rejected"),
         )
+        lines = history.pair_lines()
         return {
             "proposals": proposals,
             "approved": approved,
             "rejected": rejected,
             "any_foreign": bool(proposals or approved or rejected),
+            "comparison": countries.compare(
+                lines, history.pl_price_history({ln.pl_art_id for ln in lines}), history.foreign_line_counts()
+            ),
         }
 
     @app.get("/kraje/szukaj")

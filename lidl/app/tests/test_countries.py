@@ -172,3 +172,141 @@ def test_unknown_name_creates_no_row(cz_settings: Settings) -> None:
         _seed(c)
         c.post("/kraje/para", data={"country": "CZ", "foreign_name": "śmieć", "action": "reject"})
         assert _status(c, "rejected") == []
+
+
+# --- K6c: koszyk porównawczy (compare) ---------------------------------------------------------
+from datetime import date  # noqa: E402
+
+from lidl.history import PairLine, PlPrice  # noqa: E402
+from lidl.web.countries import compare  # noqa: E402
+
+D = date(2026, 10, 10)
+
+
+def _line(
+    country: str,
+    name: str,
+    art: str,
+    qty: float,
+    price: float,
+    fx: float,
+    weight: bool = False,
+    day: date = D,
+) -> PairLine:
+    base = name.lower().split(" ")[0]
+    return PairLine(country, base, art, name, day, qty, price, fx, weight)
+
+
+def _pl(art: str, name: str, day: date, price: float, qty: float, weight: bool = False) -> PlPrice:
+    return PlPrice(art, name, day, price, qty, weight)
+
+
+def test_compare_piece_czk_weighted_pl_average() -> None:
+    # CZK 0,1755: 40 CZK × 0,1755 = 7,02 zł/szt, ilość 2 → 14,04 zł
+    # PL: (4,00 × 1 + 6,00 × 3) / 4 = 5,50 zł; koszt PL 2 × 5,50 = 11,00 zł; różnica 14,04 / 11 − 1 = +27,6%
+    c = compare(
+        [_line("CZ", "Chléb", "a", 2, 40.0, 0.1755)],
+        [_pl("a", "Chleb", date(2026, 9, 1), 4.0, 1), _pl("a", "Chleb", date(2026, 9, 15), 6.0, 3)],
+        {"CZ": 1},
+    )
+    (r,) = c.rows
+    assert (r.unit, r.foreign_price, r.pl_price, r.diff_pct, r.diff) == (
+        "szt",
+        "7,02 zł",
+        "5,50 zł",
+        27.6,
+        "+27,6%",
+    )
+    (b,) = c.baskets
+    assert (b.foreign_total, b.pl_total, b.diff_pct, b.covered, b.total) == (
+        "14,04 zł",
+        "11,00 zł",
+        27.6,
+        1,
+        1,
+    )
+
+
+def test_compare_piece_eur() -> None:
+    # EUR 4,2: 2,50 × 4,2 = 10,50 zł; PL 7,00 zł → 10,5 / 7 − 1 = +50,0%
+    c = compare(
+        [_line("IT", "Burro", "b", 1, 2.5, 4.2)], [_pl("b", "Masło", date(2026, 9, 1), 7.0, 1)], {"IT": 1}
+    )
+    assert (c.rows[0].foreign_price, c.rows[0].pl_price, c.rows[0].diff) == ("10,50 zł", "7,00 zł", "+50,0%")
+    assert c.baskets[0].country == "IT" and c.baskets[0].diff == "+50,0%"
+
+
+def test_compare_weighted_per_kg() -> None:
+    # 20 EUR/kg × 4,2 = 84 zł/kg, 0,3 kg → 25,20 zł; PL 60 zł/kg → 18,00 zł; +40,0%
+    c = compare(
+        [_line("IT", "Prosciutto", "p", 0.3, 20.0, 4.2, weight=True)],
+        [_pl("p", "Szynka", date(2026, 9, 1), 60.0, 1.0, weight=True)],
+        {"IT": 1},
+    )
+    r = c.rows[0]
+    assert (r.unit, r.foreign_price, r.pl_price, r.diff) == ("kg", "84,00 zł", "60,00 zł", "+40,0%")
+    assert (c.baskets[0].foreign_total, c.baskets[0].pl_total) == ("25,20 zł", "18,00 zł")
+
+
+def test_compare_pack_size_grams_to_kg_and_basket_coverage() -> None:
+    # Máslo 500 g: 50 CZK × 0,2 = 10 zł/opak. → 20 zł/kg, ilość 2 × 0,5 = 1 kg → 20,00 zł
+    # PL „Masło 1 kg” 30 zł/kg → 30,00 zł; −33,3%
+    # Chléb (sztuka): 14,04 vs 11,00 zł. Koszyk: 34,04 vs 41,00 → 34,04 / 41 − 1 = −17,0%
+    # trzecia linia (Mléko) ma zakup PL tego samego dnia = poza oknem → „brak ceny PL”, koszyk 2 z 4
+    lines = [
+        _line("CZ", "Máslo 500 g", "m", 2, 50.0, 0.2),
+        _line("CZ", "Chléb", "a", 2, 40.0, 0.1755),
+        _line("CZ", "Mléko", "x", 1, 20.0, 0.2),
+        _line("CZ", "Mléko", "x", 1, 20.0, 0.2, day=date(2026, 10, 9)),
+    ]
+    prices = [
+        _pl("m", "Masło 1 kg", date(2026, 9, 1), 30.0, 1),
+        _pl("a", "Chleb", date(2026, 9, 1), 4.0, 1),
+        _pl("a", "Chleb", date(2026, 9, 15), 6.0, 3),
+        _pl("x", "Mleko", D, 3.0, 1),  # ten sam dzień = poza oknem
+        _pl("x", "Mleko", date(2026, 10, 11), 3.0, 1),  # po dniu zakupu
+    ]
+    c = compare(lines, prices, {"CZ": 4})
+    by = {r.foreign_name: r for r in c.rows}
+    assert (by["máslo"].unit, by["máslo"].foreign_price, by["máslo"].pl_price, by["máslo"].diff) == (
+        "kg", "20,00 zł", "30,00 zł", "−33,3%",
+    )  # fmt: skip
+    (b,) = c.baskets
+    assert (b.foreign_total, b.pl_total, b.diff, b.covered, b.total) == (
+        "34,04 zł",
+        "41,00 zł",
+        "−17,0%",
+        2,
+        4,
+    )
+    assert [(m.name, m.lines) for m in c.missing] == [("mléko", 2)]
+
+
+def test_compare_mixed_pack_units_fall_back_to_piece() -> None:
+    # zagr. 1 l vs PL bez gramatury → sztuka: 5 zł (1 × 25 × 0,2) vs 4 zł → +25,0%
+    c = compare(
+        [_line("CZ", "Mléko 1 l", "z", 1, 25.0, 0.2)],
+        [_pl("z", "Mleko", date(2026, 9, 1), 4.0, 1)],
+        {"CZ": 1},
+    )
+    assert (c.rows[0].unit, c.rows[0].diff) == ("szt", "+25,0%")
+
+
+def test_compare_empty() -> None:
+    c = compare([], [], {})
+    assert (c.rows, c.baskets, c.missing) == ([], [], [])
+
+
+def test_page_shows_comparison_for_approved_pair(cz_settings: Settings) -> None:
+    # CZ: Mléko 1 l 60 CZK × 0,2 = 12 zł/l; PL „Mleko łaciate 1 l” 4 zł/l → +200,0%, koszyk 1 z 2 pozycji
+    with TestClient(create_app(cz_settings), follow_redirects=False) as c:
+        mleko = _seed(c)
+        assert "Zatwierdź pierwszą parę" in c.get("/kraje").text
+        c.post(
+            "/kraje/para",
+            data={"country": "CZ", "foreign_name": "mléko", "action": "approve", "pl_art_id": mleko},
+        )
+        r = c.get("/kraje")
+    assert r.status_code == 200
+    assert "Porównanie cen" in r.text and "+200,0%" in r.text and "1 z 2 pozycji" in r.text
+    assert "12,00 zł/l" in r.text and "4,00 zł/l" in r.text

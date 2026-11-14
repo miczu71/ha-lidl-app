@@ -10,6 +10,33 @@
 </form>
 {% endmacro %}
 <div class="stack" id="kraje-body">
+  <section class="card" aria-labelledby="kr-c">
+    <h2 class="s" id="kr-c">Porównanie cen</h2>
+    {% if not approved %}
+    <p class="meta">Zatwierdź pierwszą parę, a pokażemy, o ile zagraniczne ceny różnią się od polskich.</p>
+    {% else %}
+    {% for b in comparison.baskets %}
+    <div class="card">
+      <div class="row2">{{ flag(b.country) }}<strong>{{ b.country_name }}</strong><span class="meta tnum">{{ b.covered }} z {{ b.total }} pozycji</span></div>
+      <p class="meta tnum" style="margin: 0"><strong>{{ b.diff }}</strong> · koszyk {{ b.foreign_total }} za granicą vs {{ b.pl_total }} w Polsce</p>
+    </div>
+    {% endfor %}
+    {% if comparison.rows %}
+    <table class="mt tnum">
+      <caption class="vh">Ceny zagraniczne i polskie w PLN</caption>
+      <thead><tr><th scope="col">Para</th><th scope="col" class="r">Cena PL</th><th scope="col" class="r">Cena kraj</th><th scope="col" class="r">Różnica</th></tr></thead>
+      <tbody>{% for r in comparison.rows %}<tr><td>{{ flag(r.country) }} {{ r.foreign_name }} → {{ r.pl_name }}</td><td class="r">{{ r.pl_price }}/{{ r.unit }}</td><td class="r">{{ r.foreign_price }}/{{ r.unit }}</td><td class="r">{{ r.diff }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+    {% if comparison.missing %}
+    <p class="meta"><strong>Bez ceny PL</strong></p>
+    {% for m in comparison.missing %}
+    <div class="row2">{{ flag(m.country) }}<span><strong>{{ m.name }}</strong> <span class="meta">· brak ceny PL ({{ m.lines }} poz.)</span></span></div>
+    {% endfor %}
+    {% endif %}
+    {% endif %}
+  </section>
+
   <section class="card" aria-labelledby="kr-p">
     <h2 class="s" id="kr-p">Do zatwierdzenia</h2>
     {% if not proposals %}

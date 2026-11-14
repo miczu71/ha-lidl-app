@@ -1356,3 +1356,40 @@ def test_pending_foreign_details_filters_by_countries(tmp_path: Path) -> None:
     assert h.pending_foreign_details("a", ("CZ", "IT", "PL")) == [("it-1", "IT"), ("cz-1", "CZ")]
     assert h.pending_foreign_details("a", ("PL",)) == []
     assert h.pending_foreign_details("a", ()) == []
+
+
+def test_pair_lines_only_approved_pairs(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("pl", "2026-01-01")])
+    h.save_detail("pl", "S", _receipt(("1", "Mleko 1 l", 1, 4.0)))
+    for tid, day in (("c1", "2026-02-01"),):  # kolumna `fx_rate` jest NOT NULL: bilet bez kursu nie powstaje
+        h.upsert_tickets(
+            "a", [{**_ticket(tid, day, total=90.0), "currency": "CZK"}], country="CZ", fx=lambda cur, d: 0.2
+        )
+        h.save_detail(
+            tid,
+            None,
+            ParsedReceipt(
+                items=[
+                    ReceiptItem("1", "Mléko 1 l", 2, 10.0, 20.0),
+                    ReceiptItem("2", "Sýr 200 g", 1, 30.0, 30.0),
+                    ReceiptItem("3", "Máslo 250 g", 1, 40.0, 40.0),
+                ]
+            ),
+            country="CZ",
+        )
+    h.pair_propose("CZ", "mléko", [])
+    h.pair_decide("CZ", "mléko", "approved", "1")
+    h.pair_propose("CZ", "sýr", [])  # proposed: pomijany
+    h.pair_propose("CZ", "máslo", [])
+    h.pair_decide("CZ", "máslo", "rejected")
+    lines = h.pair_lines()
+    assert [
+        (x.country, x.foreign_name, x.pl_art_id, x.day, x.quantity, x.unit_price, x.fx_rate) for x in lines
+    ] == [("CZ", "mléko", "1", date(2026, 2, 1), 2, 10.0, 0.2)]
+    assert h.foreign_line_counts() == {"CZ": 3}
+    prices = h.pl_price_history({"1"})
+    assert [(p.art_id, p.day, p.price, p.qty, p.is_weight) for p in prices] == [
+        ("1", date(2026, 1, 1), 4.0, 1, False)
+    ]
+    assert h.pl_price_history({"zzz"}) == []

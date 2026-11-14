@@ -239,6 +239,33 @@ class CatalogItem:
 
 
 @dataclass(frozen=True)
+class PairLine:
+    """Pozycja z paragonu zagranicznego z zatwierdzoną parą (K6c); `name` to nazwa z paragonu."""
+
+    country: str
+    foreign_name: str
+    pl_art_id: str
+    name: str
+    day: date
+    quantity: float
+    unit_price: float
+    fx_rate: float
+    is_weight: bool
+
+
+@dataclass(frozen=True)
+class PlPrice:
+    """Zakup produktu PL (cena półkowa) do porównania z pozycją zagraniczną (K6c)."""
+
+    art_id: str
+    name: str
+    day: date
+    price: float
+    qty: float
+    is_weight: bool
+
+
+@dataclass(frozen=True)
 class RankedProduct:
     art_id: str
     name: str
@@ -2009,6 +2036,47 @@ class History:
             }
             for c, n, a, cands, d in rows
         ]
+
+    def pair_lines(self) -> list[PairLine]:
+        """Pozycje zagraniczne z kursem, których para (kraj, `base_name`) jest zatwierdzona; po dniu."""
+        approved = {
+            (c, n): a
+            for c, n, a in self._db.execute(
+                "SELECT country, foreign_name, pl_art_id FROM country_pairs"
+                " WHERE status = 'approved' AND pl_art_id IS NOT NULL AND pl_art_id != ''"
+            )
+        }
+        out: list[PairLine] = []
+        for country, name, day, qty, price, fx_rate, weight in self._db.execute(
+            "SELECT t.country, i.name, t.day, i.quantity, i.unit_price, t.fx_rate, i.is_weight"
+            " FROM foreign_items i JOIN tickets t ON t.id = i.ticket_id"
+            " WHERE t.fx_rate IS NOT NULL AND i.quantity > 0 AND i.unit_price > 0"
+            " ORDER BY t.day, i.ticket_id, i.line"
+        ):
+            base = base_name(name)
+            if (country, base) in approved:
+                out.append(
+                    PairLine(
+                        country, base, approved[(country, base)], name, date.fromisoformat(day),
+                        qty, price, fx_rate, bool(weight),
+                    )
+                )  # fmt: skip
+        return out
+
+    def pl_price_history(self, art_ids: set[str]) -> list[PlPrice]:
+        return [
+            PlPrice(art_id, name, day, price, qty, weight)
+            for art_id, name, day, price, _paid, qty, weight in self._price_rows()
+            if art_id in art_ids
+        ]
+
+    def foreign_line_counts(self) -> dict[str, int]:
+        """Kraj → liczba pozycji zagranicznych z kursem (mianownik pokrycia koszyka)."""
+        rows = self._db.execute(
+            "SELECT t.country, COUNT(*) FROM foreign_items i JOIN tickets t ON t.id = i.ticket_id"
+            " WHERE t.fx_rate IS NOT NULL GROUP BY t.country"
+        )
+        return {c: int(n) for c, n in rows}
 
     def price_changes(self, today: date | None = None) -> list[PriceChange]:
         """Zmiany ceny półkowej r/r (E7), od największej podwyżki."""
