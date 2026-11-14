@@ -35,7 +35,7 @@ Rollback: brak zmian do cofnięcia.
 - Kategorie dla Budżetu: AI na pozycjach CZ/IT. Parowanie z transakcją z karty: tolerancja kwoty 5%, kwota z banku po sparowaniu.
 - Kraje z opcji `extra_countries` (start CZ, IT); import raz dziennie 07:00 + „Sprawdź teraz”; oba konta; pełna historia, dedup po `id`.
 - Jedno wydanie zbiorcze po K1–K5 (Lidl, potem Budżet); K6 osobno po obejrzeniu prawdziwych danych.
-- Zgoda usera 2026-11-14 („Go”): etapy idą po kolei bez czekania na zgodę; stop przy kroku spoza planu.
+- Wywiad zatwierdzony przez usera 2026-11-14 („Go”). **Plany K1–K4 czekają na jego zgodę przed implementacją**; po zgodzie etapy idą po kolei, stop przy kroku spoza planu.
 
 ## Etapy (kontrakt Wykonawca w `docs/PLAN_COUNTRIES_K<n>.md`)
 - **K1** model danych + pobieranie list + kurs NBP (migracja v6, `.pre-countries`, `extra_countries`) — `sonnet-worker` (migracja = ryzyko).
