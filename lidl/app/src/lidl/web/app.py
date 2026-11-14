@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from lidl import __version__, alerts
+from lidl import __version__, alerts, pairs
 from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
@@ -127,10 +127,18 @@ def create_app(settings: Settings) -> FastAPI:
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             history.log_event("system", "ok", f"Start add-onu {__version__}", {"version": __version__})
             feed = BudgetFeed(session, history, settings)
+
+            async def after_import() -> None:
+                await feed.refresh()
+                try:
+                    await pairs.propose(history, session, settings)
+                except Exception:
+                    log.exception("Pary produktów: propozycje nieudane")
+
             sync = HistorySync(
                 service,
                 history,
-                after=feed.refresh,
+                after=after_import,
                 extra_countries=settings.extra_countries,
                 session=session,
             )

@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
@@ -130,6 +130,16 @@ CREATE TABLE IF NOT EXISTS foreign_items (
     is_weight INTEGER NOT NULL DEFAULT 0,
     promo TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (ticket_id, line)
+);
+-- K6: para „nazwa zagraniczna → produkt PL”; proposed = propozycja AI do zatwierdzenia
+CREATE TABLE IF NOT EXISTS country_pairs (
+    country TEXT NOT NULL,
+    foreign_name TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('proposed', 'approved', 'rejected')),
+    pl_art_id TEXT,
+    candidates TEXT NOT NULL DEFAULT '[]',
+    decided_at TEXT,
+    PRIMARY KEY (country, foreign_name)
 );
 CREATE TABLE IF NOT EXISTS ticket_coupons (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -216,6 +226,16 @@ CREATE TABLE IF NOT EXISTS events (
 );
 CREATE INDEX IF NOT EXISTS events_ts ON events (ts);
 """
+
+
+@dataclass(frozen=True)
+class CatalogItem:
+    """Produkt PL do parowania z zagranicznym (K6): ostatnia nazwa i cena, wydatek z 12 miesięcy."""
+
+    art_id: str
+    name: str
+    last_price: float
+    spend: float
 
 
 @dataclass(frozen=True)
@@ -796,6 +816,8 @@ class History:
             self._migrate_v4()
         if version < 6:
             self._migrate_v5(path)
+        if version < 7:
+            self._migrate_v6(path)
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
@@ -881,6 +903,17 @@ class History:
                 "ALTER TABLE tickets ADD COLUMN fx_rate REAL NOT NULL DEFAULT 1",
             ):
                 self._db.execute(sql)
+
+    def _migrate_v6(self, path: Path) -> None:
+        """v6 → v7: tabela `country_pairs` (powstaje ze _SCHEMA); wcześniej kopia `.pre-countries-pairs`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        backup = path.with_name(path.name + ".pre-countries-pairs")
+        dest = sqlite3.connect(backup)
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
 
     def fx_get(self, code: str, day: str) -> float | None:
         row = self._db.execute("SELECT mid FROM fx_rates WHERE code = ? AND day = ?", (code, day)).fetchone()
@@ -1893,6 +1926,74 @@ class History:
         return [
             (resolve(art_id, name), name, date.fromisoformat(day), price, paid, qty, bool(weight))
             for art_id, name, day, price, paid, qty, weight in rows
+        ]
+
+    def pair_pending(self, country: str | None = None) -> list[tuple[str, str, str]]:
+        """Nazwy zagraniczne (`base_name`) bez pary: (kraj, nazwa, przykładowa nazwa z paragonu)."""
+        done = {(c, n) for c, n in self._db.execute("SELECT country, foreign_name FROM country_pairs")}
+        out: dict[tuple[str, str], str] = {}
+        for ctry, name in self._db.execute(
+            "SELECT t.country, i.name FROM foreign_items i JOIN tickets t ON t.id = i.ticket_id"
+            " ORDER BY t.day, i.ticket_id, i.line"
+        ):
+            base = base_name(name)
+            if not base or (country is not None and ctry != country) or (ctry, base) in done:
+                continue
+            out.setdefault((ctry, base), name)
+        return [(c, n, example) for (c, n), example in sorted(out.items())]
+
+    def pl_catalog(self, limit: int = 600) -> list[CatalogItem]:
+        """Produkty PL kupowane w ostatnich 12 miesiącach, od największego wydatku."""
+        since = date.today() - timedelta(days=365)
+        last: dict[str, tuple[str, float]] = {}
+        spend: dict[str, float] = defaultdict(float)
+        for art_id, name, day, price, paid, _qty, _weight in self._price_rows():
+            if day < since:
+                continue
+            last[art_id] = (name, price)
+            spend[art_id] += paid
+        ranked = sorted(last, key=lambda a: (-spend[a], a))[:limit]
+        return [CatalogItem(a, last[a][0], last[a][1], round(spend[a], 2)) for a in ranked]
+
+    def pair_propose(self, country: str, foreign_name: str, candidates: list[str]) -> bool:
+        """Propozycja pary; istniejący wiersz (też zatwierdzony) zostaje nietknięty. True = nowy wiersz."""
+        with self._db:
+            cur = self._db.execute(
+                "INSERT OR IGNORE INTO country_pairs (country, foreign_name, status, candidates)"
+                " VALUES (?, ?, 'proposed', ?)",
+                (country, foreign_name, json.dumps(candidates)),
+            )
+        return cur.rowcount > 0
+
+    def pair_decide(self, country: str, foreign_name: str, status: str, pl_art_id: str | None = None) -> bool:
+        """Decyzja usera; 'proposed' cofa ją (czyści produkt i datę). False, gdy pary nie ma."""
+        if status == "proposed":
+            pl_art_id, decided = None, None
+        else:
+            decided = datetime.now(UTC).isoformat(timespec="seconds")
+        with self._db:
+            cur = self._db.execute(
+                "UPDATE country_pairs SET status = ?, pl_art_id = ?, decided_at = ?"
+                " WHERE country = ? AND foreign_name = ?",
+                (status, pl_art_id, decided, country, foreign_name),
+            )
+        return cur.rowcount > 0
+
+    def pair_list(self, status: str) -> list[dict[str, Any]]:
+        rows = self._db.execute(
+            "SELECT country, foreign_name, pl_art_id, candidates, decided_at FROM country_pairs"
+            " WHERE status = ? ORDER BY country, foreign_name",
+            (status,),
+        )
+        return [
+            {
+                "country": c,
+                "foreign_name": n,
+                "pl_art_id": a,
+                "candidates": json.loads(cands),
+                "decided_at": d,
+            }
+            for c, n, a, cands, d in rows
         ]
 
     def price_changes(self, today: date | None = None) -> list[PriceChange]:

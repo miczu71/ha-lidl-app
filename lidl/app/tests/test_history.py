@@ -1109,8 +1109,29 @@ def test_migrate_v5_adds_columns_and_keeps_a_backup(tmp_path: Path) -> None:
     assert (tmp_path / "h.db.pre-countries").exists()
     row = h._db.execute("SELECT total, country, currency, total_orig, fx_rate FROM tickets").fetchone()
     assert row == (12.5, "PL", "PLN", None, 1.0)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 6
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 7
     old = sqlite3.connect(tmp_path / "h.db.pre-countries")
+    assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
+    old.close()
+
+
+def test_migrate_v6_adds_country_pairs_and_keeps_a_backup(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "h.db"
+    h = History(path)
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01", total=12.5)])
+    del h
+    db = sqlite3.connect(path)
+    db.execute("DROP TABLE country_pairs")
+    db.execute("PRAGMA user_version = 6")
+    db.commit()
+    db.close()
+
+    h = History(path)
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 7
+    assert h._db.execute("SELECT COUNT(*) FROM country_pairs").fetchone()[0] == 0
+    old = sqlite3.connect(tmp_path / "h.db.pre-countries-pairs")
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
     old.close()
 
@@ -1118,6 +1139,7 @@ def test_migrate_v5_adds_columns_and_keeps_a_backup(tmp_path: Path) -> None:
 def test_fresh_database_has_no_backup(tmp_path: Path) -> None:
     History(tmp_path / "h.db")
     assert not (tmp_path / "h.db.pre-countries").exists()
+    assert not (tmp_path / "h.db.pre-countries-pairs").exists()
 
 
 def test_foreign_upsert_converts_to_pln_and_skips_missing_rate(tmp_path: Path) -> None:
@@ -1314,7 +1336,7 @@ def test_v2_database_migrates_to_current_schema_keeping_data(tmp_path: Path) -> 
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 6
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 7
     assert (tmp_path / "h.db.pre-countries").exists()
     cols = {r[1] for r in h._db.execute("PRAGMA table_info(tickets)")}
     assert {"country", "currency", "total_orig", "fx_rate"} <= cols
