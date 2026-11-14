@@ -1,6 +1,6 @@
 # ROADMAP: paragony z innych krajów (CZ, IT)
 
-Status: **etap 0 zrobiony 2026-11-14 (wariant A), dalej wywiad i plany etapów 1–5; nic nie wdrożone.**
+Status: **K1–K5 zrobione i wydane 2026-11-14 (Lidl 1.1.0, Budżet 0.75.0); czeka tylko wpisanie `extra_countries` = CZ, IT przez usera i weryfikacja 4 paragonów na żywo; K6 później.**
 
 ## Cel
 Pobierać do add-onu e-paragony z zakupów w Lidlu za granicą (w 2026: Czechy, Włochy). Paragony są widoczne w aplikacji
@@ -59,7 +59,13 @@ Rollback: brak zmian do cofnięcia.
   Wynik: Lidl pytest 483 zielone (bez `test_leaflet.py`), ruff/format/mypy czyste; Budżet pytest 1457 zielone, ruff/format czyste; verifier ACCEPT w obu (zero blokujących).
   Odstępstwa: do wszystkich paragonów w eksporcie dopisane `country/currency/paid_orig/fx_rate` (PL: PL/PLN/null/1.0), więc zmieniona asercja w `test_history.py`; `country` w Budżecie zamieniane na wielkie litery; etykieta kraju/oryginału tylko na chipach wyboru, nie na połączonym paragonie.
   Nieblokujące do K5: `islice(MAX_ITEMS)` w `classify_new` bierze najpierw PL — przy dużym backlogu PL zagraniczne mogą czekać między przebiegami (rozważyć kolejność/limit osobno); brak testu „PL bez zmian” dla treści promptu; w Budżecie brak testów: dokładnie 5%, PL+zagraniczny na tę samą transakcję (`claims==2` → ręcznie), `sum(parts)=0` w `_scaled`, render chipa zagranicznego (Jinja niewyrenderowana).
-- **K5** wydanie zbiorcze: `simplify` → `code-review` (+ `silent-failure-hunter`, `pr-test-analyzer`, security-review diffu) → `release` Lidl, potem Budżet → weryfikacja na żywo (4 paragony CZ/IT).
+- **K5 ✅ 2026-11-14 (Lidl `a2e4897` + tag v1.1.0, Budżet `ab2ee68` + tag v0.75.0, wydania opublikowane, zainstalowane przez Supervisora)** wydanie zbiorcze K1–K5.
+  Wynik: Lidl pytest 483 zielone (bez `test_leaflet.py`), Budżet 1458 zielone, ruff/format/mypy czyste; pubguard 0 oflagowanych w obu; na żywo znaczek wersji i `?v=` zgodne, konsola bez błędów; dev-serwer na kopii księgi: chip „CZ · 2 225,61 CZK” renderuje się.
+  `simplify` (4 agentów): jedno wywołanie `tickets(country=)`, wspólny formater liczb, `_flag`, indeks `by_amount` dla PL w `match()`. `code-review` + security + silent-failure + test-analyzer: zero blokujących po poprawkach.
+  **Regresja złapana w review:** simplify usunął `Receipt.currency/paid_orig` używane przez `_txn_category.html` — przywrócone + test renderu chipa (`test_foreign_lidl_receipt_chip_shows_country_and_original`).
+  Poprawki z review: logi NBP (status/wyjątek), ostrzeżenie przy braku kursu i nieznanym kraju parsera, `currency_code` tylko `[A-Z]{3}` (kod trafia do URL NBP), kaucje w `purchase_totals` tylko PL.
+  Dług (do raportu, nie blokuje): kurs NBP szeregowo per dzień (zbiorczo per waluta + `executemany`); `foreign_items` jako osobna tabela vs `items` z `country` (migracja v7); trzy mapy kraj→waluta/język/locale (rejestr `COUNTRIES`); `_drop_apis` czyści klientów wszystkich krajów przy rotacji tokenu; `pending_foreign_details` ignoruje usunięty z `extra_countries` kraj; błąd szczegółu zagranicznego zapisuje `detail_version` bez powrotu do kolejki; `islice(MAX_ITEMS)` w `classify_new` najpierw PL; brak linii „za granicą” w `notify.py`; brak testów `service.py` (`_api`, `_drop_apis`), `settings._countries`, `_http_fetch`, migracji wielostopniowej; 13 starych czerwonych w `test_leaflet.py`.
+  **Do zrobienia przez usera:** wpisać `extra_countries` = `CZ`, `IT` w opcjach add-onu Lidl i zrestartować; potem weryfikacja 4 paragonów (3 CZ + 1 IT) i parowania w Budżecie.
 - **K6** (później, osobny wywiad) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
