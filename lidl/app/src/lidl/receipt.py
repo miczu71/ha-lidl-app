@@ -6,11 +6,14 @@ są przetwarzane ponownie z lokalnej kopii (a bez kopii pobierane od nowa).
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 from .receipt_html import ParsedReceipt, ReceiptCoupon, parse_receipt
 from .receipt_native import parse_native
+
+log = logging.getLogger(__name__)
 
 PARSER_VERSION = 3
 
@@ -31,6 +34,8 @@ def parse_detail(detail: dict[str, Any], country: str = "PL") -> ParsedReceipt:
     if isinstance(detail.get("itemsLine"), list):
         receipt = parse_native(detail)
     elif isinstance(html, str):
+        if country not in _LOCALES:
+            log.warning("Brak parsera paragonów dla kraju %s, używam polskiego", country)
         receipt = parse_receipt(html, _LOCALES.get(country, "pl"))
     else:
         receipt = ParsedReceipt()

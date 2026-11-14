@@ -920,6 +920,9 @@ class History:
                 known = self._db.execute("SELECT 1 FROM tickets WHERE id = ?", (str(t["id"]),)).fetchone()
                 found = fx(currency, day)
                 if found is None and not known:
+                    log.warning(
+                        "Brak kursu %s z %s — paragon %s wróci w następnym przebiegu", currency, day, t["id"]
+                    )
                     continue
                 rate = found if found is not None else 1.0
                 total_orig = total
@@ -1782,7 +1785,8 @@ class History:
 
         „Zapłacono” to suma kwot paragonów (po rabatach, z saldem kaucji). Kaucje liczymy tylko z paragonów
         przetworzonych bieżącym parserem i rozpoznanych; `with_deposits` mówi, z ilu paragonów.
-        Zachodzi: pozycje po rabatach + pobrane − zwrócone = zapłacono.
+        Zachodzi (dla paragonów PL): pozycje po rabatach + pobrane − zwrócone = zapłacono.
+        „Zapłacono” obejmuje też zagranicę w PLN, kaucje tylko PL.
         """
         where = ""
         args: list[str] = []
@@ -1797,7 +1801,7 @@ class History:
         ).fetchone()
         charged, refunded, known = self._db.execute(
             "SELECT SUM(t.deposit_charged), SUM(t.deposit_refunded), COUNT(*) FROM tickets t"
-            f" WHERE t.parsed = 1 AND t.detail_version >= ?{where}",
+            f" WHERE t.country = 'PL' AND t.parsed = 1 AND t.detail_version >= ?{where}",
             [PARSER_VERSION, *args],
         ).fetchone()
         return PurchaseTotals(

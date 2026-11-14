@@ -7,6 +7,7 @@ asynchronicznie przed zapisem (`prefetch`), a `History.upsert_tickets` czyta go 
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Awaitable, Callable, Iterable
 from datetime import date, timedelta
 from typing import Any, Protocol
@@ -22,17 +23,18 @@ COUNTRY_CURRENCY = {
     "CZ": "CZK", "IT": "EUR", "SK": "EUR", "DE": "EUR", "AT": "EUR", "HU": "HUF",
     "RO": "RON", "HR": "EUR", "FR": "EUR", "ES": "EUR", "GB": "GBP",
 }  # fmt: skip
+_CODE_RE = re.compile(r"[A-Z]{3}")  # kod trafia do ścieżki URL NBP
 _CODE_KEYS = ("code", "currencyCode", "isoCode")
 
 
 def currency_code(raw: Any, country: str) -> str:
     """Kod waluty z pola `currency` listy paragonów (tekst albo słownik); inaczej mapa kraju."""
-    if isinstance(raw, str) and raw.strip():
+    if isinstance(raw, str) and _CODE_RE.fullmatch(raw.strip().upper()):
         return raw.strip().upper()
     if isinstance(raw, dict):
         for key in _CODE_KEYS:
             value = raw.get(key)
-            if isinstance(value, str) and value.strip():
+            if isinstance(value, str) and _CODE_RE.fullmatch(value.strip().upper()):
                 return value.strip().upper()
     if raw is not None:
         shape = f"dict{sorted(str(k) for k in raw)}" if isinstance(raw, dict) else type(raw).__name__
@@ -55,9 +57,11 @@ async def _http_fetch(url: str, session: aiohttp.ClientSession | None) -> dict[s
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
+                log.warning("NBP: HTTP %s dla %s", resp.status, url)
                 return None
             data = await resp.json(content_type=None)
-    except (aiohttp.ClientError, TimeoutError, ValueError):
+    except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+        log.warning("NBP: %s dla %s", type(err).__name__, url)
         return None
     return data if isinstance(data, dict) else None
 
