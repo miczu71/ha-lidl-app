@@ -997,7 +997,8 @@ def test_receipts_export_splits_paid_amount_by_category(tmp_path: Path) -> None:
     out = {r["id"]: r for r in h.receipts_export()}
     # różnica do zapłaconej (kaucja 0,50 i reszta, razem 1,50) trafia do spożywczych; suma części = zapłacono
     assert out["t1"]["parts"] == {"drugstore": 3.0, "food": 7.5, "kids": 10.0}
-    assert out["t1"] | {"parts": None} == {
+    new = {"country": "PL", "currency": "PLN", "paid_orig": None, "fx_rate": 1.0}
+    assert out["t1"] | {"parts": None} == new | {
         "id": "t1", "account": "a", "day": "2026-05-01", "purchased_at": None, "paid": 20.5,
         "payment": None, "url_path": "/paragony/t1", "parts": None,
     }  # fmt: skip

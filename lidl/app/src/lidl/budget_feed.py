@@ -31,7 +31,9 @@ PROMPT = (
     "Przypisz każdy produkt ze sklepu Lidl do jednej kategorii: food (żywność i napoje, też dla zwierząt), "
     "drugstore (kosmetyki, higiena, chemia domowa, papier toaletowy, ręczniki papierowe), kids (pieluszki, "
     "chusteczki i kosmetyki dla dzieci, zabawki, ubranka dziecięce), nonfood (reszta: dom, ogród, narzędzia, "
-    'odzież, elektronika, torby). Nazwy są skrócone jak na paragonie. Zwróć JSON {"items": [{"code", '
+    "odzież, elektronika, torby). Nazwy są skrócone jak na paragonie. "
+    "Nazwy mogą być po czesku lub włosku. "
+    'Zwróć JSON {"items": [{"code", '
     '"category"}]} dla wszystkich kodów.\n\n'
 )
 SCHEMA: dict[str, Any] = {

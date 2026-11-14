@@ -104,3 +104,54 @@ async def test_classification_error_does_not_block_export(
         feed = BudgetFeed(session, _history(tmp_path), _settings(tmp_path))
         await feed.refresh(date(2026, 10, 12))
     assert feed.path.exists()
+
+
+def _cz_history(tmp_path: Path) -> History:
+    h = _history(tmp_path)
+    h.upsert_tickets(
+        "a",
+        [{"id": "cz-1", "date": "2026-10-05T10:00:00+00:00", "totalAmount": 100.0, "currency": "CZK"}],
+        country="CZ",
+        fx=lambda cur, day: 0.1667,
+    )
+    receipt = ParsedReceipt(
+        items=[
+            ReceiptItem("11", "Mléko", 1, 60.0, 60.0),
+            ReceiptItem("22", "Mydlo", 1, 30.0, 30.0),
+            ReceiptItem("", "Banány", 0.1, 100.0, 10.0, is_weight=True),
+        ]
+    )
+    assert h.save_detail("cz-1", None, receipt, country="CZ") is True
+    return h
+
+
+def test_foreign_receipt_export_parts_sum_to_paid_with_optional_fields(tmp_path: Path) -> None:
+    h = _cz_history(tmp_path)
+    h.set_categories([("CZ:22", "drugstore")], "manual")
+    r = next(x for x in h.receipts_export() if x["id"] == "cz-1")
+    assert (r["country"], r["currency"], r["paid_orig"], r["fx_rate"]) == ("CZ", "CZK", 100.0, 0.1667)
+    assert r["paid"] == 16.67
+    assert set(r["parts"]) == {"food", "drugstore"}
+    assert round(sum(r["parts"].values()), 2) == r["paid"]
+    assert r["parts"]["drugstore"] == 5.0
+
+
+def test_polish_receipt_export_keeps_old_fields_and_adds_pl_defaults(tmp_path: Path) -> None:
+    r = {x["id"]: x for x in _cz_history(tmp_path).receipts_export()}["new"]
+    assert (r["paid"], r["parts"], r["url_path"]) == (12.0, {"food": 12.0}, "/paragony/new")
+    assert (r["country"], r["currency"], r["paid_orig"], r["fx_rate"]) == ("PL", "PLN", None, 1.0)
+
+
+def test_uncategorized_includes_foreign_items_but_not_empty_code(tmp_path: Path) -> None:
+    h = _cz_history(tmp_path)
+    un = h.uncategorized()
+    assert un["CZ:11"] == "Mléko" and un["CZ:22"] == "Mydlo" and "CZ:" not in un
+    assert "CZ:11" not in h.uncategorized(date(2026, 10, 6))
+    h.set_categories([("CZ:11", "food")], "ai")
+    assert "CZ:11" not in h.uncategorized()
+
+
+def test_prompt_mentions_czech_or_italian_names() -> None:
+    from lidl.budget_feed import PROMPT
+
+    assert "Nazwy mogą być po czesku lub włosku." in PROMPT

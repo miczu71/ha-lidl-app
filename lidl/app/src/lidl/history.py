@@ -1163,11 +1163,29 @@ class History:
         """Produkty (po moście) bez kategorii, pierwszy raz kupione od `since` — kod → ostatnia nazwa; do
         klasyfikacji AI (E6.3). Historię sprzed E6 klasyfikuje jednorazowo Claude (E6.2), nie AI."""
         known = self._categories()
-        return {
+        out = {
             code: p["name"]
             for code, p in sorted(self._products().items())
             if code not in known and (since is None or min(p["days"]) >= since.isoformat())
         }
+        out.update(self._uncategorized_foreign(known, since))
+        return out
+
+    def _uncategorized_foreign(
+        self, known: dict[str, tuple[str, str | None]], since: date | None
+    ) -> dict[str, str]:
+        """Pozycje zagraniczne (art_id z prefiksem kraju) bez kategorii; pusty kod (`CZ:`) pomijamy."""
+        first: dict[str, str] = {}
+        names: dict[str, str] = {}
+        for art_id, name, day in self._db.execute(
+            "SELECT i.art_id, i.name, t.day FROM foreign_items i JOIN tickets t ON t.id = i.ticket_id"
+            " ORDER BY t.day, i.ticket_id, i.line"
+        ):
+            if art_id.endswith(":") or art_id in known:
+                continue
+            first.setdefault(art_id, day)
+            names[art_id] = name
+        return {a: names[a] for a in sorted(names) if since is None or first[a] >= since.isoformat()}
 
     def receipt_parts(self, ticket_id: str) -> dict[str, float]:
         """Kwota zapłacona paragonu podzielona na kategorie produktów (jak w pliku dla Budżetu)."""
@@ -1191,15 +1209,34 @@ class History:
             category = known.get(resolve(art_id, name), known.get(art_id, UNSET))[0]
             parts = sums.setdefault(tid, {})
             parts[category] = parts.get(category, 0.0) + total + discount
+        for tid, art_id, total, discount in self._db.execute(
+            "SELECT ticket_id, art_id, total, discount FROM foreign_items"
+            + (" WHERE ticket_id = ?" if args else ""),
+            args,
+        ):  # część w walucie paragonu; przeliczana na PLN niżej
+            category = known.get(art_id, UNSET)[0]
+            parts = sums.setdefault(tid, {})
+            parts[category] = parts.get(category, 0.0) + total + discount
         out = []
-        for tid, account, day, purchased_at, paid, payment in self._db.execute(
-            "SELECT id, account, day, purchased_at, total, payment FROM tickets"
-            + (" WHERE id = ?" if args else "")
-            + " ORDER BY day, id",
+        for (
+            tid,
+            account,
+            day,
+            purchased_at,
+            paid,
+            payment,
+            country,
+            currency,
+            total_orig,
+            fx_rate,
+        ) in self._db.execute(
+            "SELECT id, account, day, purchased_at, total, payment, country, currency, total_orig,"
+            " fx_rate FROM tickets" + (" WHERE id = ?" if args else "") + " ORDER BY day, id",
             args,
         ):
             paid = round(paid, 2)
-            parts = {c: round(v, 2) for c, v in sums.get(tid, {}).items() if round(v, 2)}
+            rate = 1.0 if country == "PL" else fx_rate
+            parts = {c: round(v * rate, 2) for c, v in sums.get(tid, {}).items() if round(v * rate, 2)}
             if parts:  # kaucja (butelki) i grosze różnicy: do spożywczych, bez nich do największej części
                 rest = "food" if "food" in parts else max(parts, key=lambda c: abs(parts[c]))
                 parts[rest] = round(parts[rest] + paid - sum(parts.values()), 2)
@@ -1214,6 +1251,10 @@ class History:
                     "payment": payment,
                     "url_path": f"/paragony/{tid}",
                     "parts": parts,
+                    "country": country,
+                    "currency": currency,
+                    "paid_orig": None if country == "PL" else total_orig,
+                    "fx_rate": rate,
                 }
             )
         return out
