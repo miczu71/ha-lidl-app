@@ -40,6 +40,7 @@
   {% if v.in_progress %}<p class="sum">Miesiąc w toku: liczby zmienią się do jego końca, porównania pojawią się po nim.</p>{% endif %}
   <h2 class="vh" id="mw-sum">Wydatki</h2>
   <p class="mw-say">{{ v.in_month|capitalize }} zostawiliśmy w Lidlu <strong class="mw-big">{{ v.paid }}</strong></p>
+  {% if v.abroad %}<p class="sum">w tym za granicą: {{ v.abroad }}</p>{% endif %}
   {% if v.compare %}<ul class="mw-cmp">
     {% for c in v.compare %}<li>{% set d = c.delta %}{% include "_delta.html" %}<span>{{ c.label }}</span></li>{% endfor %}
   </ul>{% endif %}

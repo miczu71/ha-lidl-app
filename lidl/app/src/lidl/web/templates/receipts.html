@@ -42,6 +42,16 @@
         {% for s in stores %}<option value="{{ s.code }}"{% if f.store == s.code %} selected{% endif %}>{{ s.name }} ({{ s.tickets }})</option>{% endfor %}
       </select>
     </div>
+    {% if countries %}
+    <div class="f narrow">
+      <label for="kraj">Kraj</label>
+      <select class="field" id="kraj" name="kraj">
+        <option value="">Wszystkie kraje</option>
+        <option value="PL"{% if f.country == "PL" %} selected{% endif %}>PL</option>
+        {% for c in countries %}<option value="{{ c }}"{% if f.country == c %} selected{% endif %}>{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
     <div class="ctl__dates">
       <div class="f">
         <label for="od">Od</label>

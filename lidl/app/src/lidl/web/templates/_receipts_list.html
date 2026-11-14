@@ -1,4 +1,5 @@
-{% from "_macros.html" import ticket_row %}
+{% from "_macros.html" import flag_sprite, ticket_row %}
+{{ flag_sprite() }}
 <div id="paragony-lista" class="live stack">
   {% if bad %}
   <p class="err" id="blad-zakresu" role="alert"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5h.01"/></svg>Data „Od” jest późniejsza niż „Do”. Zamień je miejscami.</p>

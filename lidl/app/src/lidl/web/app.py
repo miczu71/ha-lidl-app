@@ -78,7 +78,7 @@ HERE = Path(__file__).parent
 INGRESS_PROXY = "172.30.32.2"
 WARM_DELAY = 5  # s
 PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
-RECEIPT_PARAMS = ("q", "konto", "sklep", "od", "do", "limit")
+RECEIPT_PARAMS = ("q", "konto", "sklep", "kraj", "od", "do", "limit")
 # E6: kategorie produktu dla Budżetu Domowego i skąd się wzięły (brak = spożywcze do sprawdzenia)
 PENDING_SHOWN = 30
 CATEGORY_LABELS = {"food": "Spożywcze", "drugstore": "Drogeria", "kids": "Dla dzieci", "nonfood": "Inne"}
@@ -602,7 +602,8 @@ def create_app(settings: Settings) -> FastAPI:
             )
         if target == "paragony-produkty":  # wyszukiwanie na żywo: tylko wyniki
             return render(request, "_receipts_products.html", **ctx)
-        f, bad = parse_filter(params, set(labels))
+        countries = history.countries()
+        f, bad = parse_filter(params, set(labels), countries)
         limit = parse_limit(params.get("limit"), TICKETS_LIMIT, cap=TICKETS_LIMIT * 100)
         tickets, total = ([], 0) if bad else history.tickets(f, limit)
         groups = month_groups(
@@ -623,7 +624,13 @@ def create_app(settings: Settings) -> FastAPI:
         stores = history.stores()
         has_history = history.ticket_count() > 0
         return render(
-            request, "receipts.html", **ctx, accounts=labels, stores=stores, has_history=has_history
+            request,
+            "receipts.html",
+            **ctx,
+            accounts=labels,
+            stores=stores,
+            has_history=has_history,
+            countries=sorted(countries),
         )
 
     @app.get("/miesiace")

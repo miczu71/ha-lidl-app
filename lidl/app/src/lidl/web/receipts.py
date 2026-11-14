@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from lidl.history import Purchase, RankedProduct, ReceiptFilter, ReceiptLine, TicketDetail, TicketSummary
-from lidl.text import count_text, fmt_date, fmt_day_month
+from lidl.text import count_text, fmt_date, fmt_day_month, fmt_money
 
 from .chart import fmt_month_year, fmt_pln, fmt_qty, parse_date
 from .prices import fmt_price
@@ -19,15 +19,19 @@ _WEEKDAYS = ["pon", "wt", "śr", "czw", "pt", "sob", "nd"]
 _STATUS = {"pending": "Bez pozycji", "unparsed": "Nierozpoznany"}
 
 
-def parse_filter(params: Mapping[str, str], accounts: set[str]) -> tuple[ReceiptFilter, bool]:
+def parse_filter(
+    params: Mapping[str, str], accounts: set[str], countries: set[str] | None = None
+) -> tuple[ReceiptFilter, bool]:
     """Filtry z adresu; nieznane konto i błędne daty pomijamy. Drugi element: „Od” później niż „Do”."""
     start, end = parse_date(params.get("od")), parse_date(params.get("do"))
     account = params.get("konto") or None
+    country = params.get("kraj") or None
     f = ReceiptFilter(
         account=account if account in accounts else None,
         store=params.get("sklep") or None,
         start=start,
         end=end,
+        country=country if country == "PL" or country in (countries or ()) else None,
     )
     return f, bool(start and end and start > end)
 
@@ -35,6 +39,13 @@ def parse_filter(params: Mapping[str, str], accounts: set[str]) -> tuple[Receipt
 def minus(value: float) -> str:
     """Rabat jako „−2,00 zł” (zawsze z minusem typograficznym)."""
     return "−" + fmt_pln(abs(value), 2)
+
+
+def _orig(t: TicketSummary) -> str | None:
+    """Oryginał kwoty w walucie paragonu (tylko zagranica)."""
+    if t.country == "PL" or t.total_orig is None:
+        return None
+    return fmt_money(t.total_orig, t.currency)
 
 
 def _when(t: TicketSummary, year: bool = False) -> str:
@@ -77,6 +88,8 @@ def month_groups(
                 "notes": [f"taniej o {fmt_pln(t.savings, 2)}"] if t.savings > 0 else [],
                 "status": _STATUS.get(t.status),
                 "total": fmt_pln(t.total, 2),
+                "flag": t.country if t.country != "PL" else None,
+                "orig": _orig(t),
                 "href": href(t.id),
             }
         )
@@ -141,6 +154,8 @@ def detail_view(
         "account": account,
         "payment": d.payment,
         "total": fmt_pln(t.total, 2),
+        "flag": t.country if t.country != "PL" else None,
+        "orig": _orig(t),
         "savings": fmt_pln(t.savings, 2) if t.savings > 0 else None,
         "status": t.status,
         "positions": count_text(len(d.lines), "pozycja", "pozycje", "pozycji"),

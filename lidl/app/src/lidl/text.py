@@ -51,6 +51,11 @@ def fmt_pln(value: float, decimals: int = 0) -> str:
     return f"{value:,.{decimals}f}".replace(",", "\u00a0").replace(".", ",") + " zł"
 
 
+def fmt_money(amount: float, currency: str) -> str:
+    """„175,40 CZK” (twarda spacja tysięcy, przecinek, dwa miejsca, kod waluty po twardej spacji)."""
+    return f"{amount:,.2f}".replace(",", "\u00a0").replace(".", ",") + f"\u00a0{currency}"
+
+
 def fmt_pct(value: float, decimals: int = 1) -> str:
     """„+4,2%”, „−3,0%” (minus typograficzny), „0,0%”."""
     sign = "+" if value > 0 else "−" if value < 0 else ""

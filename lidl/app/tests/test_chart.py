@@ -166,3 +166,10 @@ def test_deposit_chart_has_two_bars_per_bucket_and_none_for_zeros() -> None:
     assert chart.bars[0].aria == "styczeń 2026: pobrane 4,00 zł, zwrócone 1,00 zł"
     assert chart.ticks == ["4 zł", "3 zł", "2 zł", "1 zł", "0"]
     assert build_deposit_chart(_buckets([0.0, 0.0]), "month") is None
+
+
+def test_fmt_money_uses_nbsp_comma_and_currency_code() -> None:
+    from lidl.text import fmt_money
+
+    assert fmt_money(175.4, "CZK") == f"175,40{NBSP}CZK"
+    assert fmt_money(1234.5, "EUR") == f"1{NBSP}234,50{NBSP}EUR"

@@ -1144,3 +1144,68 @@ def test_foreign_upsert_requires_fx(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     with pytest.raises(ValueError):
         h.upsert_tickets("a", [_foreign("c1", "2026-05-04", 1.0)], "CZ")
+
+
+def _mixed(tmp_path: Path) -> History:
+    """Dwa polskie paragony (z pozycjami) i dwa czeskie (bez pozycji, 1 CZK = 0,2 zł)."""
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("p1", "2026-05-04", total=10.0), _ticket("p2", "2026-05-05", total=20.0)])
+    h.save_detail("p1", None, _receipt(("1", "Mleko", 1, 10.0)))
+    h.save_detail("p2", None, _receipt(("1", "Mleko", 2, 10.0)))
+    cz = {"storeCode": "CZ0001", "date": "2026-05-06T22:15:00+00:00"}
+    h.upsert_tickets(
+        "a",
+        [{**_foreign("c1", "2026-05-06", 875.0), **cz}, {**_foreign("c2", "2026-05-07", 100.0), **cz}],
+        "CZ",
+        lambda code, day: 0.2,
+    )
+    return h
+
+
+def test_foreign_tickets_are_listed_with_country_and_original(tmp_path: Path) -> None:
+    from lidl.history import ReceiptFilter
+
+    h = _mixed(tmp_path)
+    found, total = h.tickets(ReceiptFilter(), 10)
+    assert total == 4
+    c1 = next(t for t in found if t.id == "c1")
+    assert (c1.country, c1.currency, c1.total_orig, c1.total) == ("CZ", "CZK", 875.0, 175.0)
+    p1 = next(t for t in found if t.id == "p1")
+    assert (p1.country, p1.currency, p1.total_orig) == ("PL", "PLN", None)
+    only, n = h.tickets(ReceiptFilter(country="CZ"), 10)
+    assert n == 2 and {t.id for t in only} == {"c1", "c2"}
+    assert h.countries() == {"CZ"}
+    assert h.ticket_months(ReceiptFilter()) == {"2026-05": (4, 225.0)}
+    assert h.ticket("c1").ticket.country == "CZ"  # type: ignore[union-attr]
+
+
+def test_rhythm_stores_and_savings_ignore_foreign(tmp_path: Path) -> None:
+    h = _mixed(tmp_path)
+    assert h.rhythm().tickets == 2
+    assert [s.code for s in h.stores()] == ["PL0001"]
+    assert h.stores_without_geo() == {"PL0001"}
+    assert h.savings_kpi(date(2026, 6, 1)).tickets == 2
+    assert h.savings_breakdown().spend_total == 30.0
+
+
+def test_month_summary_reports_abroad_total_and_countries(tmp_path: Path) -> None:
+    s = _mixed(tmp_path).month_summary("2026-05")
+    assert s is not None
+    assert (s.abroad_total, s.abroad_countries, s.totals.tickets, s.totals.paid) == (195.0, ("CZ",), 4, 225.0)
+    pl = History(tmp_path / "pl.db")
+    pl.upsert_tickets("a", [_ticket("p1", "2026-05-04")])
+    s2 = pl.month_summary("2026-05")
+    assert s2 is not None and (s2.abroad_total, s2.abroad_countries) == (0.0, ())
+
+
+def test_main_store_ignores_foreign_stores(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("p1", "2026-05-04")])
+    cz = {"storeCode": "CZ0001", "date": "2026-05-06T22:15:00+00:00"}
+    h.upsert_tickets(
+        "a", [{**_foreign(f"c{i}", "2026-05-06", 100.0), **cz} for i in range(3)], "CZ", lambda c, d: 0.2
+    )
+    with h._db:  # `store_code` zapisuje dopiero szczegół paragonu
+        h._db.execute("UPDATE tickets SET store_code = 'PL0001' WHERE country = 'PL'")
+        h._db.execute("UPDATE tickets SET store_code = 'CZ0001' WHERE country = 'CZ'")
+    assert h.main_store(date(2026, 6, 1)) == "PL0001"

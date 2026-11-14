@@ -18,9 +18,21 @@
 <li><a class="pr" href="{{ r.href }}"><span class="pr__name">{{ r.name }}</span><span class="pr__meta"><span>{{ r.prices }}</span>{% if spend %}<span>{{ r.spend }}</span>{% endif %}{% if r.shelf %}<span>{{ r.shelf }}</span>{% endif %}</span>{% set d = r.delta %}{% include "_delta.html" %}</a></li>
 {% endmacro %}
 
+{# Flagi krajów paragonów (K3): własne proste SVG, symbole raz na stronę (`flag_sprite`), użycie `flag(kod)`; inne kraje: neutralna flaga #}
+{% macro flag_sprite() -%}
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <symbol id="i-flag-cz" viewBox="0 0 24 16"><rect width="24" height="8" fill="#fff"/><rect y="8" width="24" height="8" fill="#d7141a"/><path d="M0 0 12 8 0 16z" fill="#11457e"/></symbol>
+  <symbol id="i-flag-it" viewBox="0 0 24 16"><rect width="8" height="16" fill="#009246"/><rect x="8" width="8" height="16" fill="#fff"/><rect x="16" width="8" height="16" fill="#ce2b37"/></symbol>
+  <symbol id="i-flag-other" viewBox="0 0 24 16"><rect width="24" height="16" fill="#e3e6ea"/><path d="M5 14V2" stroke="#6b7480" stroke-width="1.5" fill="none"/><path d="M5 3h12l-3 3.5 3 3.5H5z" fill="#6b7480"/></symbol>
+</svg>
+{%- endmacro %}
+{% macro flag(code) -%}
+<svg class="flag" viewBox="0 0 24 16" role="img" aria-label="{{ code }}"><use href="#i-flag-{{ code|lower if code|lower in ('cz', 'it') else 'other' }}"/></svg>
+{%- endmacro %}
+
 {# Wiersz paragonu albo zakupu (E8): cały wiersz prowadzi do paragonu; kwota po prawej, rabaty (`notes`) na zielono #}
 {% macro ticket_row(r) %}
-<li><a class="pr pr--amt" href="{{ r.href }}"><span class="pr__name">{{ r.when }}</span><span class="pr__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}{% for n in r.notes %}<span class="pr__save">{{ n }}</span>{% endfor %}{% if r.status %}<span><span class="tag">{{ r.status }}</span></span>{% endif %}</span><span class="pr__amt">{{ r.total }}</span></a></li>
+<li><a class="pr pr--amt" href="{{ r.href }}"><span class="pr__name">{% if r.flag %}{{ flag(r.flag) }} {% endif %}{{ r.when }}</span><span class="pr__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}{% for n in r.notes %}<span class="pr__save">{{ n }}</span>{% endfor %}{% if r.status %}<span><span class="tag">{{ r.status }}</span></span>{% endif %}</span><span class="pr__amt">{{ r.total }}{% if r.orig %} <span class="pr__orig">({{ r.orig }})</span>{% endif %}</span></a></li>
 {% endmacro %}
 
 {# Stan (E23, zakładka Status): ikona z symboli `#lv-<poziom>` strony, opcjonalny tekst albo nazwa dla czytnika #}

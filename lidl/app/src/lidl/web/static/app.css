@@ -359,6 +359,8 @@ a.pr:hover .pr__name { color: var(--blue); text-decoration: underline; }
 
 /* Paragony (E8): miesiące, wiersz z kwotą, pozycje paragonu z rabatami, rozliczenie do kwoty zapłaconej */
 .pr--amt { grid-template-areas: "name amt chev" "meta amt chev"; }
+.flag { width: 18px; height: 12px; border-radius: 2px; box-shadow: 0 0 0 1px var(--line); vertical-align: -1px; }
+.pr__orig { color: var(--ink-muted); font-weight: 400; font-size: 14px; }
 .pr__amt { grid-area: amt; justify-self: end; font: 800 16px/22px var(--font-sans); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pr__save { color: var(--green-deep); }
 .mo { display: flex; flex-direction: column; gap: var(--space-1); }

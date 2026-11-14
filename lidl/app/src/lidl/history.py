@@ -432,6 +432,7 @@ class ReceiptFilter:
     store: str | None = None  # kod sklepu (`store_code`, bez niego `store` z listy API)
     start: date | None = None
     end: date | None = None
+    country: str | None = None  # kod kraju paragonu (`PL`, `CZ`...)
 
 
 @dataclass(frozen=True)
@@ -445,6 +446,9 @@ class TicketSummary:
     savings: float  # rabaty pozycji (dodatnie)
     items: int
     status: str  # ok | pending (bez szczegółów) | unparsed (nierozpoznany)
+    country: str = "PL"
+    currency: str = "PLN"
+    total_orig: float | None = None  # kwota w walucie paragonu (tylko zagranica)
 
 
 @dataclass(frozen=True)
@@ -545,29 +549,46 @@ class MonthSummary:
     first_no: int  # numer pierwszego paragonu miesiąca w całej historii
     rank: int  # miejsce miesiąca wg wydatków (1 = najdroższy)
     months: int  # miesięcy z zakupami do końca tego miesiąca
+    abroad_total: float = 0.0  # zapłacono za granicą (PLN)
+    abroad_countries: tuple[str, ...] = ()  # kody krajów paragonów spoza PL, posortowane
 
 
 # kolumny `TicketSummary` (alias `t` = tickets)
 _TICKET_COLS = (
     "t.id, t.account, t.day, t.purchased_at, COALESCE(NULLIF(t.store_name, ''), t.store, ''), t.total,"
     " (SELECT -COALESCE(SUM(discount), 0) FROM items WHERE ticket_id = t.id),"
-    " (SELECT COUNT(*) FROM items WHERE ticket_id = t.id), t.detail_fetched, t.parsed"
+    " (SELECT COUNT(*) FROM items WHERE ticket_id = t.id), t.detail_fetched, t.parsed,"
+    " t.country, t.currency, t.total_orig"
 )
-_TICKET_N = 10  # liczba kolumn `_TICKET_COLS`; dalsze kolumny zapytania idą po nich
+_TICKET_N = 13  # liczba kolumn `_TICKET_COLS`; dalsze kolumny zapytania idą po nich
 _STORE_KEY = "COALESCE(NULLIF(t.store_code, ''), t.store, '')"
 
 
 def _summary(row: tuple[Any, ...]) -> TicketSummary:
-    tid, account, day, at, store, total, savings, items, fetched, parsed = row
+    tid, account, day, at, store, total, savings, items, fetched, parsed, country, currency, orig = row
     status = "pending" if not fetched else "ok" if parsed else "unparsed"
     time = at[11:16] if at and len(at) >= 16 else None
-    return TicketSummary(tid, account, day, time, store, total, round(savings, 2), items, status)
+    return TicketSummary(
+        tid,
+        account,
+        day,
+        time,
+        store,
+        total,
+        round(savings, 2),
+        items,
+        status,
+        country or "PL",
+        currency or "PLN",
+        orig,
+    )
 
 
 def _receipt_where(f: ReceiptFilter) -> tuple[str, list[str]]:
     where, args = "", []
     for sql, value in (
         ("t.account = ?", f.account),
+        ("t.country = ?", f.country),
         (f"{_STORE_KEY} = ?", f.store),
         ("t.day >= ?", f.start and f.start.isoformat()),
         ("t.day <= ?", f.end and f.end.isoformat()),
@@ -1475,7 +1496,7 @@ class History:
     def main_store(self, today: date | None = None) -> str | None:
         """Sklep z największą liczbą paragonów w ostatnich 365 dniach (kod jak `PL0001`)."""
         row = self._db.execute(
-            "SELECT store_code FROM tickets WHERE store_code IS NOT NULL AND day >= ?"
+            "SELECT store_code FROM tickets WHERE store_code IS NOT NULL AND country = 'PL' AND day >= ?"
             " GROUP BY store_code ORDER BY COUNT(*) DESC LIMIT 1",
             (_year_ago(today).isoformat(),),
         ).fetchone()
@@ -1593,7 +1614,7 @@ class History:
         t = self._db.execute(
             "SELECT COUNT(*), COALESCE(SUM(detail_fetched), 0),"
             " COALESCE(SUM(CASE WHEN detail_fetched = 1 AND parsed = 0 THEN 1 ELSE 0 END), 0),"
-            " COALESCE(SUM(coupons_used), 0), MIN(day), MAX(day) FROM tickets"
+            " COALESCE(SUM(coupons_used), 0), MIN(day), MAX(day) FROM tickets WHERE country = 'PL'"
         ).fetchone()
         d = self._db.execute(
             "SELECT SUM(i.discount), SUM(i.coupon), SUM(CASE WHEN t.day >= ? THEN i.discount END)"
@@ -1859,6 +1880,11 @@ class History:
         total = self._db.execute(f"SELECT COUNT(*) FROM tickets t WHERE 1 = 1{where}", args).fetchone()[0]
         return found, int(total)
 
+    def countries(self) -> set[str]:
+        """Kody krajów paragonów spoza PL (do filtra `?kraj=`)."""
+        rows = self._db.execute("SELECT DISTINCT country FROM tickets WHERE country != 'PL'")
+        return {c for (c,) in rows if c}
+
     def ticket_months(self, f: ReceiptFilter) -> dict[str, tuple[int, float]]:
         """Liczba paragonów i zapłacona suma na miesiąc (`2026-10`), filtry jak w `tickets`, bez limitu."""
         where, args = _receipt_where(f)
@@ -1880,6 +1906,7 @@ class History:
         ]
         if not tickets:
             return None
+        abroad = [t for t in tickets if t.country != "PL"]
         by_month = self.ticket_months(ReceiptFilter(end=end))
         paid = {m: total for m, (_, total) in by_month.items()}
         resolve = self._resolver()
@@ -1925,6 +1952,8 @@ class History:
             first_no=1 + sum(n for m, (n, _) in by_month.items() if m < month),
             rank=1 + sum(total > paid[month] for total in paid.values()),
             months=len(paid),
+            abroad_total=round(sum(t.total for t in abroad), 2),
+            abroad_countries=tuple(sorted({t.country for t in abroad})),
         )
 
     def stores(self, f: ReceiptFilter | None = None) -> list[StoreStats]:
@@ -1933,7 +1962,7 @@ class History:
         where, args = _receipt_where(f or ReceiptFilter())
         for row in self._db.execute(
             f"SELECT {_TICKET_COLS}, {_STORE_KEY}, NULLIF(t.store_name, ''), t.store_address, t.store_postal,"
-            f" t.store_locality FROM tickets t WHERE 1 = 1{where} ORDER BY t.day",
+            f" t.store_locality FROM tickets t WHERE t.country = 'PL'{where} ORDER BY t.day",
             args,
         ):
             t = _summary(row[:_TICKET_N])
@@ -1968,7 +1997,7 @@ class History:
 
     def stores_without_geo(self) -> set[str]:
         """Kody sklepów z paragonów jeszcze nie sprawdzone na liście Lidla (do pobrania w `geo.py`)."""
-        rows = self._db.execute(f"SELECT DISTINCT {_STORE_KEY} FROM tickets t")
+        rows = self._db.execute(f"SELECT DISTINCT {_STORE_KEY} FROM tickets t WHERE t.country = 'PL'")
         return {code for (code,) in rows if code} - self._store_geo().keys()
 
     def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:
@@ -1981,7 +2010,9 @@ class History:
         visits: Counter[tuple[int, int]] = Counter()
         spend: defaultdict[tuple[int, int], float] = defaultdict(float)
         tickets = 0
-        for row in self._db.execute(f"SELECT {_TICKET_COLS} FROM tickets t WHERE 1 = 1{where}", args):
+        for row in self._db.execute(
+            f"SELECT {_TICKET_COLS} FROM tickets t WHERE t.country = 'PL'{where}", args
+        ):
             t = _summary(row)
             tickets += 1
             if t.time:
@@ -1999,7 +2030,8 @@ class History:
     def _savings_breakdown(self, f: ReceiptFilter) -> Savings:
         where, args = _receipt_where(f)
         ticket_rows = self._db.execute(
-            f"SELECT t.id, t.day, t.total, t.savings, t.detail_fetched FROM tickets t WHERE 1 = 1{where}",
+            "SELECT t.id, t.day, t.total, t.savings, t.detail_fetched FROM tickets t"
+            f" WHERE t.country = 'PL'{where}",
             args,
         ).fetchall()
         items = self._db.execute(

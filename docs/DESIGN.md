@@ -37,3 +37,6 @@ Kontener treści do 720 px, wyśrodkowany.
 - Ikony kreskowe, inline SVG (24 px, obrys 1,75 px, okrągłe końce). Bez emoji, PNG i gradientów.
 - Kroki są ponumerowane tylko tam, gdzie liczy się kolejność (logowanie).
 - Cache WebView: HTML `no-store`, statyki z `?v=<wersja>` i `immutable`, wersja widoczna w stopce.
+- Flagi krajów paragonów (CZ, IT; inne: neutralna `i-flag-other`) to własne proste SVG 24×16 w sprite'cie z makra
+  `flag_sprite` (`_macros.html`), użycie `flag(kod)`; 18×12 px, promień 2 px, obrys `--line`. Kwota główna zawsze w PLN,
+  oryginał w nawiasie (`pr__orig`, `fmt_money`), nigdy sama flaga jako jedyny nośnik informacji (jest `aria-label`).

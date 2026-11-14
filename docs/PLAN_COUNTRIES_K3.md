@@ -32,3 +32,34 @@ NIE RÓB: zmian w `budget_feed.py`, `receipt*.py`, `coupons.py`; zmiany sum PL p
 
 ## Rollback
 Revert commitów etapu; dane nietknięte.
+
+## Audyt
+Zapytania `FROM/JOIN tickets` w `history.py` (łącznie z zapisem/migracją). „Tylko PL” = `country = 'PL'` w SQL.
+
+| Zapytanie (metoda) | Werdykt |
+|---|---|
+| `_ensure`/`has_tables` (sqlite_master), sprawdzenia schematu | bez znaczenia |
+| `known` w imporcie listy (`SELECT 1 FROM tickets WHERE id`) | bez znaczenia |
+| `ticket_count` (COUNT, z kontem i bez) | +zagranica |
+| `last_day`/`MAX(day)` | +zagranica |
+| ids do pobrania szczegółów (`account = ? AND country = 'PL'`, K1) | tylko PL (już) |
+| `articles` po id | bez znaczenia |
+| `SELECT * FROM tickets WHERE id` | bez znaczenia |
+| `detail_version < ?` JOIN `ticket_raw` (reparse) | bez znaczenia |
+| `budget_tickets` (≈l.1143) | bez zmian (K4) |
+| zapytania `items i JOIN tickets t` (ranking, nazwy, price_rows, shrink, product_purchases, _products, month earlier, coupon_effect, _coupon_used, spend_series pozycje, savings items) | tylko PL de facto (zagranica bez `items`, K2) — bez zmian |
+| `main_store` | tylko PL (dodano) |
+| `savings_kpi` (liczniki i sumy z `tickets`) | tylko PL (dodano) |
+| `savings_kpi` (items JOIN tickets) | tylko PL de facto (bez items) |
+| `purchase_totals` (SUM/COUNT total, kaucje) | +zagranica |
+| `spend_series` (kaucje z `tickets`) | +zagranica (kaucje zagranicy 0) |
+| `tickets` (lista + COUNT) | +zagranica (+ filtr `country`) |
+| `ticket_months` | +zagranica |
+| `month_summary` (lista paragonów miesiąca) | +zagranica (+ `abroad_total`, `abroad_countries`) |
+| `stores` | tylko PL (dodano) |
+| `stores_without_geo` | tylko PL (dodano) |
+| `rhythm` | tylko PL (dodano) |
+| `_savings_breakdown` ticket_rows | tylko PL (dodano) |
+| `_savings_breakdown` items, `ticket_coupons` JOIN tickets | tylko PL de facto (bez items/kuponów) |
+| `ticket` (szczegół) | +zagranica (z country/currency/total_orig) |
+| `countries` (nowa, do filtra) | +zagranica |

@@ -92,6 +92,9 @@ def month_view(
         "in_month": fmt_in_month(start),
         "in_progress": in_progress,
         "paid": fmt_pln(t.paid, 2),
+        "abroad": f"{fmt_pln(s.abroad_total, 2)} ({', '.join(s.abroad_countries)})"
+        if s.abroad_total > 0
+        else None,
         "compare": [] if in_progress else [c for c in compare if c],
         "stats": stats,
         "top_spend": _products(s.top_spend, product_href, money),

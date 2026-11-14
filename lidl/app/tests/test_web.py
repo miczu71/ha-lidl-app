@@ -1356,3 +1356,40 @@ def test_savings_without_discounts_in_period_offers_whole_history(client: TestCl
         "osoba-1", [{"id": "z1", "date": "2020-01-01T10:00:00+00:00", "totalAmount": 5.0}]
     )  # type: ignore[attr-defined]
     assert "Wybierz „Cała historia”" in client.get("/oszczednosci").text
+
+
+def _seed_abroad(client: TestClient) -> None:
+    _seed_receipts(client)
+    history = client.app.state.history  # type: ignore[attr-defined]
+    history.upsert_tickets(
+        "osoba-1",
+        [{"id": "c-1", "date": "2026-10-07T10:00:00+00:00", "totalAmount": 875.0, "currency": "CZK"}],
+        "CZ",
+        lambda code, day: 0.2,
+    )
+
+
+def test_receipts_show_flag_original_and_filter_by_country(client: TestClient) -> None:
+    _seed_abroad(client)
+    r = client.get("/paragony")
+    assert "i-flag-cz" in r.text and "(875,00 CZK)" in r.text and "175,00 zł" in r.text
+    assert 'name="kraj"' in r.text and "Miasto A Ulica B" in r.text
+    cz = client.get("/paragony?kraj=CZ")
+    assert "(875,00 CZK)" in cz.text and "Marzec 2025" not in cz.text
+    unknown = client.get("/paragony?kraj=XX")
+    assert "Miasto A Ulica B" in unknown.text and "(875,00" in unknown.text
+    detail = client.get("/paragony/c-1")
+    assert "i-flag-cz" in detail.text and "875,00 CZK" in detail.text
+
+
+def test_receipts_without_foreign_have_no_country_filter(client: TestClient) -> None:
+    _seed_receipts(client)
+    r = client.get("/paragony")
+    assert 'name="kraj"' not in r.text and 'i-flag-cz"/>' not in r.text
+
+
+def test_months_shows_abroad_line(client: TestClient) -> None:
+    _seed_abroad(client)
+    text = client.get("/miesiace?m=2026-10").text
+    assert "w tym za granicą: 175,00 zł (CZ)" in text
+    assert "za granicą" not in client.get("/miesiace?m=2025-03").text
