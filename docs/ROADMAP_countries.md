@@ -1,6 +1,6 @@
 # ROADMAP: paragony z innych krajów (CZ, IT)
 
-Status: **K1–K5 zrobione i wydane 2026-11-14 (Lidl 1.1.0, Budżet 0.75.0); czeka tylko wpisanie `extra_countries` = CZ, IT przez usera i weryfikacja 4 paragonów na żywo; K6 później.**
+Status: **K1–K5 wydane i zweryfikowane na żywo 2026-11-14 (Lidl 1.1.0, Budżet 0.75.0). Dalej: D1 (dług K1–K5), potem K6 (zakładka „Kraje”, wywiad `grill-me`), jedno wydanie zbiorcze na końcu.**
 
 ## Cel
 Pobierać do add-onu e-paragony z zakupów w Lidlu za granicą (w 2026: Czechy, Włochy). Paragony są widoczne w aplikacji
@@ -65,8 +65,10 @@ Rollback: brak zmian do cofnięcia.
   **Regresja złapana w review:** simplify usunął `Receipt.currency/paid_orig` używane przez `_txn_category.html` — przywrócone + test renderu chipa (`test_foreign_lidl_receipt_chip_shows_country_and_original`).
   Poprawki z review: logi NBP (status/wyjątek), ostrzeżenie przy braku kursu i nieznanym kraju parsera, `currency_code` tylko `[A-Z]{3}` (kod trafia do URL NBP), kaucje w `purchase_totals` tylko PL.
   Dług (do raportu, nie blokuje): kurs NBP szeregowo per dzień (zbiorczo per waluta + `executemany`); `foreign_items` jako osobna tabela vs `items` z `country` (migracja v7); trzy mapy kraj→waluta/język/locale (rejestr `COUNTRIES`); `_drop_apis` czyści klientów wszystkich krajów przy rotacji tokenu; `pending_foreign_details` ignoruje usunięty z `extra_countries` kraj; błąd szczegółu zagranicznego zapisuje `detail_version` bez powrotu do kolejki; `islice(MAX_ITEMS)` w `classify_new` najpierw PL; brak linii „za granicą” w `notify.py`; brak testów `service.py` (`_api`, `_drop_apis`), `settings._countries`, `_http_fetch`, migracji wielostopniowej; 13 starych czerwonych w `test_leaflet.py`.
-  **Do zrobienia przez usera:** wpisać `extra_countries` = `CZ`, `IT` w opcjach add-onu Lidl i zrestartować; potem weryfikacja 4 paragonów (3 CZ + 1 IT) i parowania w Budżecie.
-- **K6** (później, osobny wywiad) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.
+  **Weryfikacja na żywo 2026-11-14 (po wpisaniu `extra_countries` = CZ, IT przez usera):** import ręczny `POST /history/resume` (w panelu brak przycisku „Sprawdź teraz” — uwaga do K6). Lidl: 3 CZ + 1 IT, wszystkie `parsed=1`, `foreign_items` 11/59/5/18, kursy NBP z dnia zakupu, `total = total_orig × fx_rate` co do grosza, feed `/share/lidl/receipts.json` 543 paragony (539 PL).
+  Budżet po „Synchro”: 3 z 4 sparowane automatycznie (CZ 2026-11-11 → −444,57, 2 części = suma co do grosza; CZ 2025-11-15 i IT 2026-09-10 → jedna kategoria „Spożywcze” bez podziału, tak ma być: jedna część = kategoria, nie split). CZ 2026-11-14 czeka na transakcję w banku (sprawdzić po kolejnej synchronizacji). Chip wyboru z krajem na żywo niewidziany (nic nie wymagało ręcznego wyboru).
+- **D1** (następny, autonomiczny): spłata długu K1–K5 z listy powyżej — najpierw testy (`service.py` `_api/_drop_apis`, `_http_fetch`, `settings._countries`, migracja wielostopniowa, Budżet: dokładnie 5%, PL+zagraniczny na jedną transakcję, `sum(parts)=0`), linia „za granicą” w `notify.py`, kolejność `classify_new` (zagranica nie czeka za PL), `pending_foreign_details` vs usunięty kraj. Bez wydania (wydanie po K6). Przed startem krótki plan z krokami i rollbackiem w `docs/PLAN_COUNTRIES_D1.md`.
+- **K6** (po D1, wywiad `grill-me` na prawdziwych danych; poprosić usera o decyzje) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
