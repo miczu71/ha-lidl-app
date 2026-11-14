@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.2.0
+
+- **Zakładka „Kraje”:** porównanie cen produktów kupionych za granicą z cenami w Polsce. Model językowy sam
+  proponuje po imporcie pary „produkt z paragonu CZ/IT ↔ konkretny produkt PL” (do trzech kandydatów), a Ty
+  zatwierdzasz je albo odrzucasz („Bez odpowiednika”, z cofnięciem); parę można też dobrać wyszukiwarką katalogu PL.
+- Koszyk porównawczy w PLN: ilość z paragonu zagranicznego × cena jednostkowa, wobec tej samej ilości po średniej
+  cenie PL z 12 miesięcy przed zakupem (kurs NBP z dnia zakupu), z pokryciem „X z Y pozycji”. Porównanie liczy
+  za kg/l przy wspólnej gramaturze, inaczej za sztukę; zł/kg i zł/szt bez wspólnej gramatury trafiają do „Bez ceny PL”.
+- Przycisk „Sprawdź teraz” na zakładce (pobiera paragony z krajów z `extra_countries`); głęboki link `/kraje`
+  z Budżetu.
+- Migracja bazy do wersji 7 (tabela `country_pairs`), kopia `*.pre-countries-pairs`. Powiadomienie miesięczne ma
+  linię „W tym za granicą”; pozycje zagraniczne nie wypierają polskich z limitu klasyfikacji.
+- Szybsza zakładka Kraje: katalog produktów PL jest liczony raz na dzień i po zmianie danych.
+
 ## 1.1.0
 
 - **Paragony z innych krajów (CZ, IT):** nowa opcja `extra_countries` (domyślnie pusta = bez zmian). Pobieramy
