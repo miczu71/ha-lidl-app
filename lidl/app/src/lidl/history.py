@@ -978,13 +978,18 @@ class History:
         )
         return [r[0] for r in rows]
 
-    def pending_foreign_details(self, account: str) -> list[tuple[str, str]]:
-        """Zagraniczne paragony (id, kraj) bez pozycji albo zapisane starszym parserem zagranicznym."""
+    def pending_foreign_details(self, account: str, countries: tuple[str, ...]) -> list[tuple[str, str]]:
+        """Zagraniczne paragony (id, kraj) z podanych krajów bez pozycji albo zapisane starszym parserem
+        zagranicznym; kraj usunięty z `extra_countries` nie jest już odpytywany."""
+        wanted = [c for c in countries if c != "PL"]
+        if not wanted:
+            return []
+        marks = ",".join("?" * len(wanted))
         rows = self._db.execute(
-            "SELECT id, country FROM tickets WHERE account = ? AND country != 'PL'"
+            f"SELECT id, country FROM tickets WHERE account = ? AND country IN ({marks})"
             " AND (detail_fetched = 0 OR detail_version < ?)"
             " ORDER BY day DESC, id DESC",
-            (account, FOREIGN_PARSER_VERSION),
+            (account, *wanted, FOREIGN_PARSER_VERSION),
         )
         return [(r[0], r[1]) for r in rows]
 

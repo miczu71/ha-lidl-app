@@ -177,7 +177,7 @@ class HistorySync:
                         new += await self._import_lists(slug, full, country)
                 pending = [(t, COUNTRY) for t in self._history.pending_details(slug)]
                 if not quiet:  # godzinny przebieg: tylko PL
-                    pending += self._history.pending_foreign_details(slug)
+                    pending += self._history.pending_foreign_details(slug, tuple(countries))
                 progress.total = len(pending)
                 for ticket_id, ticket_country in pending:
                     await self._sleep(self._pause)

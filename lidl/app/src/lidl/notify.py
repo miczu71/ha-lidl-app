@@ -164,6 +164,8 @@ def compose_month(s: MonthSummary) -> tuple[str, str]:
         pct = fmt_pct((s.totals.paid - s.prev_paid) / s.prev_paid * 100)
         spent += f" ({pct} niż {fmt_in_month(start - timedelta(days=1))})"
     lines = [spent]
+    if s.abroad_total > 0:
+        lines.append(f"W tym za granicą: {fmt_pln(s.abroad_total, 2)} ({', '.join(s.abroad_countries)})")
     if s.top_spend:
         lines.append(f"Najwięcej na: {s.top_spend[0].name} ({fmt_pln(s.top_spend[0].value, 2)})")
     rank = "najdroższy miesiąc w historii" if s.rank == 1 else f"{s.rank}. najdroższy z {s.months} miesięcy"

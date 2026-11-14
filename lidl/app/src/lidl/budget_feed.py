@@ -12,7 +12,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date, timedelta
-from itertools import islice
 from pathlib import Path
 from typing import Any
 
@@ -63,6 +62,15 @@ def write_export(history: History, path: Path) -> int:
     return len(receipts)
 
 
+def _capped(items: dict[str, str]) -> dict[str, str]:
+    """Do MAX_ITEMS produktów w zapytaniu; pozycje zagraniczne (kod z prefiksem `CZ:`) dostają co najmniej
+    połowę miejsc, żeby duży polski zaległy zbiór ich nie głodził."""
+    pl = [(c, n) for c, n in items.items() if ":" not in c]
+    abroad = [(c, n) for c, n in items.items() if ":" in c]
+    take = min(len(abroad), max(MAX_ITEMS // 2, MAX_ITEMS - len(pl)))
+    return dict(pl[: MAX_ITEMS - take] + abroad[:take])
+
+
 class BudgetFeed:
     def __init__(self, session: aiohttp.ClientSession, history: History, settings: Settings) -> None:
         self._session, self._history, self._settings = session, history, settings
@@ -94,7 +102,7 @@ class BudgetFeed:
 
     async def classify_new(self, today: date) -> int:
         """Kategorie nowych produktów od modelu; zwraca liczbę zapisanych."""
-        new = dict(islice(self._history.uncategorized(today - timedelta(days=NEW_DAYS)).items(), MAX_ITEMS))
+        new = _capped(self._history.uncategorized(today - timedelta(days=NEW_DAYS)))
         if not new:
             return 0
         content = [{"type": "text", "text": PROMPT + "\n".join(f"{c}: {n}" for c, n in new.items())}]

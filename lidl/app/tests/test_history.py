@@ -1234,7 +1234,7 @@ def test_foreign_detail_goes_to_foreign_items_with_country_prefix(tmp_path: Path
     h = History(tmp_path / "h.db")
     h.upsert_tickets("a", [_ticket("pl-1", "2026-05-01")])
     _foreign_ticket(h)
-    assert h.pending_foreign_details("a") == [("cz-1", "CZ")]
+    assert h.pending_foreign_details("a", ("CZ",)) == [("cz-1", "CZ")]
     assert h.pending_details("a") == ["pl-1"]  # lista PL bez zmian
     receipt = _foreign_receipt(60.0, 40.0)
     receipt.items.append(ReceiptItem("", "Banány", 0.4, 40.0, 16.0, is_weight=True))
@@ -1244,7 +1244,7 @@ def test_foreign_detail_goes_to_foreign_items_with_country_prefix(tmp_path: Path
     assert rows.fetchall() == [("CZ:1", 60.0), ("CZ:2", 40.0), ("CZ:", 16.0)]
     assert h._db.execute("SELECT COUNT(*) FROM items WHERE ticket_id = 'cz-1'").fetchone()[0] == 0
     assert h.ticket_row("cz-1")["detail_version"] == FOREIGN_PARSER_VERSION
-    assert h.pending_foreign_details("a") == []
+    assert h.pending_foreign_details("a", ("CZ",)) == []
 
 
 def test_foreign_sum_mismatch_is_unparsed_and_stores_no_items(tmp_path: Path) -> None:
