@@ -1,6 +1,6 @@
 # ROADMAP: paragony z innych krajów (CZ, IT)
 
-Status: **K1–K5 wydane i zweryfikowane na żywo 2026-11-14 (Lidl 1.1.0, Budżet 0.75.0). D1 ✅ (2026-11-14). Dalej: K6 (zakładka „Kraje”, wywiad `grill-me`), jedno wydanie zbiorcze na końcu.**
+Status: **ZAMKNIĘTA 2026-11-14. K1–K5 (Lidl 1.1.0, Budżet 0.75.0) i K6a–K6d (Lidl 1.2.0, Budżet 0.76.0) wydane i zweryfikowane na żywo.**
 
 ## Cel
 Pobierać do add-onu e-paragony z zakupów w Lidlu za granicą (w 2026: Czechy, Włochy). Paragony są widoczne w aplikacji
@@ -97,6 +97,10 @@ Rollback: brak zmian do cofnięcia.
   - **K6d ✅ 2026-11-14 (Budżet `180c7ae`, wypchnięte)** link „ceny za granicą” → `{{ lidl_panel }}/kraje` obok „paragon Lidl” przy paragonie zagranicznym (`lidl_link.foreign_ids` czyta plik add-onu; Transakcje + edytor) + test `test_foreign_lidl_receipt_links_to_countries_tab` (CZ ma link, ten sam paragon jako PL nie) — zrobione przeze mnie (4 edycje, bez workera).
     Wynik: Budżet pytest 1462 zielone, ruff/format/mypy czyste. Nieblokujące: `foreign_ids` parsuje cały plik paragonów przy każdym renderze listy (skala domowa).
     Dalej: wydanie zbiorcze (baza Lidl `a2e4897` = v1.1.0, Budżet `ab2ee68` = v0.75.0).
+  - **Wydanie K6 ✅ 2026-11-14 (Lidl `v1.2.0`, Budżet `v0.76.0`, opublikowane, zainstalowane przez Supervisora z backupem add-onu).**
+    Wynik: Lidl pytest 525 zielone (bez `test_leaflet.py`), Budżet 1462 zielone, ruff/format/mypy czyste, pubguard 0 flag w obu. Na żywo: Lidl — stopka „Wersja 1.2.0”, zakładka Kraje z „Sprawdź teraz”, „Porównanie cen” i kartami do zatwierdzenia, konsola czysta; Budżet — „v0.76.0”, na liście Transakcji 2 zagraniczne paragony mają link „ceny za granicą” → `/app/f0987e0f_lidl/kraje`, 47 polskich bez niego, konsola czysta. Osobnego dev-serwera Budżetu nie robiłem (jeden link w szablonie, test renderu + weryfikacja na żywo).
+    `simplify` (4 agentów): `pl_catalog` przez `_cached`, `foreign_ids` z cache po mtime pliku. Review: `code-review` + silent-failure + pr-test-analyzer + security: zero blokujących. **Złapane i poprawione przed wydaniem:** koszyk porównywał zł/kg ze zł/szt bez wspólnej gramatury (teraz „Bez ceny PL” + test); szablon Budżetu bez `foreign_receipts` nie rzuca.
+    Dług (do raportu, nie blokuje): propozycje AI ponawiane po każdym imporcie dla nazw, których model nie zwrócił (koszt tokenów); ciche odrzucenie `POST /kraje/para` bez komunikatu; `countries_check` zawsze „Import trwa…”; `_catalog` (limit 100000) vs `propose` (600) — ręczne wyszukiwanie widzi więcej niż AI; N+1 w `pair_foreign_sample`; `pair_set` jako jeden upsert; rejestr `COUNTRIES` zamiast 4 map kraj→dane; `base_name` jako kolumna `foreign_items`; `_fmt_pct` vs `text.fmt_pct` różnią się dla zera (+0,0%); brak testów: zmiana gramatury PL w oknie, granica 365 dni, `pair_lines` dla zwrotów/braku kursu, `KeyRejected` w `propose`; `_migrate_v6` robi drugą kopię `.pre-countries-pairs`; 13 starych czerwonych w `test_leaflet.py`.
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
