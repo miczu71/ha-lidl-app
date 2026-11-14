@@ -55,7 +55,10 @@ Rollback: brak zmian do cofnięcia.
 - **K3 ✅ 2026-11-14 (`bf64073`)** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
   Wynik: pytest 469 zielone (bez `test_leaflet.py`, 13 starych czerwonych), ruff/format/mypy czyste; verifier ACCEPT; demo (seed PL + 3 CZ + 1 IT): lista z flagą i oryginałem, `?kraj=CZ` filtruje, Miesiące „w tym za granicą”, Rytm liczy tylko PL.
   Nieblokujące do K5: brak linii „za granicą” w `notify.py` (powiadomienie miesięczne); słaba asercja `i-flag-cz` w `test_web.py` (sprite zawsze na stronie); test `fmt_money` w `test_chart.py`; `stores/rhythm/_savings_breakdown` przy `ReceiptFilter(country='CZ')` dają pusty wynik; `coupon_effect` tylko PL de facto (zagranica bez `items`, do K2).
-- **K4** kategorie AI + eksport do Budżetu + parowanie 5% w Budżecie (dwa repo) — `sonnet-worker`.
+- **K4 ✅ 2026-11-14 (Lidl `3954d65`, Budżet `cca665f`, wypchnięte)** kategorie AI + eksport do Budżetu + parowanie 5% w Budżecie (dwa repo, dwa `sonnet-worker`y równolegle).
+  Wynik: Lidl pytest 483 zielone (bez `test_leaflet.py`), ruff/format/mypy czyste; Budżet pytest 1457 zielone, ruff/format czyste; verifier ACCEPT w obu (zero blokujących).
+  Odstępstwa: do wszystkich paragonów w eksporcie dopisane `country/currency/paid_orig/fx_rate` (PL: PL/PLN/null/1.0), więc zmieniona asercja w `test_history.py`; `country` w Budżecie zamieniane na wielkie litery; etykieta kraju/oryginału tylko na chipach wyboru, nie na połączonym paragonie.
+  Nieblokujące do K5: `islice(MAX_ITEMS)` w `classify_new` bierze najpierw PL — przy dużym backlogu PL zagraniczne mogą czekać między przebiegami (rozważyć kolejność/limit osobno); brak testu „PL bez zmian” dla treści promptu; w Budżecie brak testów: dokładnie 5%, PL+zagraniczny na tę samą transakcję (`claims==2` → ręcznie), `sum(parts)=0` w `_scaled`, render chipa zagranicznego (Jinja niewyrenderowana).
 - **K5** wydanie zbiorcze: `simplify` → `code-review` (+ `silent-failure-hunter`, `pr-test-analyzer`, security-review diffu) → `release` Lidl, potem Budżet → weryfikacja na żywo (4 paragony CZ/IT).
 - **K6** (później, osobny wywiad) zakładka „Kraje”: pary produktów PL↔CZ/IT (AI proponuje, user zatwierdza jak E21), koszyk porównawczy w PLN.
 
