@@ -44,8 +44,14 @@ Rollback: brak zmian do cofnięcia.
   Odstępstwa od planu: `web/app.py` podpięty przeze mnie (plan K1 błędnie zakazywał `web/`); kolumny też w `CREATE TABLE tickets`; `NbpRates.cached/prefetch`, `History.fx_get/fx_put`;
   `pending_details` ma `AND country='PL'`; zagraniczny duplikat bez kursu tylko odświeża `articles`. Nieblokujące: błąd 5xx/auth kraju przerywa konto po PL (zgodne z planem), nieznany kraj bez `currency` dostaje EUR.
   Na żywo dopiero po wydaniu K5 (`extra_countries` domyślnie puste = zero zmian zachowania).
-- **K2** szczegóły i pozycje zagraniczne (parser cs/it, `foreign_items`) — fixtures pobrane i zanonimizowane 2026-11-14 (`lidl/app/tests/fixtures/foreign/`: `cz_0.json` mały, `cz_1.json` duży z kuponami Lidl Plus, `it_0.json`); format: `span.article` z `data-art-id/-quantity/-unit-price/-tax-type/-art-description`, przecinek dziesiętny, linie rabatów `span.discount`, pozycje ważone w CZ bez atrybutów `data-*` (osobna linia „N 0,406 kg x 39,90”); gotowe do startu — `sonnet-worker`.
-- **Kolejność: K3 przed K2** (K2 blokuje brak fixtures od usera; K3 zależy tylko od K1).
+- **K2 ✅ 2026-11-14 (`fedd296`)** szczegóły i pozycje zagraniczne (parser cs/it → `foreign_items`) — `sonnet-worker`.
+  Wynik: pytest 478 zielone (bez `test_leaflet.py`; po poprawce 118 zielonych w test_history/sync/receipt_html), ruff/format/mypy czyste; fixtures cz_0 5 poz./175,40, cz_1 59 poz./2433,80, it_0 18 poz./43,91 — sumy (kwota+rabat) zgodne z `totalAmount`.
+  Verifier REJECT → blokujące (przy `articles=0` i niezgodnej sumie pozycje trafiały do `foreign_items`) poprawione przeze mnie + test.
+  Odstępstwa: `pending_foreign_details()` zwraca `[(id, country)]` (`pending_details` PL bez zmian); `FOREIGN_PARSER_VERSION=1`; `reparse()` filtruje `country='PL'`;
+  zmieniona asercja `detail_calls` w `test_sync.py` (K2 pobiera też szczegóły CZ). Płatność z `data-tender-description` (CZ „Karta”, IT „Pagamento elettronico”).
+  Nieblokujące: niedopasowana druga linia artykułu staje się osobną pozycją (łapie ją reguła sumy; brak testu); błąd szczegółu zagranicznego w przebiegu ręcznym zapisuje `detail_version=1` bez powrotu do kolejki (jak PL).
+  Do K5: `coupon_effect` nadal tylko PL (pozycje zagraniczne poza `items`) — świadomie, bez zmian.
+- Kolejność wykonania: K1 → K3 → K2 (fixtures dostarczone) → K4 → K5.
 - **K3 ✅ 2026-11-14 (`bf64073`)** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
   Wynik: pytest 469 zielone (bez `test_leaflet.py`, 13 starych czerwonych), ruff/format/mypy czyste; verifier ACCEPT; demo (seed PL + 3 CZ + 1 IT): lista z flagą i oryginałem, `?kraj=CZ` filtruje, Miesiące „w tym za granicą”, Rytm liczy tylko PL.
   Nieblokujące do K5: brak linii „za granicą” w `notify.py` (powiadomienie miesięczne); słaba asercja `i-flag-cz` w `test_web.py` (sprite zawsze na stronie); test `fmt_money` w `test_chart.py`; `stores/rhythm/_savings_breakdown` przy `ReceiptFilter(country='CZ')` dają pusty wynik; `coupon_effect` tylko PL de facto (zagranica bez `items`, do K2).
