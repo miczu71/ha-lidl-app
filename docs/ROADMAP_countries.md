@@ -44,7 +44,7 @@ Rollback: brak zmian do cofnięcia.
   Odstępstwa od planu: `web/app.py` podpięty przeze mnie (plan K1 błędnie zakazywał `web/`); kolumny też w `CREATE TABLE tickets`; `NbpRates.cached/prefetch`, `History.fx_get/fx_put`;
   `pending_details` ma `AND country='PL'`; zagraniczny duplikat bez kursu tylko odświeża `articles`. Nieblokujące: błąd 5xx/auth kraju przerywa konto po PL (zgodne z planem), nieznany kraj bez `currency` dostaje EUR.
   Na żywo dopiero po wydaniu K5 (`extra_countries` domyślnie puste = zero zmian zachowania).
-- **K2** szczegóły i pozycje zagraniczne (parser cs/it, `foreign_items`) — czeka na fixtures od usera (anonimowy fragment HTML CZ i IT) — `sonnet-worker`.
+- **K2** szczegóły i pozycje zagraniczne (parser cs/it, `foreign_items`) — fixtures pobrane i zanonimizowane 2026-11-14 (`lidl/app/tests/fixtures/foreign/`: `cz_0.json` mały, `cz_1.json` duży z kuponami Lidl Plus, `it_0.json`); format: `span.article` z `data-art-id/-quantity/-unit-price/-tax-type/-art-description`, przecinek dziesiętny, linie rabatów `span.discount`, pozycje ważone w CZ bez atrybutów `data-*` (osobna linia „N 0,406 kg x 39,90”); gotowe do startu — `sonnet-worker`.
 - **Kolejność: K3 przed K2** (K2 blokuje brak fixtures od usera; K3 zależy tylko od K1).
 - **K3 ✅ 2026-11-14 (`bf64073`)** widoki: flaga/oryginał w Paragonach, filtr kraju, linia „za granicą” w Miesiącach, Rytm tylko PL — `sonnet-worker`.
   Wynik: pytest 469 zielone (bez `test_leaflet.py`, 13 starych czerwonych), ruff/format/mypy czyste; verifier ACCEPT; demo (seed PL + 3 CZ + 1 IT): lista z flagą i oryginałem, `?kraj=CZ` filtruje, Miesiące „w tym za granicą”, Rytm liczy tylko PL.
