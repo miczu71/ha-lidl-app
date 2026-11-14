@@ -90,6 +90,10 @@ Rollback: brak zmian do cofnięcia.
     Wynik: pytest 516 zielone (`--deselect tests/test_leaflet.py`), ruff/format/mypy czyste; verifier ACCEPT (zero blokujących); Playwright na demo (seed CZ + propozycja): strona, wyszukiwanie z Enter, konsola bez błędów.
     Odstępstwa: bez klucza LLM karty biorą też nazwy z `pair_pending()` (do 50, bez kandydatów), żeby ręczne parowanie działało; htmx zwraca cały `#kraje-body`; bez `extra_countries` tylko komunikat (bez przycisku). Moje poprawki po verifierze: `POST /kraje/para` approve/reject tylko dla nazw z `pair_pending`/`proposed` (+ test), wyszukiwarka jako `hx-get` na formularzu (Enter nie nawiguje na fragment).
     Nieblokujące: `pair_foreign_sample` skanuje `foreign_items` per karta (N+1, skala domowa); nieznana `action` to cichy no-op; brak testu JS regexu głębokiego linku (analiza ręczna); link z Budżetu zadziała dopiero z K6d.
+  - **K6c ✅ 2026-11-14 (`00a7b27`)** koszyk porównawczy w PLN na `/kraje`: `History.pair_lines/pl_price_history/foreign_line_counts`, czysta `countries.compare()`, sekcja „Porównanie cen” (koszyk per kraj z pokryciem „X z Y”, tabela par, „Bez ceny PL”) — `sonnet-worker` (pieniądze = ryzyko).
+    Wynik: pytest 524 zielone (`--deselect tests/test_leaflet.py`, pełny, sam), ruff/format/mypy czyste; verifier ACCEPT (zero blokujących, arytmetyka sprawdzona ręcznie: CZK, EUR, kg, 500 g→kg, koszyk 34,04 vs 41); demo Playwright: sekcja +200,0%, konsola bez błędów.
+    Moja poprawka po verifierze: `_fmt_pct` bez „−0,0%”. Odstępstwa: minus U+2212 w %, test strony w `test_countries.py` (nie `test_web.py`), brak przypadku „bilet bez kursu” w teście (`fx_rate NOT NULL`).
+    Nieblokujące do raportu wydania: mianownik „X z Y” liczy też pozycje z qty=0/ceną=0 (pokrycie nie dojdzie do Y); importy w środku `test_countries.py` (`noqa: E402`).
 
 Otwarte rozpoznania (rozstrzyga K1/K2, nie wywiad): kształt pola `currency` na liście, format pozycji HTML cs/it, obecność EAN, historia sprzed 2 lat (offset ≥2).
 
