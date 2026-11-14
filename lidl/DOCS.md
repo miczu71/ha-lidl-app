@@ -104,6 +104,10 @@ widać ją jako „odłożoną”.
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
 - **Automatyczna aktywacja kuponów** — wyłączona = tryb próbny (patrz wyżej).
 - **Godzina dziennego przebiegu** — GG:MM, czas lokalny; paragony, kupony i powiadomienie.
+- **Dodatkowe kraje** (`extra_countries`) — kody krajów, z których pobieramy e-paragony po przełączeniu kraju
+  w Lidl Plus, np. `CZ`, `IT`. Wystarcza jedno logowanie. Pusta lista = tylko Polska. Import raz dziennie
+  (i przy „Sprawdź teraz”); kwoty w statystykach liczone w PLN po średnim kursie NBP z ostatniego dnia roboczego
+  przed zakupem, oryginał widać przy paragonie. Produkty, ceny, kupony i Rytm zostają polskie.
 - **Adres i klucz API modelu językowego, modele wizyjne i awaryjne** — odczyt promocji z cotygodniowej gazetki
   (niżej). Puste adres albo klucz = gazetka wyłączona. Pusta lista modeli awaryjnych wyłącza je.
 

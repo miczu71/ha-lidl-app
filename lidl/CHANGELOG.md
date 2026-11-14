@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.0
+
+- **Paragony z innych krajów (CZ, IT):** nowa opcja `extra_countries` (domyślnie pusta = bez zmian). Pobieramy
+  paragony z zakupów za granicą na tym samym logowaniu, raz dziennie i przy „Sprawdź teraz”; pełna historia,
+  bez duplikatów. Kwoty w Paragonach, Miesiącach i w Budżecie liczone w PLN po średnim kursie NBP (ostatni dzień
+  roboczy przed zakupem), oryginał w nawiasie i flaga kraju; filtr kraju na liście paragonów.
+- Pozycje zagraniczne (parser cs/it) trafiają do osobnej tabeli; Produkty, Ceny, Oszczędności, kupony i Rytm
+  pozostają polskie. Kategorie dla Budżetu nadaje model językowy także pozycjom zagranicznym.
+- Eksport do Budżetu ma pola kraju, waluty, kwoty oryginalnej i kursu.
+- Migracja bazy do wersji 6 z kopią `*.pre-countries`.
+- Znane ograniczenie: kurs NBP pobierany osobno dla każdego dnia zakupu (pełny import dużej historii zagranicznej
+  trwa dłużej).
+
 ## 1.0.0
 
 - **Wersja 1.0.0** — uznana za stabilną; bez zmian w działaniu.
