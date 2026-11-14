@@ -24,6 +24,7 @@ from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from .fx import currency_code
 from .packsize import base_name, pack_size
 from .receipt import PARSER_VERSION
 from .receipt_html import ParsedReceipt
@@ -53,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
 EFFECT_DAYS = 30
@@ -86,7 +87,11 @@ CREATE TABLE IF NOT EXISTS tickets (
     payment TEXT,
     deposit_charged REAL NOT NULL DEFAULT 0,
     deposit_refunded REAL NOT NULL DEFAULT 0,
-    detail_version INTEGER NOT NULL DEFAULT 0
+    detail_version INTEGER NOT NULL DEFAULT 0,
+    country TEXT NOT NULL DEFAULT 'PL',
+    currency TEXT NOT NULL DEFAULT 'PLN',
+    total_orig REAL,
+    fx_rate REAL NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS items (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -103,6 +108,28 @@ CREATE TABLE IF NOT EXISTS items (
     PRIMARY KEY (ticket_id, line)
 );
 CREATE INDEX IF NOT EXISTS items_art ON items(art_id);
+-- K1: kursy średnie NBP (tabela A) z ostatniego dnia roboczego przed dniem zakupu; `day` = dzień zakupu
+CREATE TABLE IF NOT EXISTS fx_rates (
+    code TEXT NOT NULL,
+    day TEXT NOT NULL,
+    mid REAL NOT NULL,
+    PRIMARY KEY (code, day)
+);
+-- K1: pozycje paragonów zagranicznych (osobno od `items`); art_id z prefiksem kraju (`CZ:`, `IT:`)
+CREATE TABLE IF NOT EXISTS foreign_items (
+    ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+    line INTEGER NOT NULL,
+    art_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    quantity REAL NOT NULL,
+    unit_price REAL NOT NULL,
+    total REAL NOT NULL,
+    discount REAL NOT NULL,
+    coupon REAL NOT NULL DEFAULT 0,
+    is_weight INTEGER NOT NULL DEFAULT 0,
+    promo TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (ticket_id, line)
+);
 CREATE TABLE IF NOT EXISTS ticket_coupons (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     line INTEGER NOT NULL,
@@ -745,6 +772,8 @@ class History:
             self._migrate_v3()
         if version < 5:
             self._migrate_v4()
+        if version < 6:
+            self._migrate_v5(path)
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
@@ -812,27 +841,90 @@ class History:
         with self._db:
             self._db.execute("ALTER TABLE coupons ADD COLUMN online INTEGER NOT NULL DEFAULT 0")
 
-    def upsert_tickets(self, account: str, tickets: list[dict[str, Any]]) -> int:
-        """Dodaje nowe paragony z listy API (zwraca ich liczbę); istniejącym odświeża tylko `articles`."""
+    def _migrate_v5(self, path: Path) -> None:
+        """v5 → v6 (K1): kraj, waluta, kwota oryginalna i kurs paragonu; wcześniej kopia `.pre-countries`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        backup = path.with_name(path.name + ".pre-countries")
+        dest = sqlite3.connect(backup)
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
+        with self._db:
+            for sql in (
+                "ALTER TABLE tickets ADD COLUMN country TEXT NOT NULL DEFAULT 'PL'",
+                "ALTER TABLE tickets ADD COLUMN currency TEXT NOT NULL DEFAULT 'PLN'",
+                "ALTER TABLE tickets ADD COLUMN total_orig REAL",
+                "ALTER TABLE tickets ADD COLUMN fx_rate REAL NOT NULL DEFAULT 1",
+            ):
+                self._db.execute(sql)
+
+    def fx_get(self, code: str, day: str) -> float | None:
+        row = self._db.execute("SELECT mid FROM fx_rates WHERE code = ? AND day = ?", (code, day)).fetchone()
+        return float(row[0]) if row else None
+
+    def fx_put(self, code: str, day: str, mid: float) -> None:
+        with self._db:
+            self._db.execute(
+                "INSERT INTO fx_rates (code, day, mid) VALUES (?, ?, ?)"
+                " ON CONFLICT(code, day) DO UPDATE SET mid = excluded.mid",
+                (code, day, mid),
+            )
+
+    def upsert_tickets(
+        self,
+        account: str,
+        tickets: list[dict[str, Any]],
+        country: str = "PL",
+        fx: Callable[[str, str], float | None] | None = None,
+    ) -> int:
+        """Dodaje nowe paragony z listy API (zwraca ich liczbę); istniejącym odświeża tylko `articles`.
+
+        Dla kraju innego niż PL kwoty idą w PLN po kursie `fx(waluta, dzień)`; brak kursu = paragon pomijany
+        (wróci w następnym przebiegu). Oryginał zostaje w `total_orig`."""
+        if country != "PL" and fx is None:
+            raise ValueError("fx is required for a foreign country")
         before = self.ticket_count()
+        rows: list[tuple[Any, ...]] = []
+        for t in tickets:
+            day = str(t["date"])[:10]
+            total = float(t.get("totalAmount") or 0)
+            savings = float(t.get("savings") or 0)
+            currency, rate, total_orig = "PLN", 1.0, None
+            if country != "PL":
+                assert fx is not None
+                currency = currency_code(t.get("currency"), country)
+                known = self._db.execute("SELECT 1 FROM tickets WHERE id = ?", (str(t["id"]),)).fetchone()
+                found = fx(currency, day)
+                if found is None and not known:
+                    continue
+                rate = found if found is not None else 1.0
+                total_orig = total
+                total, savings = round(total * rate, 2), round(savings * rate, 2)
+            rows.append(
+                (
+                    str(t["id"]),
+                    account,
+                    day,
+                    total,
+                    savings,
+                    int(t.get("couponsUsedCount") or 0),
+                    t.get("storeCode"),
+                    int(t.get("articlesCount", -1)),
+                    country,
+                    currency,
+                    total_orig,
+                    rate,
+                )
+            )
         with self._db:
             self._db.executemany(
-                "INSERT INTO tickets (id, account, day, total, savings, coupons_used, store, articles)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO tickets (id, account, day, total, savings, coupons_used, store, articles,"
+                " country, currency, total_orig, fx_rate)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(id) DO UPDATE SET articles = excluded.articles",
-                [
-                    (
-                        str(t["id"]),
-                        account,
-                        str(t["date"])[:10],
-                        float(t.get("totalAmount") or 0),
-                        float(t.get("savings") or 0),
-                        int(t.get("couponsUsedCount") or 0),
-                        t.get("storeCode"),
-                        int(t.get("articlesCount", -1)),
-                    )
-                    for t in tickets
-                ],
+                rows,
             )
         return self.ticket_count() - before
 
@@ -854,7 +946,8 @@ class History:
     def pending_details(self, account: str) -> list[str]:
         """Paragony bez pobranych pozycji albo zapisane starszym parserem, od najnowszych."""
         rows = self._db.execute(
-            "SELECT id FROM tickets WHERE account = ? AND (detail_fetched = 0 OR detail_version < ?)"
+            "SELECT id FROM tickets WHERE account = ? AND country = 'PL'"
+            " AND (detail_fetched = 0 OR detail_version < ?)"
             " ORDER BY day DESC, id DESC",
             (account, PARSER_VERSION),
         )

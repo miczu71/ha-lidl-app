@@ -320,3 +320,82 @@ async def test_hourly_run_leaves_a_receipt_with_unavailable_detail_pending(histo
     del src.fail_detail["b"]
     assert await sync.run_hourly(["osoba-1"]) == 1
     assert history.pending_details("osoba-1") == []
+
+
+class CzSource(FakeSource):
+    """Polska pusta, CZ: ten sam paragon w CZK na offsetach 0 i 1 (duplikat), potem koniec historii."""
+
+    def __init__(self, cz_status: int | None = None) -> None:
+        super().__init__({0: []})
+        self.cz_status = cz_status
+        self.cz_calls: list[int] = []
+
+    async def tickets(self, slug: str, year_offset: int, country: str = "PL") -> list[dict[str, Any]]:  # type: ignore[override]
+        if country == "PL":
+            return await super().tickets(slug, year_offset)
+        self.cz_calls.append(year_offset)
+        if self.cz_status:
+            raise LidlPlusError(f"http_{self.cz_status}", status=self.cz_status)
+        if year_offset > 1:
+            raise LidlPlusError("http_400", status=400)
+        return [{"id": "cz-1", "date": "2026-05-04T10:00:00+00:00", "totalAmount": 100.0, "currency": "CZK"}]
+
+
+class FakeRates:
+    def __init__(self, history: History) -> None:
+        from lidl.fx import NbpRates
+
+        async def fetch(url: str, session: Any) -> dict[str, Any] | None:
+            return {"rates": [{"mid": 0.2}]}
+
+        self.rates = NbpRates(history, fetch)
+
+
+async def test_import_account_pulls_extra_country_with_pln_total(history: History) -> None:
+    src = CzSource()
+    history.upsert_tickets("a", [{"id": "pl-1", "date": "2026-05-01T10:00:00+00:00", "totalAmount": 2.0}])
+    sync = HistorySync(src, history, sleep=lambda s: asyncio.sleep(0), rates=FakeRates(history).rates)
+    result = await sync.import_account("a", full=True, countries=("PL", "CZ"))
+    assert src.cz_calls == [0, 1, 2]
+    assert result.new_tickets == 1
+    row = history._db.execute(
+        "SELECT total, total_orig, currency, country FROM tickets WHERE id = 'cz-1'"
+    ).fetchone()
+    assert row == (20.0, 100.0, "CZK", "CZ")
+    assert src.detail_calls == ["pl-1"]  # szczegóły tylko polskie
+
+
+async def test_import_account_ignores_polish_only_by_default(history: History) -> None:
+    src = CzSource()
+    sync = HistorySync(src, history, sleep=lambda s: asyncio.sleep(0))
+    await sync.import_account("a", full=False)
+    assert src.cz_calls == []
+
+
+@pytest.mark.parametrize("status", [400, 403, 404])
+async def test_country_refusal_is_skipped_not_fatal(history: History, status: int) -> None:
+    src = CzSource(cz_status=status)
+    sync = HistorySync(src, history, sleep=lambda s: asyncio.sleep(0))
+    result = await sync.import_account("a", full=False, countries=("PL", "CZ"))
+    assert result.stopped is None and result.new_tickets == 0
+
+
+async def test_manual_start_includes_extra_countries(history: History) -> None:
+    """Ręczny import historii (panel) bierze też kraje z `extra_countries`; bez opcji zostaje polski."""
+    history.upsert_tickets("a", [{"id": "pl-1", "date": "2026-05-01T10:00:00+00:00", "totalAmount": 2.0}])
+    src = CzSource()
+    sync = HistorySync(
+        src,
+        history,
+        sleep=lambda s: asyncio.sleep(0),
+        extra_countries=("CZ",),
+        rates=FakeRates(history).rates,
+    )
+    assert sync.start("a", full=False, after=False)
+    await sync.wait("a")
+    assert src.cz_calls == [0]
+    plain = CzSource()
+    sync = HistorySync(plain, history, sleep=lambda s: asyncio.sleep(0))
+    assert sync.start("a", full=False, after=False)
+    await sync.wait("a")
+    assert plain.cz_calls == []

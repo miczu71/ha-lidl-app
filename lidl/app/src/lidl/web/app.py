@@ -127,7 +127,13 @@ def create_app(settings: Settings) -> FastAPI:
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             history.log_event("system", "ok", f"Start add-onu {__version__}", {"version": __version__})
             feed = BudgetFeed(session, history, settings)
-            sync = HistorySync(service, history, after=feed.refresh)
+            sync = HistorySync(
+                service,
+                history,
+                after=feed.refresh,
+                extra_countries=settings.extra_countries,
+                session=session,
+            )
             runner = CouponRunner(service, history)
             rewards = RewardsRunner(service)
             promotions = PromotionRunner(session, history)

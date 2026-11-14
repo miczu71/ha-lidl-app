@@ -1082,3 +1082,65 @@ def test_spend_series_splits_weight_and_piece_purchases(tmp_path: Path) -> None:
         2,
         1,
     )
+
+
+def _foreign(tid: str, day: str, total: float, currency: object = "CZK") -> dict[str, Any]:
+    return {**_ticket(tid, day, total=total, savings=10.0), "currency": currency}
+
+
+def test_migrate_v5_adds_columns_and_keeps_a_backup(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "h.db"
+    h = History(path)
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01", total=12.5)])
+    del h
+    db = sqlite3.connect(path)
+    for col in ("country", "currency", "total_orig", "fx_rate"):
+        db.execute(f"ALTER TABLE tickets DROP COLUMN {col}")
+    db.execute("DROP TABLE fx_rates")
+    db.execute("DROP TABLE foreign_items")
+    db.execute("PRAGMA user_version = 5")
+    db.commit()
+    db.close()
+
+    h = History(path)
+    assert (tmp_path / "h.db.pre-countries").exists()
+    row = h._db.execute("SELECT total, country, currency, total_orig, fx_rate FROM tickets").fetchone()
+    assert row == (12.5, "PL", "PLN", None, 1.0)
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 6
+    old = sqlite3.connect(tmp_path / "h.db.pre-countries")
+    assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
+    old.close()
+
+
+def test_fresh_database_has_no_backup(tmp_path: Path) -> None:
+    History(tmp_path / "h.db")
+    assert not (tmp_path / "h.db.pre-countries").exists()
+
+
+def test_foreign_upsert_converts_to_pln_and_skips_missing_rate(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    rates = {("CZK", "2026-05-04"): 0.2}
+    fx = lambda code, day: rates.get((code, day))  # noqa: E731
+    batch = [_foreign("c1", "2026-05-04", 100.0), _foreign("c2", "2026-05-05", 50.0)]
+    assert h.upsert_tickets("a", batch, "CZ", fx) == 1
+    row = h._db.execute(
+        "SELECT total, savings, total_orig, currency, fx_rate, country FROM tickets"
+    ).fetchall()
+    assert row == [(20.0, 2.0, 100.0, "CZK", 0.2, "CZ")]
+    assert h.pending_details("a") == []  # szczegóły zagranicy poza K1
+
+
+def test_foreign_upsert_duplicate_between_offsets_is_one_row(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    fx = lambda code, day: 0.2  # noqa: E731
+    assert h.upsert_tickets("a", [_foreign("c1", "2026-05-04", 100.0)], "CZ", fx) == 1
+    assert h.upsert_tickets("a", [_foreign("c1", "2026-05-04", 100.0)], "CZ", fx) == 0
+    assert h.ticket_count() == 1
+
+
+def test_foreign_upsert_requires_fx(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    with pytest.raises(ValueError):
+        h.upsert_tickets("a", [_foreign("c1", "2026-05-04", 1.0)], "CZ")

@@ -35,3 +35,7 @@ configuration:
       Notify service (without "notify.", e.g. my_phone) that gets a push when something needs action: expired
       account session, failed or missed morning run, rejected AI key. Once per problem.
       Empty = only a dot on the Status tab.
+  extra_countries:
+    name: Extra receipt countries
+    description: >-
+      Country codes (e.g. CZ, IT) to fetch Lidl Plus receipts from besides Poland — once a day and on "Check now". Amounts are converted to PLN at the NBP rate of the working day before the purchase. Empty list = Poland only.

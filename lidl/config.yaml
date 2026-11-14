@@ -31,6 +31,7 @@ options:
   llm_fallback_models:
     - ministral-14b-2512
   alert_notify: ""
+  extra_countries: []
 schema:
   log_level: "list(debug|info|warning|error)"
   auto_activate: bool
@@ -42,3 +43,5 @@ schema:
   llm_fallback_models:
     - str
   alert_notify: "match(^[a-z0-9_]*$)?"
+  extra_countries:
+    - "match(^[A-Z]{2}$)"

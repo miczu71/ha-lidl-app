@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import time
 from pathlib import Path
@@ -30,6 +31,7 @@ class Settings:
     llm_fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
     share_dir: Path = Path("/share")  # E6: plik dla Budżetu Domowego
     alert_notify: str = ""  # E23.3: usługa notify na alerty techniczne; puste = tylko kropka w panelu
+    extra_countries: tuple[str, ...] = ()  # K1: dodatkowe kraje paragonów (np. CZ, IT), bez PL
 
     @property
     def llm_enabled(self) -> bool:
@@ -39,6 +41,14 @@ class Settings:
     @property
     def accounts_dir(self) -> Path:
         return self.data_dir / "accounts"
+
+
+def _countries(raw: object) -> tuple[str, ...]:
+    """Kody krajów z opcji: wielkie litery, dwuliterowe, bez PL i duplikatów."""
+    if not isinstance(raw, list):
+        return ()
+    codes = (str(c).strip().upper() for c in raw)
+    return tuple(dict.fromkeys(c for c in codes if re.fullmatch(r"[A-Z]{2}", c) and c != COUNTRY))
 
 
 def load_settings() -> Settings:
@@ -51,6 +61,7 @@ def load_settings() -> Settings:
     models = options.get("llm_vision_models")
     fallback = options.get("llm_fallback_models")
     return Settings(
+        extra_countries=_countries(options.get("extra_countries")),
         data_dir=Path(os.environ.get("LIDL_DATA_DIR", "/data")),
         share_dir=Path(os.environ.get("LIDL_SHARE_DIR", "/share")),
         log_level=str(options.get("log_level", "info")),

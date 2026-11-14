@@ -35,3 +35,7 @@ configuration:
       Usługa notify (bez „notify.”, np. moj_telefon), która dostaje push, gdy coś wymaga działania: wygasła sesja
       konta, nieudany lub pominięty poranny przebieg, odrzucony klucz AI. Raz na problem.
       Puste = tylko kropka przy zakładce Status.
+  extra_countries:
+    name: Dodatkowe kraje paragonów
+    description: >-
+      Kody krajów (np. CZ, IT), z których pobierać paragony Lidl Plus poza Polską — raz dziennie i przy „Sprawdź teraz”. Kwoty przeliczane na PLN po kursie NBP z dnia roboczego przed zakupem. Pusta lista = tylko Polska.

@@ -14,7 +14,10 @@ from dataclasses import dataclass
 from time import monotonic
 from typing import Any, Protocol
 
+import aiohttp
+
 from .client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
+from .fx import NbpRates, currency_code
 from .history import History, elapsed_ms
 from .receipt import parse_detail, sanitize_detail
 from .receipt_html import ParsedReceipt
@@ -24,8 +27,12 @@ log = logging.getLogger(__name__)
 MAX_YEAR_OFFSET = 10  # bezpiecznik; zwykle historia kończy się HTTP 400 przy yearOffset=6
 
 
+COUNTRY = "PL"
+SKIPPED_STATUSES = (400, 403, 404)  # kraj bez konta/historii Lidl Plus: pomijany, nie przerywa konta
+
+
 class TicketSource(Protocol):
-    async def tickets(self, slug: str, year_offset: int) -> list[dict[str, Any]]: ...
+    async def tickets(self, slug: str, year_offset: int, country: str = ...) -> list[dict[str, Any]]: ...
 
     async def ticket(self, slug: str, ticket_id: str) -> dict[str, Any]: ...
 
@@ -63,8 +70,14 @@ class HistorySync:
         pause: float = 2.5,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         after: Callable[[], Coroutine[Any, Any, None]] | None = None,
+        extra_countries: tuple[str, ...] = (),
+        rates: NbpRates | None = None,
+        session: aiohttp.ClientSession | None = None,
     ) -> None:
         self._source = source
+        self._extra = extra_countries  # K1: dodatkowe kraje w przebiegu dziennym (i „Sprawdź teraz”)
+        self._rates = rates or NbpRates(history)
+        self._session = session
         self._history = history
         self._after_task: asyncio.Task[None] | None = None
         self._after = after  # po imporcie (E6: kategorie i plik dla Budżetu): ręcznym konta, porannym raz
@@ -80,17 +93,29 @@ class HistorySync:
     def progress(self, slug: str) -> SyncProgress:
         return self._progress.setdefault(slug, SyncProgress())
 
-    def start(self, slug: str, *, full: bool, after: bool = True, quiet: bool = False) -> bool:
-        """Uruchamia import w tle (potem hook `after`); False, jeśli to konto już się synchronizuje."""
+    def start(
+        self,
+        slug: str,
+        *,
+        full: bool,
+        after: bool = True,
+        quiet: bool = False,
+        countries: tuple[str, ...] | None = None,
+    ) -> bool:
+        """Uruchamia import w tle (potem hook `after`); False, jeśli to konto już się synchronizuje.
+        Bez `countries` bierze PL i kraje z opcji `extra_countries` (ręczny import historii z panelu)."""
         progress = self.progress(slug)
         if progress.running:
             return False
         progress.running = True
-        self._tasks[slug] = asyncio.create_task(self._import(slug, full, after, quiet))
+        countries = countries or (COUNTRY, *self._extra)
+        self._tasks[slug] = asyncio.create_task(self._import(slug, full, after, quiet, countries))
         return True
 
-    async def _import(self, slug: str, full: bool, after: bool, quiet: bool) -> SyncResult:
-        result = await self.import_account(slug, full=full, quiet=quiet)
+    async def _import(
+        self, slug: str, full: bool, after: bool, quiet: bool, countries: tuple[str, ...]
+    ) -> SyncResult:
+        result = await self.import_account(slug, full=full, quiet=quiet, countries=countries)
         if after:
             self._run_after()
         return result
@@ -114,7 +139,9 @@ class HistorySync:
     async def run_daily(self, slugs: list[str]) -> None:
         """Dzienny przebieg; konta, których nikt jeszcze ręcznie nie zaimportował, pomija."""
         for slug in slugs:
-            if self._history.ticket_count(slug) > 0 and self.start(slug, full=False, after=False):
+            if self._history.ticket_count(slug) > 0 and self.start(
+                slug, full=False, after=False, countries=(COUNTRY, *self._extra)
+            ):
                 await self.wait(slug)
         self._run_after()  # raz po wszystkich kontach
 
@@ -124,14 +151,18 @@ class HistorySync:
         liście, ze szczegółami); hook `after` (plik dla Budżetu, kategorie) idzie tylko, gdy coś przyszło."""
         imported = 0
         for slug in slugs:
-            if self._history.ticket_count(slug) > 0 and self.start(slug, full=False, after=False, quiet=True):
+            if self._history.ticket_count(slug) > 0 and self.start(
+                slug, full=False, after=False, quiet=True, countries=(COUNTRY,)
+            ):
                 result = await self.wait(slug)
                 imported += max(result.new_tickets, result.details) if result else 0
         if imported:
             self._run_after()
         return imported
 
-    async def import_account(self, slug: str, *, full: bool, quiet: bool = False) -> SyncResult:
+    async def import_account(
+        self, slug: str, *, full: bool, quiet: bool = False, countries: tuple[str, ...] = (COUNTRY,)
+    ) -> SyncResult:
         progress = self.progress(slug)
         progress.running, progress.done, progress.total, progress.error = True, 0, 0, None
         new = details = skipped = unparsed = 0
@@ -140,7 +171,10 @@ class HistorySync:
         began = monotonic()
         try:
             try:
-                new = await self._import_lists(slug, full)
+                new = await self._import_lists(slug, full, COUNTRY)
+                for country in countries:
+                    if country != COUNTRY:
+                        new += await self._import_lists(slug, full, country)
                 pending = self._history.pending_details(slug)
                 progress.total = len(pending)
                 for ticket_id in pending:
@@ -187,16 +221,27 @@ class HistorySync:
         )
         return SyncResult(new, details, skipped, stopped, unparsed)
 
-    async def _import_lists(self, slug: str, full: bool) -> int:
+    async def _import_lists(self, slug: str, full: bool, country: str = COUNTRY) -> int:
         new = 0
         for offset in range(MAX_YEAR_OFFSET if full else 1):
             try:
-                batch = await self._source.tickets(slug, offset)
+                if country == COUNTRY:
+                    batch = await self._source.tickets(slug, offset)
+                else:
+                    batch = await self._source.tickets(slug, offset, country=country)
             except LidlPlusError as err:
                 if err.status == 400 and offset > 0:
                     break  # koniec historii
+                if country != COUNTRY and err.status in SKIPPED_STATUSES:
+                    log.info("Konto %s: kraj %s pominięty (HTTP %s)", slug, country, err.status)
+                    break
                 raise
-            new += self._history.upsert_tickets(slug, batch)
+            if country == COUNTRY:
+                new += self._history.upsert_tickets(slug, batch)
+                continue
+            codes = [(currency_code(t.get("currency"), country), str(t["date"])[:10]) for t in batch]
+            await self._rates.prefetch(codes, self._session)
+            new += self._history.upsert_tickets(slug, batch, country, self._rates.cached)
         return new
 
 

@@ -17,12 +17,14 @@ from .client.auth import OAuthLogin, auth_code_from_redirect
 from .client.exceptions import LidlPlusAuthError
 from .settings import COUNTRY, LANGUAGE
 
+COUNTRY_LANGUAGE = {"PL": LANGUAGE, "CZ": "cs-CZ", "IT": "it-IT"}  # reszta: en-GB
+
 
 class LidlService:
     def __init__(self, store: AccountStore, session: aiohttp.ClientSession) -> None:
         self.store = store
         self._session = session
-        self._apis: dict[str, LidlPlusApi] = {}
+        self._apis: dict[tuple[str, str], LidlPlusApi] = {}
         self._locks: dict[str, asyncio.Lock] = {}
         self._pending: dict[str, OAuthLogin] = {}
 
@@ -49,12 +51,16 @@ class LidlService:
         tokens = await login.exchange_code(code, login.verifier)
         async with self._lock(slug):
             self.store.save_tokens(slug, tokens)
-            self._apis.pop(slug, None)
+            self._drop_apis(slug)
         self._pending.pop(slug, None)
         await self.check(slug)
 
-    async def _api(self, slug: str) -> LidlPlusApi:
-        api = self._apis.get(slug)
+    def _drop_apis(self, slug: str) -> None:
+        for key in [k for k in self._apis if k[0] == slug]:
+            del self._apis[key]
+
+    async def _api(self, slug: str, country: str = COUNTRY) -> LidlPlusApi:
+        api = self._apis.get((slug, country))
         if api is None:
             account = self.store.get(slug)
             if not account.connected or not account.refresh_token:
@@ -62,16 +68,17 @@ class LidlService:
 
             async def save(tokens: dict[str, str]) -> None:
                 self.store.save_tokens(slug, tokens)
+                self._drop_apis(slug)  # refresh token rotuje: pozostałe kraje czytają świeży z magazynu
 
             api = LidlPlusApi(
                 self._session,
                 account.access_token or "",
                 account.refresh_token,
-                country=COUNTRY,
-                language=LANGUAGE,
+                country=country,
+                language=COUNTRY_LANGUAGE.get(country, "en-GB"),
                 save_tokens=save,
             )
-            self._apis[slug] = api
+            self._apis[(slug, country)] = api
         return api
 
     async def check(self, slug: str) -> None:
@@ -81,13 +88,13 @@ class LidlService:
             if not await api.loyalty_id():
                 raise LidlPlusAuthError("no_loyalty_card")
 
-    async def tickets(self, slug: str, year_offset: int) -> list[dict[str, Any]]:
+    async def tickets(self, slug: str, year_offset: int, country: str = COUNTRY) -> list[dict[str, Any]]:
         async with self._lock(slug):
-            return await (await self._api(slug)).tickets(year_offset)
+            return await (await self._api(slug, country)).tickets(year_offset)
 
-    async def ticket(self, slug: str, ticket_id: str) -> dict[str, Any]:
+    async def ticket(self, slug: str, ticket_id: str, country: str = COUNTRY) -> dict[str, Any]:
         async with self._lock(slug):
-            return await (await self._api(slug)).ticket(ticket_id)
+            return await (await self._api(slug, country)).ticket(ticket_id)
 
     async def promotions(self, slug: str) -> dict[str, Any]:
         async with self._lock(slug):
@@ -108,5 +115,5 @@ class LidlService:
     async def delete(self, slug: str) -> None:
         async with self._lock(slug):
             self.store.delete(slug)
-            self._apis.pop(slug, None)
+            self._drop_apis(slug)
         self._pending.pop(slug, None)
