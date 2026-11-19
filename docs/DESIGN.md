@@ -40,3 +40,16 @@ Kontener treści do 720 px, wyśrodkowany.
 - Flagi krajów paragonów (CZ, IT; inne: neutralna `i-flag-other`) to własne proste SVG 24×16 w sprite'cie z makra
   `flag_sprite` (`_macros.html`), użycie `flag(kod)`; 18×12 px, promień 2 px, obrys `--line`. Kwota główna zawsze w PLN,
   oryginał w nawiasie (`pr__orig`, `fmt_money`), nigdy sama flaga jako jedyny nośnik informacji (jest `aria-label`).
+
+## Biedronka (D2, 2026-11-19)
+Sekcje tylko dla Biedronki (konto i logowanie, paragon, oszczędzanie E28.5) mają własny, ciemny styl pod zakresem
+`.chain-biedronka` w `app.css`; styl Lidla poza zakresem się nie zmienia. Źródło: system „Biedronka” (Claude Design,
+prywatny, https://claude.ai/artifact/FpBQURrSJZKhU9QXDmHxJr), makiety „Makiety Biedronki”, zrzuty aplikacji lokalnie
+w `~/dev/biedronka-design-refs` (poza repo, dane osobowe). Bez logo, maskotki i fontów Biedronki (Figtree zostaje).
+- Zakres nadpisuje te same tokeny (`--surface`, `--ink`, `--blue` jako koral `#f2605b` z tekstem `#17181f`…), więc
+  istniejące komponenty (karty, przyciski, pola) działają w nim bez zmian. Czerwień marki `--bdr-ladybug` tylko na dużych polach.
+- Żółty (`--bdr-sun`) zarezerwowany dla oszczędności (`.bdr-saving`, „Taniej!”), tekst zawsze `--bdr-on-sun`; turkus
+  informacja, zieleń stan dodatni, pomarańcz `--bdr-shake` tylko kafle gier.
+- Akcent sieci we wspólnych widokach (styl Lidla): `.chain-tag--lidl` / `.chain-tag--biedronka` (pigułka z kropką
+  `#0050aa` / `#d6192c`), segmenty filtra `?siec=` z kropką sieci; wykresy: Lidl niebieski, Biedronka czerwony, zawsze z etykietą.
+- Rollback: usunąć blok `.chain-biedronka` … `.bdr-saving` z `app.css` i tę sekcję.

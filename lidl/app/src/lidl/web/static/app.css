@@ -555,3 +555,42 @@ a.st:hover .st__name { color: var(--blue); text-decoration: underline; text-unde
 .sv-labels li span:first-child { overflow-wrap: anywhere; }
 .sv-total { margin: 0; }
 .sv-group > summary .pr__amt { margin-left: auto; }
+
+/* Biedronka (D2): tokeny pod zakresem — styl Lidla powyżej zostaje bez zmian. Wyspa ciemna wg docs/DESIGN.md „Biedronka”.
+   Rollback: usunąć ten blok. */
+.chain-biedronka {
+  --surface: #17181f;
+  --surface-inset: #2a2b31;
+  --surface-tint: #17181f;
+  --line: #4a4b53;
+  --control-border: #8a8b95;
+  --ink: #f3f3f6;
+  --ink-muted: #a3a4ad;
+  --blue: #f2605b; /* rola „akcent interaktywny” = koral */
+  --on-blue: #17181f;
+  --blue-deep: #ff8a86;
+  --blue-soft: #35363d;
+  --blue-wash: #2a2b31;
+  --red-deep: #ff8a86;
+  --green: #6fcb2f;
+  --green-deep: #6fcb2f;
+  --amber: #f5a524;
+  --amber-deep: #f5a524;
+  --bdr-ladybug: #e8283a;
+  --bdr-sun: #ffe500;
+  --bdr-on-sun: #17181f;
+  --bdr-teal: #0a8796;
+  --bdr-shake: #ff4d06;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  color-scheme: dark;
+  background: var(--surface);
+  color: var(--ink);
+}
+/* Znacznik sieci przy paragonie i w filtrze: pigułka z kropką w kolorze sieci. */
+.chain-tag { display: inline-flex; align-items: center; gap: var(--space-2); background: var(--surface-inset); border-radius: var(--radius-pill); padding: 2px var(--space-3); font: 500 13px/20px var(--font-sans); color: var(--ink); }
+.chain-tag::before { content: ""; width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--chain-dot, var(--ink-muted)); }
+.chain-tag--biedronka { --chain-dot: #d6192c; }
+.chain-tag--lidl { --chain-dot: #0050aa; }
+/* Pasek oszczędności „Taniej!” (żółty zarezerwowany dla oszczędności). */
+.bdr-saving { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); background: var(--bdr-sun, #ffe500); color: var(--bdr-on-sun, #17181f); border-radius: var(--radius-lg); padding: var(--space-4); font-variant-numeric: tabular-nums; }
