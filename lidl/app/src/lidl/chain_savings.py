@@ -176,11 +176,21 @@ def _carousel_id(dashboard: Any) -> str | None:
     return None
 
 
+def _unparsed(data: Any, key: str, parsed: list[Saving]) -> bool:
+    """Surowa lista niepusta, a parser nic z niej nie wyciągnął — zmiana kształtu API, nie „brak ofert”."""
+    raw = data.get(key) if isinstance(data, dict) else None
+    return bool(raw) and isinstance(raw, list) and not parsed
+
+
 async def fetch(api: Any) -> FetchResult:
     """Vouchery i oferty konta; błąd jednej części nie ukrywa drugiej (jej rodzaje w `failed_kinds`)."""
     result = FetchResult()
     try:
-        result.rows.extend(parse_coupons(await api.coupons()))
+        data = await api.coupons()
+        vouchers = parse_coupons(data)
+        if _unparsed(data, "coupons", vouchers):
+            raise ValueError("vouchery w nieznanym kształcie (nic nie rozpoznano)")
+        result.rows.extend(vouchers)
     except Exception as err:
         result.failed_kinds.add("voucher")
         result.errors.append(f"vouchery: {err}")
@@ -188,7 +198,11 @@ async def fetch(api: Any) -> FetchResult:
         carousel_id = _carousel_id(await api.dashboard())
         if carousel_id is None:
             raise ValueError("dashboard bez karuzeli Just4You")
-        result.rows.extend(parse_offers(await api.carousel(carousel_id)))
+        data = await api.carousel(carousel_id)
+        offers = parse_offers(data)
+        if _unparsed(data, "items", offers):
+            raise ValueError("karuzela w nieznanym kształcie (nic nie rozpoznano)")
+        result.rows.extend(offers)
     except Exception as err:
         result.failed_kinds |= OFFER_KINDS
         result.errors.append(f"dashboard/oferty: {err}")
@@ -270,6 +284,7 @@ async def shake_accounts(history: History, service: Any, today: date) -> list[Sh
     for slug in _bdr_slugs(service):
         try:
             api = await service.chain_api(slug)
+            await refresh(history, slug, api)  # migawka z importu w tle bywa nieświeża (dzisiejszy Shakeomat)
             results.append(await shake(history, slug, api, today))
         except Exception as err:
             log.exception("Shakeomat Biedronki (%s) nieudany", slug)

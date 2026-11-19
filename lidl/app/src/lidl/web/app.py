@@ -153,7 +153,10 @@ def create_app(settings: Settings) -> FastAPI:
                     await pairs.propose(history, session, settings)
                 except Exception:
                     log.exception("Pary produktów: propozycje nieudane")
-                await chain_savings.refresh_accounts(history, service)
+                try:
+                    await chain_savings.refresh_accounts(history, service)
+                except Exception:
+                    log.exception("Oszczędzanie Biedronki: odświeżenie kont nieudane")
                 if len(history.has_chains()) >= 2:
                     try:
                         await chain_pairs.propose(history, session, settings)
@@ -1046,7 +1049,9 @@ def create_app(settings: Settings) -> FastAPI:
         if "biedronka" not in history.has_chains():
             return Response("Brak konta Biedronki.", status_code=404)
         results = await chain_savings.shake_accounts(history, service(request), date.today())
-        if any(r.failed for r in results):
+        if not results:
+            code = "shake_noacc"
+        elif any(r.failed for r in results):
             code = "shake_err"
         elif any(r.done for r in results):
             code = "shake_ok"

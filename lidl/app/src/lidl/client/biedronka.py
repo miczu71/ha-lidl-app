@@ -13,7 +13,7 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import aiohttp
 
@@ -265,11 +265,11 @@ class BiedronkaApi:
         return await self.request("dashboards/dashboard/")
 
     async def carousel(self, carousel_id: str) -> Any:
-        return await self.request(f"promos/carousels/{carousel_id}/")
+        return await self.request(f"promos/carousels/{quote(carousel_id, safe='')}/")
 
     async def reveal_and_activate(self, offer_id: str) -> Any:
         """Odsłania i aktywuje ofertę Shakeomatu/Shakeomarki (zapis na koncie, PATCH)."""
-        return await self.request(f"offers/{offer_id}/reveal-and-activate/", method="PATCH")
+        return await self.request(f"offers/{quote(offer_id, safe='')}/reveal-and-activate/", method="PATCH")
 
     async def list_all(self, *, archived: bool, max_pages: int) -> list[dict[str, Any]]:
         """Wszystkie strony listy (do `page_count`, najwyżej `max_pages`)."""

@@ -151,7 +151,16 @@ class DailyJob:
             report.update(await self._coupons(accounts))
             if self._shakeomat is not None:
                 step = "shakeomat"  # po imporcie: migawka ma dzisiejszą ofertę
-                await self._morning_shakeomat(self._shakeomat)
+                try:
+                    await self._morning_shakeomat(self._shakeomat)
+                except Exception as err:  # push/etykiety nie mogą zatrzymać geokodowania sklepów
+                    log.exception("Shakeomat Biedronki: krok poranny nieudany")
+                    self._history.log_event(
+                        "daily",
+                        "error",
+                        f"Shakeomat Biedronki: {type(err).__name__}: {err}",
+                        {"run": "shakeomat"},
+                    )
             step = "sklepy"  # nowy sklep z dzisiejszych paragonów, na końcu
             await refresh_store_geo(self._session, self._history)
         except Exception as err:
@@ -228,7 +237,11 @@ class DailyJob:
         promos = self._promotions.active(date.today())
         sent = self._history.watched_sent_keys()
         fresh = _unsent("m", promos, sent)  # poranne: każda promocja raz, choć trwa kilka dni
-        bdr = notify.bdr_line(self._history.savings_list(), date.today())
+        try:
+            bdr = notify.bdr_line(self._history.savings_list(), date.today())
+        except Exception:  # dodatkowa linia nie może zatrzymać głównego powiadomienia
+            log.exception("Linia Biedronki w powiadomieniu nieudana")
+            bdr = None
         message = notify.compose(results, rewards, dry_run=self.dry_run, promos=list(fresh.values()), bdr=bdr)
         notified = await notify.send(self._session, message) if message else False
         if notified and not self.dry_run:

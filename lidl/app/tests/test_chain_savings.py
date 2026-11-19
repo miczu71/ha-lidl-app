@@ -215,3 +215,68 @@ async def test_shake_without_offer_does_nothing(tmp_path: Path) -> None:
     api = ShakeApi()
     result = await chain_savings.shake(h, "a", api, date(2026, 11, 19))  # type: ignore[arg-type]
     assert (result.done, result.failed, api.revealed, api.calls) == (0, [], [], [])
+
+
+async def test_unrecognised_shape_is_failure_and_keeps_old_rows(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.savings_replace("a", {"voucher"}, [Saving("voucher", "v1", "Stary", None, None, None, None, {})])
+
+    api = FakeApi(coupons={"coupons": [{"coupon_uuid": "x", "label": "Y"}]})
+    result = await chain_savings.refresh(h, "a", api)  # type: ignore[arg-type]
+    assert "voucher" in result.failed_kinds
+    assert [r.name for r in h.savings_list() if r.kind == "voucher"] == ["Stary"]
+
+
+async def test_refresh_keeps_old_rows_of_failed_part_and_logs(tmp_path: Path) -> None:
+    from datetime import datetime
+
+    h = History(tmp_path / "h.db")
+    h.savings_replace("a", {"voucher"}, [Saving("voucher", "v1", "Stary", None, None, None, None, {})])
+    result = await chain_savings.refresh(h, "a", FakeApi(fail={"coupons"}))  # type: ignore[arg-type]
+    assert result.failed_kinds == {"voucher"}
+    assert [r.name for r in h.savings_list() if r.kind == "voucher"] == ["Stary"]
+    assert [e.level for e in h.events(datetime(2000, 1, 1), area="sync")] == ["error"]
+
+
+class _Acc:
+    def __init__(self, slug: str, chain: str, connected: bool = True) -> None:
+        self.slug, self.chain, self.connected = slug, chain, connected
+
+
+class _Store:
+    def __init__(self, accounts: list[_Acc]) -> None:
+        self._a = accounts
+
+    def list(self) -> list[_Acc]:
+        return self._a
+
+
+class _Service:
+    def __init__(self, accounts: list[_Acc], bad: str) -> None:
+        self.store, self._bad, self.apis = _Store(accounts), bad, {}
+
+    async def chain_api(self, slug: str) -> Any:
+        if slug == self._bad:
+            raise LidlPlusError("not_supported")
+        return self.apis.setdefault(slug, ShakeApi())
+
+
+async def test_shake_accounts_filters_and_isolates_errors(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "ok", {"shakeomat"}, [Saving("shakeomat", "s1", "Shakeomat", None, None, None, None, {})]
+    )
+    service = _Service(
+        [
+            _Acc("bad", "biedronka"),
+            _Acc("ok", "biedronka"),
+            _Acc("lidl", "lidl"),
+            _Acc("off", "biedronka", False),
+        ],
+        bad="bad",
+    )
+    results = await chain_savings.shake_accounts(h, service, date(2026, 11, 19))
+    assert [(r.slug, r.done, bool(r.failed)) for r in results] == [("bad", 0, True), ("ok", 1, False)]
+    assert set(service.apis) == {"ok"}

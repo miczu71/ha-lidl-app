@@ -12,6 +12,7 @@ from lidl.text import fmt_pln
 MESSAGES = {
     "shake_ok": ("ok", "Shakeomat odsłonięty. Nowe oferty widać niżej po odświeżeniu migawki."),
     "shake_none": ("info", "Brak dzisiejszego Shakeomatu do odsłonięcia."),
+    "shake_noacc": ("err", "Konto Biedronki nie jest połączone. Zaloguj się ponownie w ustawieniach konta."),
     "shake_err": ("err", "Nie wszystko się udało. Szczegóły są w zakładce Status."),
 }
 

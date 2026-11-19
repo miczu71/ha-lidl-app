@@ -27,7 +27,7 @@
     {% for v in view.vouchers %}
     <div class="row2">
       <span><strong>{{ v.name }}</strong>{% if v.until %} <span class="meta tnum">{{ v.until }}</span>{% endif %}</span>
-      {% if v.urgent %}<span class="chain-tag chain-tag--biedronka">{% if v.days_left == 0 %}dziś{% else %}za {{ v.days_left }} dni{% endif %}</span>{% endif %}
+      {% if v.urgent %}<span class="chain-tag chain-tag--biedronka">{% if v.days_left == 0 %}dziś{% elif v.days_left == 1 %}jutro{% else %}za {{ v.days_left }} dni{% endif %}</span>{% endif %}
     </div>
     {% endfor %}
     {% endif %}

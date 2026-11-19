@@ -127,3 +127,20 @@ def test_shakeomat_button_runs_reveal_and_redirects(client: TestClient, monkeypa
 
 def test_shakeomat_post_404_without_biedronka(client: TestClient) -> None:
     assert client.post("/biedronka/shakeomat").status_code == 404
+
+
+def test_shakeomat_route_result_codes(client: TestClient, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    _with_biedronka(client)
+    from lidl import chain_savings
+    from lidl.chain_savings import ShakeResult
+
+    for results, code in (
+        ([ShakeResult("b")], "shake_none"),
+        ([ShakeResult("b", 1), ShakeResult("c", 0, ["x"])], "shake_err"),
+    ):
+
+        async def fake(history, service, today, results=results):  # type: ignore[no-untyped-def]
+            return results
+
+        monkeypatch.setattr(chain_savings, "shake_accounts", fake)
+        assert client.post("/biedronka/shakeomat").headers["location"].endswith(f"?m={code}")

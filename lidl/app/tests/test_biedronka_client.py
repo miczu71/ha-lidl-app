@@ -192,3 +192,9 @@ async def test_reveal_and_activate_uses_patch_and_keeps_method_on_401_retry() ->
     assert await _api(s).reveal_and_activate("of-1") == {"ok": 1}
     assert [c["url"].split("/api/v7/")[-1] for c in s.get_calls] == ["offers/of-1/reveal-and-activate/"] * 2
     assert all(c["method"] == "PATCH" for c in s.get_calls)
+
+
+async def test_offer_id_is_url_encoded() -> None:
+    s = FakeSession([Resp(200, {})], [])
+    await _api(s).reveal_and_activate("../x?y")
+    assert s.get_calls[0]["url"].endswith("offers/..%2Fx%3Fy/reveal-and-activate/")
