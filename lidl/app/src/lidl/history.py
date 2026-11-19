@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
@@ -150,6 +150,19 @@ CREATE TABLE IF NOT EXISTS chain_pairs (
     source TEXT CHECK(source IN ('ean', 'ai', 'manual')),
     candidates TEXT NOT NULL DEFAULT '[]',
     decided_at TEXT
+);
+-- E28.5: oferty i vouchery Biedronki (migawka z ostatniego importu, per konto i rodzaj)
+CREATE TABLE IF NOT EXISTS chain_savings (
+    slug TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK(kind IN ('voucher', 'offer', 'shakeomat')),
+    ext_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    price REAL,
+    regular_price REAL,
+    valid_from TEXT,
+    valid_to TEXT,
+    extra TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (slug, kind, ext_id)
 );
 CREATE TABLE IF NOT EXISTS ticket_coupons (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -880,6 +893,8 @@ class History:
             self._migrate_v7(path)
         if version < 9:
             self._migrate_v8(path)
+        if version < 10:
+            self._migrate_v9(path)
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
@@ -1002,6 +1017,52 @@ class History:
             self._db.backup(dest)
         finally:
             dest.close()
+
+    def _migrate_v9(self, path: Path) -> None:
+        """v9 → v10: tabela `chain_savings` (powstaje ze _SCHEMA); wcześniej kopia `.pre-chain-savings`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-chain-savings"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
+
+    def savings_replace(self, slug: str, kinds: set[str], rows: list[Any]) -> None:
+        """Podmienia migawkę konta tylko dla odświeżonych rodzajów; pozostałe rodzaje zostają."""
+        with self._db:
+            for kind in kinds:
+                self._db.execute("DELETE FROM chain_savings WHERE slug = ? AND kind = ?", (slug, kind))
+            for r in rows:
+                if r.kind not in kinds:
+                    continue
+                self._db.execute(
+                    "INSERT OR REPLACE INTO chain_savings"
+                    " (slug, kind, ext_id, name, price, regular_price, valid_from, valid_to, extra)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        slug,
+                        r.kind,
+                        r.ext_id,
+                        r.name,
+                        r.price,
+                        r.regular_price,
+                        r.valid_from,
+                        r.valid_to,
+                        json.dumps(r.extra, ensure_ascii=False),
+                    ),
+                )
+
+    def savings_list(self) -> list[Any]:
+        from .chain_savings import SavedSaving
+
+        return [
+            SavedSaving(slug, kind, ext_id, name, price, regular, vfrom, vto, json.loads(extra))
+            for slug, kind, ext_id, name, price, regular, vfrom, vto, extra in self._db.execute(
+                "SELECT slug, kind, ext_id, name, price, regular_price, valid_from, valid_to, extra"
+                " FROM chain_savings ORDER BY slug, kind, valid_to, name"
+            )
+        ]
 
     def fx_get(self, code: str, day: str) -> float | None:
         row = self._db.execute("SELECT mid FROM fx_rates WHERE code = ? AND day = ?", (code, day)).fetchone()

@@ -99,6 +99,14 @@ class LidlService:
             self._apis[(slug, country)] = api
         return api
 
+    async def chain_api(self, slug: str) -> BiedronkaApi:
+        """API konta Biedronki (oszczędzanie, E28.5); konto Lidla nie ma tych endpointów."""
+        if self.store.get(slug).chain != "biedronka":
+            raise LidlPlusError("not_supported")
+        api = await self._api(slug)
+        assert isinstance(api, BiedronkaApi)
+        return api
+
     async def _lidl_api(self, slug: str) -> LidlPlusApi:
         """API Lidla; konto Biedronki nie ma kuponów, loterii ani nagród."""
         if self.store.get(slug).chain == "biedronka":

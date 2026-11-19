@@ -183,6 +183,18 @@ async def test_biedronka_account_rejects_lidl_only_calls(tmp_path: Path, monkeyp
                 await call
 
 
+async def test_chain_api_only_for_biedronka_accounts(tmp_path: Path, monkeypatch) -> None:
+    from lidl.client.exceptions import LidlPlusError
+
+    async with aiohttp.ClientSession() as session:
+        svc, slug = await _biedronka_service(tmp_path, monkeypatch, session)
+        assert isinstance(await svc.chain_api(slug), _FakeBiedronka)
+        lidl = svc.store.create("Osoba 1")
+        svc.store.save_tokens(lidl.slug, {"access_token": "a", "refresh_token": "r"})
+        with pytest.raises(LidlPlusError, match="not_supported"):
+            await svc.chain_api(lidl.slug)
+
+
 async def test_biedronka_login_uses_biedronka_pkce(tmp_path: Path) -> None:
     store = AccountStore(tmp_path)
     acc = store.create("Osoba 2", chain="biedronka")

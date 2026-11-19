@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from lidl import chain_savings
+from lidl.chain_savings import Saving
+from lidl.client.exceptions import LidlPlusError
+from lidl.history import History
+
+CAROUSEL_ID = "11111111-aaaa-bbbb-cccc-222222222222"
+
+DASHBOARD = {
+    "sections": [
+        {"slug": "x", "type": "Store", "param": None},
+        {"slug": "biedronew", "type": "Carousels", "param": "other-id"},
+        {"slug": "Just4You", "type": "Carousels", "param": CAROUSEL_ID},
+    ]
+}
+CAROUSEL = {
+    "type": "j4u",
+    "items": [
+        {"type": "STATIC_CONTENT", "id": "s1", "name": "banner"},
+        {"type": "AD", "zone_id": 5},
+        {
+            "type": "SHAKEOMAT",
+            "offer_type": "SHAKEOMAT",
+            "offer_id": "sh-1",
+            "available_from": None,
+            "available_to": "2026-11-19T22:59:59Z",
+        },
+        {
+            "type": "SINGLE_PRODUCT_PROMOTION",
+            "offer_type": "WELCOME",
+            "id": "of-1",
+            "name": "Mleko 1l",
+            "price": 3.49,
+            "regular_price": 4.99,
+            "start": "2026-11-19T00:00:00Z",
+            "end": "2026-11-25T22:59:59Z",
+            "from_shakeomat": False,
+        },
+    ],
+}
+
+
+class FakeApi:
+    def __init__(self, *, coupons: Any = None, fail: set[str] | None = None) -> None:
+        self._coupons = {"coupons": [], "meta": {}} if coupons is None else coupons
+        self.fail = fail or set()
+        self.calls: list[str] = []
+
+    async def _do(self, name: str, value: Any) -> Any:
+        self.calls.append(name)
+        if name in self.fail:
+            raise LidlPlusError("http_500", status=500)
+        return value
+
+    async def coupons(self) -> Any:
+        return await self._do("coupons", self._coupons)
+
+    async def dashboard(self) -> Any:
+        return await self._do("dashboard", DASHBOARD)
+
+    async def carousel(self, carousel_id: str) -> Any:
+        assert carousel_id == CAROUSEL_ID
+        return await self._do("carousel", CAROUSEL)
+
+
+def test_parse_coupons_empty_and_garbage() -> None:
+    assert chain_savings.parse_coupons({"coupons": [], "meta": {}}) == []
+    assert chain_savings.parse_coupons(None) == []
+    assert chain_savings.parse_coupons({"coupons": ["x", 3, {}]}) == []
+
+
+def test_parse_coupons_tolerant_fields() -> None:
+    data = {"coupons": [{"id": "c-1", "title": "Rabat 5 zł", "end": "2026-11-21T22:59:59Z"}]}
+    [s] = chain_savings.parse_coupons(data)
+    assert (s.kind, s.ext_id, s.name, s.valid_to) == ("voucher", "c-1", "Rabat 5 zł", "2026-11-21T22:59:59Z")
+
+
+def test_parse_offers_skips_banners_and_keeps_shakeomat() -> None:
+    rows = chain_savings.parse_offers(CAROUSEL)
+    assert [(r.kind, r.ext_id) for r in rows] == [("shakeomat", "sh-1"), ("offer", "of-1")]
+    offer = rows[1]
+    assert (offer.name, offer.price, offer.regular_price, offer.valid_to) == (
+        "Mleko 1l",
+        3.49,
+        4.99,
+        "2026-11-25T22:59:59Z",
+    )
+    assert rows[0].valid_to == "2026-11-19T22:59:59Z"
+
+
+def test_parse_offers_garbage() -> None:
+    assert chain_savings.parse_offers(None) == []
+    assert chain_savings.parse_offers({"items": "x"}) == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_finds_just4you_carousel() -> None:
+    api = FakeApi()
+    result = await chain_savings.fetch(api)  # type: ignore[arg-type]
+    assert result.errors == []
+    assert {r.kind for r in result.rows} == {"shakeomat", "offer"}
+    assert api.calls == ["coupons", "dashboard", "carousel"]
+
+
+@pytest.mark.asyncio
+async def test_fetch_reports_failed_part_but_keeps_other() -> None:
+    api = FakeApi(coupons={"coupons": [{"id": "c-1", "title": "Rabat"}]}, fail={"dashboard"})
+    result = await chain_savings.fetch(api)  # type: ignore[arg-type]
+    assert [r.kind for r in result.rows] == ["voucher"]
+    assert result.failed_kinds == {"offer", "shakeomat"}
+    assert result.errors and "dashboard" in result.errors[0]
+
+
+def test_history_replace_keeps_kinds_not_refreshed(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a",
+        {"voucher", "offer"},
+        [
+            Saving("voucher", "c-1", "Rabat", None, None, None, "2026-11-21", {}),
+            Saving("offer", "o-1", "Mleko", 3.0, 4.0, None, "2026-11-25", {}),
+        ],
+    )
+    h.savings_replace("a", {"offer"}, [Saving("offer", "o-2", "Ser", 5.0, 6.0, None, "2026-11-26", {})])
+    rows = h.savings_list()
+    assert sorted((r.kind, r.ext_id) for r in rows) == [("offer", "o-2"), ("voucher", "c-1")]
+    assert rows[0].slug == "a"
+
+
+def test_history_replace_isolated_per_account(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.savings_replace("a", {"offer"}, [Saving("offer", "o-1", "A", None, None, None, None, {})])
+    h.savings_replace("b", {"offer"}, [Saving("offer", "o-1", "B", None, None, None, None, {})])
+    h.savings_replace("a", {"offer"}, [])
+    assert [(r.slug, r.name) for r in h.savings_list()] == [("b", "B")]
+
+
+def test_schema_v10_makes_backup(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "h.db"
+    h = History(path)
+    h.upsert_tickets("a", [{"id": "t", "date": "2026-10-01T10:00:00+00:00", "totalAmount": 1.0}])
+    del h
+    db = sqlite3.connect(path)
+    db.execute("DROP TABLE chain_savings")
+    db.execute("PRAGMA user_version = 9")
+    db.commit()
+    db.close()
+    History(path)
+    assert (tmp_path / "h.db.pre-chain-savings").exists()

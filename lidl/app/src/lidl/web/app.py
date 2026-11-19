@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from lidl import __version__, alerts, chain_pairs, pairs
+from lidl import __version__, alerts, chain_pairs, chain_savings, pairs
 from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
@@ -153,6 +153,18 @@ def create_app(settings: Settings) -> FastAPI:
                     await pairs.propose(history, session, settings)
                 except Exception:
                     log.exception("Pary produktów: propozycje nieudane")
+                for account in service.store.list():
+                    if account.chain != "biedronka" or not account.connected:
+                        continue
+                    try:
+                        await chain_savings.refresh(
+                            history, account.slug, await service.chain_api(account.slug)
+                        )
+                    except Exception as err:
+                        log.exception("Oszczędzanie Biedronki: odświeżenie nieudane")
+                        history.log_event(
+                            "sync", "error", f"Oszczędzanie Biedronki: {err}", {"account": account.slug}
+                        )
                 if len(history.has_chains()) >= 2:
                     try:
                         await chain_pairs.propose(history, session, settings)

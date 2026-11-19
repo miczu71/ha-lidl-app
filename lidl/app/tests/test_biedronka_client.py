@@ -168,3 +168,17 @@ def test_auth_code_from_redirect() -> None:
     assert auth_code_from_redirect("  XYZ ") == "XYZ"
     with pytest.raises(LidlPlusAuthError):
         auth_code_from_redirect("app://cma20.biedronka.pl?foo=1")
+
+
+async def test_savings_endpoints_paths() -> None:
+    s = FakeSession([Resp(200, {"coupons": []}), Resp(200, {"sections": []}), Resp(200, {"items": []})])
+    api = _api(s)
+    await api.coupons()
+    await api.dashboard()
+    await api.carousel("abc")
+    urls = [c["url"] for c in s.get_calls]
+    assert [u.split("/api/v7/")[-1] for u in urls] == [
+        "promos/coupons/",
+        "dashboards/dashboard/",
+        "promos/carousels/abc/",
+    ]

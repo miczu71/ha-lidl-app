@@ -192,11 +192,19 @@ class BiedronkaApi:
         if self._save_tokens:
             await self._save_tokens(tokens)
 
-    async def request(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    async def request(self, path: str, params: dict[str, Any] | None = None, *, method: str = "GET") -> Any:
         await self.ensure_fresh_token()
-        return await self._get(path, params, refreshed=False, upgraded=False)
+        return await self._get(path, params, refreshed=False, upgraded=False, method=method)
 
-    async def _get(self, path: str, params: dict[str, Any] | None, *, refreshed: bool, upgraded: bool) -> Any:
+    async def _get(
+        self,
+        path: str,
+        params: dict[str, Any] | None,
+        *,
+        refreshed: bool,
+        upgraded: bool,
+        method: str = "GET",
+    ) -> Any:
         headers = {
             "Authorization": f"Bearer {self._access_token}",
             "User-Agent": f"Android/{self._app_version}",
@@ -205,7 +213,7 @@ class BiedronkaApi:
         }
         try:
             async with self._session.request(
-                "GET", f"{API_BASE}/{path.lstrip('/')}", params=params, headers=headers
+                method, f"{API_BASE}/{path.lstrip('/')}", params=params, headers=headers
             ) as resp:
                 status = resp.status
                 resp_headers = resp.headers
@@ -218,7 +226,7 @@ class BiedronkaApi:
             if refreshed:
                 raise LidlPlusAuthError("unauthorized")
             await self._refresh()
-            return await self._get(path, params, refreshed=True, upgraded=upgraded)
+            return await self._get(path, params, refreshed=True, upgraded=upgraded, method=method)
         if status == 426:
             wanted = _required_version(resp_headers, body)
             if (
@@ -227,7 +235,7 @@ class BiedronkaApi:
                 and (_version_tuple(wanted) or ()) > (_version_tuple(self._app_version) or ())
             ):
                 self._app_version = wanted
-                return await self._get(path, params, refreshed=refreshed, upgraded=True)
+                return await self._get(path, params, refreshed=refreshed, upgraded=True, method=method)
             raise LidlPlusError("upgrade_required", status=426)
         if status >= 400:
             raise LidlPlusError(f"http_{status}", status=status)
@@ -249,6 +257,15 @@ class BiedronkaApi:
     async def transaction_details(self, transaction_id: str) -> dict[str, Any]:
         result: dict[str, Any] = await self.request(f"transactions/{transaction_id}/")
         return result
+
+    async def coupons(self) -> Any:
+        return await self.request("promos/coupons/")
+
+    async def dashboard(self) -> Any:
+        return await self.request("dashboards/dashboard/")
+
+    async def carousel(self, carousel_id: str) -> Any:
+        return await self.request(f"promos/carousels/{carousel_id}/")
 
     async def list_all(self, *, archived: bool, max_pages: int) -> list[dict[str, Any]]:
         """Wszystkie strony listy (do `page_count`, najwyżej `max_pages`)."""
