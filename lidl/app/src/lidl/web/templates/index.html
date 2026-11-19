@@ -2,7 +2,7 @@
 {% block main %}
 <div>
   <h1 class="t">Konta</h1>
-  <p class="lead">Dodaj konto każdej osoby, która robi zakupy w Lidlu. Hasło wpisujesz tylko na stronie Lidla, add-on dostaje wyłącznie token sesji.</p>
+  <p class="lead">Dodaj konto każdej osoby, która robi zakupy w Lidlu lub Biedronce. Hasło wpisujesz tylko na stronie sieci, add-on dostaje wyłącznie token sesji.</p>
 </div>
 
 {% if msg %}
@@ -18,7 +18,7 @@
     <div class="acc__who">
       <span class="avatar" aria-hidden="true">{{ (a.label.split()|map('first')|join)[:2]|upper }}</span>
       <div>
-        <div class="name">{{ a.label }}{% if a.connected %}<span class="status status--on">Połączone</span>{% else %}<span class="status">Nie zalogowano</span>{% endif %}</div>
+        <div class="name">{{ a.label }} <span class="chain-tag chain-tag--{{ a.chain }}">{{ "Biedronka" if a.chain == "biedronka" else "Lidl" }}</span>{% if a.connected %}<span class="status status--on">Połączone</span>{% else %}<span class="status">Nie zalogowano</span>{% endif %}</div>
         <div class="meta">{% if a.connected %}Sesja odnawia się automatycznie.{% else %}Zaloguj konto, żeby pobierać paragony i kupony.{% endif %}</div>
       </div>
     </div>
@@ -48,6 +48,10 @@
     <div class="f">
       <label for="label">Nazwa konta</label>
       <input class="field" id="label" name="label" type="text" maxlength="40" required autocomplete="off" placeholder="np. imię osoby">
+    </div>
+    <div class="f">
+      <label for="chain">Sieć</label>
+      <select class="field" id="chain" name="chain"><option value="lidl">Lidl Plus</option><option value="biedronka">Moja Biedronka</option></select>
     </div>
     <button class="ds-btn" type="submit">Dodaj konto</button>
   </form>

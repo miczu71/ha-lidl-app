@@ -124,7 +124,12 @@ class DailyJob:
         self.in_progress = False  # cały poranny przebieg w toku (zakładka Status)
 
     def _accounts(self) -> list[tuple[str, str]]:
-        return [(a.slug, a.label) for a in self._store.list() if a.connected]
+        """Połączone konta Lidla: kupony i nagrody Lidl Plus (Biedronka ich nie ma)."""
+        return [(a.slug, a.label) for a in self._store.list() if a.connected and a.chain == "lidl"]
+
+    def _import_slugs(self) -> list[str]:
+        """Wszystkie połączone konta (obie sieci): import paragonów."""
+        return [a.slug for a in self._store.list() if a.connected]
 
     async def __call__(self) -> None:
         """Przebieg z wpisem w dzienniku (E23): wynik kroków albo krok, na którym przerwał."""
@@ -135,7 +140,7 @@ class DailyJob:
         step = "paragony"
         self.in_progress = True
         try:
-            await self._sync.run_daily([slug for slug, _ in accounts])
+            await self._sync.run_daily(self._import_slugs())
             self._history.warm()  # nowe paragony unieważniły wyniki zakładek
             step = "promocje"
             await self._promotions.refresh()
@@ -163,7 +168,7 @@ class DailyJob:
         Nowe paragony unieważniają wyniki zakładek (jak po porannym imporcie)."""
         if self.in_progress:
             return
-        if await self._sync.run_hourly([slug for slug, _ in self._accounts()]):
+        if await self._sync.run_hourly(self._import_slugs()):
             self._history.warm()
 
     async def refresh_rewards(self) -> dict[str, Rewards]:

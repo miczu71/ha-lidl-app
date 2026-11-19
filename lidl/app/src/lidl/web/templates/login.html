@@ -1,10 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Logowanie — {{ account.label }} — Lidl Plus{% endblock %}
+{% block title %}Logowanie — {{ account.label }} — {% if account.chain == "biedronka" %}Biedronka{% else %}Lidl Plus{% endif %}{% endblock %}
 {% block bar %}<a class="back" href="{{ base }}/konta" aria-label="Wróć do kont"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Logowanie</span>{% endblock %}
 {% block main %}
+{% set bdr = account.chain == "biedronka" %}
 <div>
-  <h1 class="t">Logowanie: {{ account.label }}</h1>
-  <p class="lead">Zaloguj się na stronie Lidla w przeglądarce na komputerze, a potem wklej tu adres, na który Lidl Cię odeśle. Adres jest ważny kilka minut i działa tylko raz.</p>
+  <h1 class="t">Logowanie: {{ account.label }} <span class="chain-tag chain-tag--{{ account.chain }}">{{ "Biedronka" if bdr else "Lidl" }}</span></h1>
+  {% if bdr %}<p class="lead">Zaloguj się na stronie Moja Biedronka w przeglądarce na komputerze (captcha i kod SMS), a potem wklej tu adres, na który Biedronka Cię odeśle. Kod jest ważny około minuty i działa tylko raz, więc wklej go od razu.</p>{% else %}
+  <p class="lead">Zaloguj się na stronie Lidla w przeglądarce na komputerze, a potem wklej tu adres, na który Lidl Cię odeśle. Adres jest ważny kilka minut i działa tylko raz.</p>{% endif %}
 </div>
 
 {% if error %}
@@ -14,7 +16,7 @@
 </p>
 {% endif %}
 
-<section class="card">
+<section class="card{% if bdr %} chain-biedronka{% endif %}">
   <ol class="steps">
     <li>
       <span class="num">1</span>
@@ -23,8 +25,8 @@
     <li>
       <span class="num">2</span>
       <div class="st">
-        <span>Wejdź na stronę logowania Lidl i zaloguj się kontem „{{ account.label }}” (captcha i kod MFA też tam).</span>
-        <a class="ds-btn ds-btn--secondary" href="{{ auth_url }}" target="_blank" rel="noopener noreferrer">Otwórz logowanie Lidl</a>
+        <span>Wejdź na stronę logowania {{ "Biedronki" if bdr else "Lidl" }} i zaloguj się kontem „{{ account.label }}” ({{ "captcha i kod SMS" if bdr else "captcha i kod MFA" }} też tam).</span>
+        <a class="ds-btn ds-btn--secondary" href="{{ auth_url }}" target="_blank" rel="noopener noreferrer">Otwórz logowanie {{ "Biedronki" if bdr else "Lidl" }}</a>
         <div style="width: 100%">
           <label for="url">Adres logowania do skopiowania</label>
           <input class="field" id="url" type="text" readonly value="{{ auth_url }}">
@@ -33,13 +35,13 @@
     </li>
     <li>
       <span class="num">3</span>
-      <div class="st"><span>Po zalogowaniu strona zostanie na ekranie logowania, to normalne. W Network znajdź odpowiedź <strong>302</strong> z żądania <strong>callback</strong> i skopiuj nagłówek <strong>Location</strong> (zaczyna się od <code>com.lidlplus.app://callback?code=</code>).</span></div>
+      <div class="st">{% if bdr %}<span>Po wpisaniu kodu SMS przeglądarka spróbuje otworzyć aplikację i pokaże błąd albo nic się nie stanie, to normalne. W Network znajdź odpowiedź <strong>302</strong> i skopiuj nagłówek <strong>Location</strong> (zaczyna się od <code>app://cma20.biedronka.pl?code=</code>), a potem od razu wklej go poniżej.</span>{% else %}<span>Po zalogowaniu strona zostanie na ekranie logowania, to normalne. W Network znajdź odpowiedź <strong>302</strong> z żądania <strong>callback</strong> i skopiuj nagłówek <strong>Location</strong> (zaczyna się od <code>com.lidlplus.app://callback?code=</code>).</span>{% endif %}</div>
     </li>
   </ol>
 
   <form method="post" action="{{ base }}/accounts/{{ account.slug }}/login">
     <label for="pasted">Wklejony adres (Location)</label>
-    <textarea class="field" id="pasted" name="pasted" required autocomplete="off" spellcheck="false" placeholder="com.lidlplus.app://callback?code=…"></textarea>
+    <textarea class="field" id="pasted" name="pasted" required autocomplete="off" spellcheck="false" placeholder="{{ 'app://cma20.biedronka.pl?code=…' if bdr else 'com.lidlplus.app://callback?code=…' }}"></textarea>
     <p class="hint">Adres nie jest nigdzie zapisywany ani logowany; po wymianie na token jest bezużyteczny.</p>
     <div class="row2" style="margin-top: var(--space-4)">
       <button class="ds-btn" type="submit">Połącz konto</button>

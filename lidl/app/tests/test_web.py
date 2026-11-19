@@ -1411,3 +1411,19 @@ def test_months_shows_abroad_line(client: TestClient) -> None:
     text = client.get("/miesiace?m=2026-10").text
     assert "w tym za granicą: 175,00 zł (CZ)" in text
     assert "za granicą" not in client.get("/miesiace?m=2025-03").text
+
+
+def test_biedronka_account_gets_its_own_login_page(client: TestClient) -> None:
+    r = client.post("/accounts", data={"label": "Osoba 2", "chain": "biedronka"})
+    assert r.status_code == 303
+    page = client.get("/accounts/osoba-2/login")
+    assert page.status_code == 200
+    assert "chain-biedronka" in page.text
+    assert "konto.biedronka.pl" in page.text
+    assert "app://cma20.biedronka.pl" in page.text
+    assert "Biedronka" in client.get("/konta").text
+
+
+def test_unknown_chain_falls_back_to_lidl(client: TestClient) -> None:
+    client.post("/accounts", data={"label": "Osoba 3", "chain": "zabka"})
+    assert "chain-biedronka" not in client.get("/accounts/osoba-3/login").text

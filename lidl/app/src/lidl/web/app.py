@@ -92,7 +92,7 @@ CATEGORY_SOURCES = {
 }
 
 LOGIN_ERRORS = {
-    "token_rejected": "Lidl odrzucił kod: wygasł albo został już użyty. Zaloguj się od nowa.",
+    "token_rejected": "Serwer logowania odrzucił kod: wygasł albo został już użyty. Zaloguj się od nowa.",
     "missing_auth_code": "Nie znalazłem kodu w wklejonym tekście. Skopiuj cały nagłówek Location.",
     "no_pending_login": "Sesja logowania wygasła (add-on był restartowany). Zaloguj się od nowa.",
     "no_loyalty_card": "Zalogowano, ale konto nie ma karty Lidl Plus.",
@@ -142,6 +142,7 @@ def create_app(settings: Settings) -> FastAPI:
                 after=after_import,
                 extra_countries=settings.extra_countries,
                 session=session,
+                chain_of=lambda slug: service.store.get(slug).chain,
             )
             runner = CouponRunner(service, history)
             rewards = RewardsRunner(service)
@@ -296,12 +297,12 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.post("/accounts")
-    async def add_account(request: Request, label: str = Form(...)) -> Response:
+    async def add_account(request: Request, label: str = Form(...), chain: str = Form("lidl")) -> Response:
         try:
             slugify(label)
         except ValueError:
             return go(request, "/konta")
-        account = service(request).store.create(label)
+        account = service(request).store.create(label, chain if chain in ("lidl", "biedronka") else "lidl")
         return go(request, f"/accounts/{account.slug}/login")
 
     @app.get("/accounts/{slug}/login")
