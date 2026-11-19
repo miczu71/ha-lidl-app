@@ -93,3 +93,22 @@ Cel: znaleźć w kodzie aplikacji endpoint i parametry „zobacz starsze zakupy�
 5. **Plan awaryjny**, jeśli historii wstecz nie da się pobrać: zbieranie paragonów od dnia włączenia e-paragonów; E28 zachowuje wartość (od teraz), ale bez historii wstecz — zmiana zakresu do uzgodnienia z userem.
 
 **Higiena:** user wkleił w czacie nagłówki żądania z ciasteczkiem `PHPSESSID` panelu web — wylogowanie z `moja.biedronka.pl` zalecone (potwierdzić). Nie wklejać nagłówków ani ciasteczek, tylko sam Request URL.
+
+## Wynik E28.0a (2026-11-19) — bramka historii SPEŁNIONA
+- APK Moja Biedronka 2.25.0 (pakiet `pl.jmpolska.clos0.mojabiedronka`, natywna Kotlin/Java, 2 pliki dex, bez Fluttera/RN);
+  SHA-256 XAPK `3498f552…327757d`. Analiza statyczna samych stringów dex wystarczyła, jadx niepotrzebny.
+- W aplikacji jest `GetTransactionsUseCase` ze stanami `OldTransactions*`/`noOlderTransactions` i endpoint Retrofit
+  **`GET api/v7/transactions/archived/?page=N`** (obok `transactions/` = świeże zakupy). `transactions/` zwraca 0, dopóki
+  e-paragony nie nazbierają świeżych zakupów, a starsze są wyłącznie w `archived/`.
+- Odpowiedź `archived/`: `{transactions[], page_number, page_count, previous_page, next_page}`; element listy:
+  `date, id, is_e_receipt_available, receipt_num, store_name, total_price`.
+- Konto osoba1: 22 transakcje z archiwum, zakres 2024-12 … 2026-10 (~22 mies., rzadkie: ~1–3/mies.), 1 strona.
+- `transactions/{id}/` (szczegóły) działa dla wszystkich 22 i ma pozycje z `ean`: 125/125 pozycji z EAN (81 unikalnych),
+  suma pozycji = `total_price` w 22/22 paragonach, kaucje i VAT w polach. `e-receipt/` dla archiwalnych → błąd
+  (`is_e_receipt_available` brak) — parser E28.1 musi opierać się na szczegółach `transactions/{id}/`, e-paragon tylko
+  dla świeżych zakupów.
+- Pokrycie porównania z Lidlem: 18 wspólnych EAN z 81 (22%); pierwsza miara dla E28.4.
+- Sesja: access ~24 h, refresh 120 dni (bramka sesji OK).
+- Korekta numeracji: schemat E28.1 = v8, wydania numerowane po 1.2.1 (zamiast 0.24–0.26).
+- Otwarte: drugie konto (osoba2) jeszcze niezalogowane; archiwum ma tylko 22 zakupy, więc „pełna historia” = to, co zwraca
+  `archived/` (do porównania z aplikacją przez usera).
