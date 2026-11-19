@@ -97,11 +97,11 @@ Najpierw kopia tego planu do `docs/ROADMAP.md` (sekcja E28) i `docs/PLAN_E28_bie
   i znane pary z `merges`); (b) produkty podobne: AI (`llm.ask_logged`, `model: auto:text`, json_schema) proponuje pary
   według nazwy i gramatury (`packsize.py`), user zatwierdza lub odrzuca w UI (tabele `xchain_pairs`, `xchain_rejects`).
   Zakładka „Porównanie”: cena za kg/l/szt. w obu sieciach (mediana z 3 mies., ostatni zakup), oszczędność, gdyby
-  kupować w tańszej sieci, filtr kategorii. **Wydanie 0.25.0.**
+  kupować w tańszej sieci, filtr kategorii. **Wydanie 1.4.0** (numer po korekcie; plan 0.25.0 nieaktualny).
 - **E28.5 Oszczędzanie w Biedronce.** Panel: vouchery (`promos/coupons/`), oferty „Tylko dla Ciebie”, naklejki/punkty
   z saldem i najbliższą nagrodą. Opcja `biedronka_auto_shakeomat` (domyślnie wyłączona): poranne odsłanianie
   Shakeomatu i Shakeomarki (`reveal-and-activate`) + push `notify.family` (tag `biedronka-shakeomat`) z wynikiem;
-  linia „Biedronka” w porannym powiadomieniu (vouchery wygasające, nowe oferty). **Wydanie 0.26.0** po pełnym
+  linia „Biedronka” w porannym powiadomieniu (vouchery wygasające, nowe oferty). **Wydanie 1.5.0** po pełnym
   łańcuchu simplify → code-review (+ silent-failure-hunter, pr-test-analyzer, security) → release → weryfikacja na żywo.
 
 ## Sesja i logowanie Biedronki (ustalenia 2026-11-04)

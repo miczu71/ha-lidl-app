@@ -289,8 +289,8 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   tożsama z Lidlem, filtr `?siec=`; osobny design Biedronki tylko dla jej sekcji + akcent sieci we wspólnych widokach.
   Źródło: Przemko92/home-assistant-mojabiedronka (MIT) — API `api.prod.biedronka.cloud/api/v7`, Keycloak `cma20`, e-paragon JSON z EAN.
   Podetapy: E28.0 spike na żywo (login robi user) → D2 design Biedronki → E28.1 konta+import → E28.2 widoki z filtrem (0.24.0) →
-  E28.3 Budżet (logo sieci + link do paragonu przy transakcji, obie sieci) → E28.4 porównanie cen (EAN + podobne przez AI, 0.25.0) →
-  E28.5 oszczędzanie (vouchery, oferty, naklejki, auto-Shakeomat opcjonalny, 0.26.0). Propozycje poza E28: P1–P3 w planie.
+  E28.3 Budżet (logo sieci + link do paragonu przy transakcji, obie sieci) → E28.4 porównanie cen (EAN + podobne przez AI, 1.4.0, plan `docs/PLAN_E28_4.md`) →
+  E28.5 oszczędzanie (vouchery, oferty, naklejki, auto-Shakeomat opcjonalny, 1.5.0). Propozycje poza E28: P1–P3 w planie.
 
 ## Ryzyka
 
