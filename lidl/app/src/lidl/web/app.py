@@ -49,7 +49,7 @@ from lidl.text import (
     month_bounds,
 )
 
-from . import countries
+from . import chains, countries
 from .chart import (
     build_chart,
     build_deposit_chart,
@@ -241,10 +241,17 @@ def create_app(settings: Settings) -> FastAPI:
 
     def render(request: Request, name: str, status_code: int = 200, **ctx: Any) -> Response:
         alert = bool(getattr(request.app.state, "problems", None))  # kropka przy zakładce Status (E23.3)
+        multi_chain = len(request.app.state.history.has_chains()) >= 2  # chip „Sieci” (E28.4.2)
         return templates.TemplateResponse(
             request,
             name,
-            {"base": base(request), "version": __version__, "alert": alert, **ctx},
+            {
+                "base": base(request),
+                "version": __version__,
+                "alert": alert,
+                "multi_chain": multi_chain,
+                **ctx,
+            },
             status_code=status_code,
         )
 
@@ -975,6 +982,67 @@ def create_app(settings: Settings) -> FastAPI:
         return Response(
             '<p class="meta" role="status">Import trwa… Propozycje pojawią się po jego zakończeniu.</p>'
         )
+
+    def chains_ctx(history: History) -> dict[str, Any]:
+        proposals = chains.proposal_cards(history)
+        approved, rejected = (
+            chains.decided_rows(history, "approved"),
+            chains.decided_rows(history, "rejected"),
+        )
+        return {
+            "proposals": proposals,
+            "approved": approved,
+            "rejected": rejected,
+            "any_pairs": bool(proposals or approved or rejected),
+        }
+
+    def chains_history(request: Request) -> History | None:
+        """Zakładka „Sieci” istnieje tylko przy paragonach obu sieci."""
+        history: History = request.app.state.history
+        return history if len(history.has_chains()) >= 2 else None
+
+    @app.get("/sieci")
+    async def chains_page(request: Request) -> Response:
+        history = chains_history(request)
+        if history is None:
+            return Response("Brak paragonów z drugiej sieci.", status_code=404)
+        return render(
+            request, "chains.html", section="sieci", llm_enabled=settings.llm_enabled, **chains_ctx(history)
+        )
+
+    @app.get("/sieci/szukaj")
+    async def chains_search(request: Request, b: str = "", q: str = "") -> Response:
+        history = chains_history(request)
+        if history is None:
+            return Response("Brak paragonów z drugiej sieci.", status_code=404)
+        return render(
+            request, "_chains_search.html", b_art_id=b, q=q.strip(), results=chains.search(history, q)
+        )
+
+    @app.post("/sieci/para")
+    async def chains_pair(
+        request: Request,
+        b_art_id: str = Form(...),
+        action: str = Form(...),
+        lidl_art_id: str = Form(""),
+    ) -> Response:
+        history = chains_history(request)
+        if history is None:
+            return Response("Brak paragonów z drugiej sieci.", status_code=404)
+        if action in ("approve", "reject") and not chains.is_known_product(history, b_art_id):
+            action = ""  # tylko produkty z paragonów Biedronki, bez śmieciowych wierszy
+        if action == "approve":
+            if chains.has_lidl_item(history, lidl_art_id):  # tylko produkt Lidla, nie kod Biedronki
+                history.chain_pair_propose(b_art_id, [])  # ręczna para bez propozycji AI
+                history.chain_pair_decide(b_art_id, "approve", lidl_art_id)
+        elif action == "reject":
+            history.chain_pair_propose(b_art_id, [])
+            history.chain_pair_decide(b_art_id, "reject")
+        elif action == "undo":
+            history.chain_pair_decide(b_art_id, "undo")
+        if not request.headers.get("hx-request"):
+            return go(request, "/sieci")
+        return render(request, "_chains_body.html", **chains_ctx(history))
 
     @app.post("/accounts/{slug}/history")
     async def start_history(request: Request, slug: str) -> Response:

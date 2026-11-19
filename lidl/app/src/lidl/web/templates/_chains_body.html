@@ -1,0 +1,56 @@
+{# Sekcje zakładki; decyzja (htmx) podmienia całość, bez JS — przekierowanie na /sieci. #}
+{% macro pair_form(b_art_id, action, label, lidl_art_id="", cls="ds-btn ds-btn--secondary") %}
+<form method="post" action="{{ base }}/sieci/para" hx-post="{{ base }}/sieci/para" hx-target="#sieci-body" hx-swap="outerHTML">
+  <input type="hidden" name="b_art_id" value="{{ b_art_id }}">
+  <input type="hidden" name="action" value="{{ action }}">
+  {% if lidl_art_id %}<input type="hidden" name="lidl_art_id" value="{{ lidl_art_id }}">{% endif %}
+  <button class="{{ cls }}" type="submit">{{ label }}</button>
+</form>
+{% endmacro %}
+<div class="stack" id="sieci-body">
+  <section class="card" aria-labelledby="si-p">
+    <h2 class="s" id="si-p">Do zatwierdzenia</h2>
+    {% if not proposals %}
+    <p class="meta">{% if any_pairs %}Nic nie czeka na decyzję.{% else %}Brak produktów Biedronki do sparowania.{% endif %}</p>
+    {% endif %}
+    {% for c in proposals %}
+    <div class="card">
+      <div class="row2"><span class="chain-tag chain-tag--biedronka">Biedronka</span></div>
+      <div>
+        <strong>{{ c.name }}</strong>
+        {% if c.price %}<p class="meta" style="margin: 0">{{ c.price }}</p>{% endif %}
+      </div>
+      {% if c.candidates %}
+      <div class="row2">
+        {% for k in c.candidates %}{{ pair_form(c.b_art_id, "approve", k.name ~ " · " ~ k.price, k.art_id) }}{% endfor %}
+      </div>
+      {% else %}
+      <p class="meta" style="margin: 0">Brak propozycji. Wyszukaj produkt Lidla poniżej.</p>
+      {% endif %}
+      <form method="get" action="{{ base }}/sieci/szukaj" role="search" hx-get="{{ base }}/sieci/szukaj" hx-trigger="input changed delay:200ms from:find input[type=search], submit" hx-target="next .sieci-wyniki" hx-swap="innerHTML">
+        <input type="hidden" name="b" value="{{ c.b_art_id }}">
+        <label class="search">Szukaj w produktach Lidla<input class="field" type="search" name="q" placeholder="np. mleko" autocomplete="off" spellcheck="false"></label>
+      </form>
+      <div class="sieci-wyniki" aria-live="polite"></div>
+      <div class="row2">{{ pair_form(c.b_art_id, "reject", "Bez odpowiednika", cls="ds-btn ds-btn--link") }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="card" aria-labelledby="si-a">
+    <h2 class="s" id="si-a">Zatwierdzone</h2>
+    {% if not approved %}<p class="meta">Jeszcze nic nie zatwierdzono.</p>{% endif %}
+    {% for r in approved %}
+    <div class="row2"><span><strong>{{ r.name }}</strong> → {{ r.lidl_name }}{% if r.source %} <span class="tag">{{ r.source }}</span>{% endif %}</span>{{ pair_form(r.b_art_id, "undo", "Cofnij", cls="ds-btn ds-btn--link") }}</div>
+    {% endfor %}
+  </section>
+
+  <section class="card" aria-labelledby="si-r">
+    <h2 class="s" id="si-r">Bez odpowiednika</h2>
+    {% if not rejected %}<p class="meta">Brak odrzuconych.</p>{% endif %}
+    {% for r in rejected %}
+    {# para EAN po cofnięciu zostaje odrzucona na stałe (auto-parowanie jej nie przywraca) #}
+    <div class="row2"><span><strong>{{ r.name }}</strong>{% if r.is_ean %} <span class="tag">EAN odrzucony</span>{% endif %}</span>{% if not r.is_ean %}{{ pair_form(r.b_art_id, "undo", "Cofnij", cls="ds-btn ds-btn--link") }}{% endif %}</div>
+    {% endfor %}
+  </section>
+</div>

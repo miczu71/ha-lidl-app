@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Sieci — Lidl Plus{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Sieci</h1>
+  <p class="lead">Produkty z Biedronki i ich odpowiedniki w Lidlu. Zatwierdzone pary posłużą do porównania cen.</p>
+</div>
+
+{% if not llm_enabled %}
+<p class="notice notice--info" role="status">
+  <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
+  <span>Propozycje AI wymagają klucza modelu w opcjach add-onu. Pary z tym samym EAN i ręczne parowanie działają bez niego.</span>
+</p>
+{% endif %}
+{% include "_chains_body.html" %}
+{% endblock %}
