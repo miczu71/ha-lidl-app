@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.0
+
+- **Zakładka „Oszczędzanie” (przy koncie Biedronki):** vouchery z datą końca, oferty „Tylko dla Ciebie” (cena, cena zwykła, rabat %,
+  limit) i informacja o dostępnym Shakeomacie. Dane z ostatniego importu; błąd jednej części (vouchery albo oferty) nie kasuje drugiej.
+  Odpowiedź API w nieznanym kształcie liczy się jako błąd widoczny w Statusie, a nie jako „brak ofert”.
+- **Poranne powiadomienie:** linia „Biedronka: … (za N dni) · N oferty Tylko dla Ciebie”, gdy voucher wygasa w ciągu 3 dni.
+- **Shakeomat:** przycisk „Odsłoń teraz” w zakładce oraz opcja `biedronka_auto_shakeomat` (domyślnie wyłączona), która rano
+  odsłania Shakeomat i wysyła wynik na `notify.family`. To zapis na koncie przez nieoficjalne API Biedronki.
+- Migracja bazy do wersji 10 (tabela `chain_savings`), kopia `history.db.pre-chain-savings`.
+
 ## 1.4.0
 
 - **Zakładka „Sieci” (przy paragonach obu sieci):** porównanie cen Lidl ↔ Biedronka. Pary produktów powstają z tego samego EAN
