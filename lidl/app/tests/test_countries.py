@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from lidl import pairs
+from lidl import chain_pairs, pairs
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.settings import Settings
 from lidl.web.app import create_app
@@ -165,6 +165,62 @@ def test_after_import_survives_propose_failure(cz_settings: Settings, monkeypatc
 
         asyncio.run(c.app.state.sync._after())  # type: ignore[attr-defined]
     assert refreshed
+
+
+def test_after_import_calls_both_propose_when_two_chains(cz_settings: Settings, monkeypatch) -> None:
+    called: list[str] = []
+
+    async def fake_pairs(*args: Any, **kwargs: Any) -> int:
+        called.append("pairs")
+        return 0
+
+    async def fake_chain(*args: Any, **kwargs: Any) -> int:
+        called.append("chain")
+        return 0
+
+    async def refresh(self: Any) -> None:
+        pass
+
+    monkeypatch.setattr(pairs, "propose", fake_pairs)
+    monkeypatch.setattr(chain_pairs, "propose", fake_chain)
+    monkeypatch.setattr("lidl.budget_feed.BudgetFeed.refresh", refresh)
+    import asyncio
+
+    with TestClient(create_app(cz_settings)) as c:
+        asyncio.run(c.app.state.sync._after())  # type: ignore[attr-defined]
+        assert called == ["pairs"]  # jedna sieć: bez parowania sieci
+        h = c.app.state.history  # type: ignore[attr-defined]
+        for tid, chain in (("l-1", "lidl"), ("b-1", "biedronka")):
+            h.upsert_tickets(
+                "o", [{"id": tid, "date": "2026-10-01T10:00:00+00:00", "totalAmount": 1.0}], chain=chain
+            )
+        called.clear()
+        asyncio.run(c.app.state.sync._after())  # type: ignore[attr-defined]
+        assert called == ["pairs", "chain"]
+
+
+def test_after_import_survives_chain_propose_failure(cz_settings: Settings, monkeypatch) -> None:
+    async def boom(*args: Any, **kwargs: Any) -> int:
+        raise RuntimeError("model padł")
+
+    async def ok(*args: Any, **kwargs: Any) -> int:
+        return 0
+
+    async def refresh(self: Any) -> None:
+        pass
+
+    monkeypatch.setattr(pairs, "propose", ok)
+    monkeypatch.setattr(chain_pairs, "propose", boom)
+    monkeypatch.setattr("lidl.budget_feed.BudgetFeed.refresh", refresh)
+    import asyncio
+
+    with TestClient(create_app(cz_settings)) as c:
+        h = c.app.state.history  # type: ignore[attr-defined]
+        for tid, chain in (("l-1", "lidl"), ("b-1", "biedronka")):
+            h.upsert_tickets(
+                "o", [{"id": tid, "date": "2026-10-01T10:00:00+00:00", "totalAmount": 1.0}], chain=chain
+            )
+        asyncio.run(c.app.state.sync._after())  # type: ignore[attr-defined]
 
 
 def test_unknown_name_creates_no_row(cz_settings: Settings) -> None:

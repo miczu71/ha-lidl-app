@@ -1109,7 +1109,7 @@ def test_migrate_v5_adds_columns_and_keeps_a_backup(tmp_path: Path) -> None:
     assert (tmp_path / "h.db.pre-countries").exists()
     row = h._db.execute("SELECT total, country, currency, total_orig, fx_rate FROM tickets").fetchone()
     assert row == (12.5, "PL", "PLN", None, 1.0)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 9
     old = sqlite3.connect(tmp_path / "h.db.pre-countries")
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
     old.close()
@@ -1129,7 +1129,7 @@ def test_migrate_v6_adds_country_pairs_and_keeps_a_backup(tmp_path: Path) -> Non
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 9
     assert h._db.execute("SELECT COUNT(*) FROM country_pairs").fetchone()[0] == 0
     old = sqlite3.connect(tmp_path / "h.db.pre-countries-pairs")
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
@@ -1356,7 +1356,7 @@ def test_v2_database_migrates_to_current_schema_keeping_data(tmp_path: Path) -> 
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 8
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 9
     assert (tmp_path / "h.db.pre-countries").exists()
     cols = {r[1] for r in h._db.execute("PRAGMA table_info(tickets)")}
     assert {"country", "currency", "total_orig", "fx_rate"} <= cols
@@ -1429,7 +1429,7 @@ def test_migrate_v7_adds_chain_and_keeps_a_backup(tmp_path: Path) -> None:
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 8
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 9
     assert h._db.execute("SELECT total, chain FROM tickets").fetchall() == [(12.5, "lidl")]
     old = sqlite3.connect(path.with_name("h.db.pre-biedronka"))
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
@@ -1514,3 +1514,36 @@ def test_has_chains_sees_new_chain_before_details(tmp_path: Path) -> None:
     assert h.has_chains() == {"lidl"}
     h.upsert_tickets("b", [{"id": "b:1", "date": "2026-10-02T10:00:00+00:00"}], chain="biedronka")
     assert h.has_chains() == {"lidl", "biedronka"}  # bez szczegółów (revision się nie zmienia)
+
+
+def test_migrate_v8_to_v9_adds_chain_pairs_with_backup(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "h.db"
+    h = History(path)
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01", total=12.5)])
+    del h
+    db = sqlite3.connect(path)
+    db.execute("DROP TABLE chain_pairs")
+    db.execute("PRAGMA user_version = 8")
+    db.commit()
+    db.close()
+
+    h = History(path)
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 9
+    assert h._db.execute("SELECT COUNT(*) FROM chain_pairs").fetchone()[0] == 0
+    old = sqlite3.connect(path.with_name("h.db.pre-chain-pairs"))
+    assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
+    assert not old.execute("SELECT 1 FROM sqlite_master WHERE name = 'chain_pairs'").fetchone()
+    old.close()
+
+
+def test_chain_catalog_is_per_chain(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-10-01")])
+    h.save_detail("t1", "S", _receipt(("1", "Mleko 1l", 1, 4.0)))
+    h.upsert_tickets("a", [_ticket("b1", "2026-10-02")], chain="biedronka")
+    h.save_detail("b1", "B", _receipt(("b:9", "Mleko 1l B", 1, 3.0)))
+    assert [c.art_id for c in h.chain_catalog("lidl")] == ["1"]
+    assert [c.art_id for c in h.chain_catalog("biedronka")] == ["b:9"]
+    assert {c.art_id for c in h.pl_catalog()} == {"1", "b:9"}  # pl_catalog bez zmian

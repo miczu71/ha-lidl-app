@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
@@ -141,6 +141,15 @@ CREATE TABLE IF NOT EXISTS country_pairs (
     candidates TEXT NOT NULL DEFAULT '[]',
     decided_at TEXT,
     PRIMARY KEY (country, foreign_name)
+);
+-- E28.4: para „produkt Biedronki → produkt Lidla”; źródło: ean (auto), ai (propozycja), manual (user)
+CREATE TABLE IF NOT EXISTS chain_pairs (
+    b_art_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL CHECK(status IN ('proposed', 'approved', 'rejected')),
+    lidl_art_id TEXT,
+    source TEXT CHECK(source IN ('ean', 'ai', 'manual')),
+    candidates TEXT NOT NULL DEFAULT '[]',
+    decided_at TEXT
 );
 CREATE TABLE IF NOT EXISTS ticket_coupons (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -237,6 +246,19 @@ class CatalogItem:
     name: str
     last_price: float
     spend: float
+
+
+@dataclass(frozen=True)
+class ChainPair:
+    """Para „produkt Biedronki → produkt Lidla” (E28.4); nazwy z ostatnich zakupów."""
+
+    b_art_id: str
+    b_name: str
+    status: str
+    lidl_art_id: str | None
+    lidl_name: str | None
+    source: str | None
+    candidates: list[str]
 
 
 @dataclass(frozen=True)
@@ -854,6 +876,8 @@ class History:
             self._migrate_v6(path)
         if version < 8:
             self._migrate_v7(path)
+        if version < 9:
+            self._migrate_v8(path)
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
@@ -965,6 +989,17 @@ class History:
             return
         with self._db:
             self._db.execute("ALTER TABLE tickets ADD COLUMN chain TEXT NOT NULL DEFAULT 'lidl'")
+
+    def _migrate_v8(self, path: Path) -> None:
+        """v8 → v9: tabela `chain_pairs` (powstaje ze _SCHEMA); wcześniej kopia `.pre-chain-pairs`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        backup = path.with_name(path.name + ".pre-chain-pairs")
+        dest = sqlite3.connect(backup)
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
 
     def fx_get(self, code: str, day: str) -> float | None:
         row = self._db.execute("SELECT mid FROM fx_rates WHERE code = ? AND day = ?", (code, day)).fetchone()
@@ -2013,16 +2048,104 @@ class History:
         return self._cached(("pl_catalog", limit), lambda: self._pl_catalog(limit))
 
     def _pl_catalog(self, limit: int) -> list[CatalogItem]:
+        return self._catalog(limit, None)
+
+    def _catalog(self, limit: int, chain: str | None) -> list[CatalogItem]:
         since = date.today() - timedelta(days=365)
         last: dict[str, tuple[str, float]] = {}
         spend: dict[str, float] = defaultdict(float)
-        for art_id, name, day, price, paid, _qty, _weight in self._price_rows():
+        for art_id, name, day, price, paid, _qty, _weight in self._price_rows(chain):
             if day < since:
                 continue
             last[art_id] = (name, price)
             spend[art_id] += paid
         ranked = sorted(last, key=lambda a: (-spend[a], a))[:limit]
         return [CatalogItem(a, last[a][0], last[a][1], round(spend[a], 2)) for a in ranked]
+
+    def chain_catalog(self, chain: str, limit: int = 600) -> list[CatalogItem]:
+        """Jak `pl_catalog`, ale tylko produkty jednej sieci (E28.4)."""
+        return self._cached(("chain_catalog", chain, limit), lambda: self._catalog(limit, chain))
+
+    def chain_pending(self) -> list[tuple[str, str]]:
+        """Produkty Biedronki z 365 dni bez wiersza `chain_pairs`: (kod, ostatnia nazwa)."""
+        done = {a for (a,) in self._db.execute("SELECT b_art_id FROM chain_pairs")}
+        return [
+            (c.art_id, c.name) for c in self.chain_catalog("biedronka", limit=10**6) if c.art_id not in done
+        ]
+
+    def ean_matches(self, b_ids: Iterable[str]) -> dict[str, str]:
+        """`b:<EAN>` → kod Lidla (po moście), gdy Lidl ma `n:<EAN>`; EAN to 8–14 cyfr."""
+        resolve = self._resolver()
+        out: dict[str, str] = {}
+        for b_id in b_ids:
+            ean = b_id[2:] if b_id.startswith("b:") else ""
+            if not (ean.isdigit() and 8 <= len(ean) <= 14):
+                continue
+            row = self._db.execute(
+                "SELECT name FROM items WHERE art_id = ? ORDER BY ticket_id DESC LIMIT 1", (f"n:{ean}",)
+            ).fetchone()
+            if row:
+                out[b_id] = resolve(f"n:{ean}", row[0])
+        return out
+
+    def chain_pair_propose(self, b_id: str, candidates: list[str]) -> bool:
+        """Propozycja AI; istniejący wiersz zostaje nietknięty. True = nowy wiersz."""
+        with self._db:
+            cur = self._db.execute(
+                "INSERT OR IGNORE INTO chain_pairs (b_art_id, status, source, candidates)"
+                " VALUES (?, 'proposed', 'ai', ?)",
+                (b_id, json.dumps(candidates)),
+            )
+        return cur.rowcount > 0
+
+    def chain_pair_approve(self, b_id: str, lidl_id: str, source: str) -> None:
+        with self._db:
+            self._db.execute(
+                "INSERT INTO chain_pairs (b_art_id, status, lidl_art_id, source, decided_at)"
+                " VALUES (?, 'approved', ?, ?, ?) ON CONFLICT(b_art_id) DO UPDATE SET status = 'approved',"
+                " lidl_art_id = excluded.lidl_art_id, source = excluded.source,"
+                " decided_at = excluded.decided_at",
+                (b_id, lidl_id, source, datetime.now(UTC).isoformat(timespec="seconds")),
+            )
+
+    def chain_pair_decide(self, b_id: str, action: str, lidl_id: str | None = None) -> bool:
+        """approve (→ `manual`, wymaga `lidl_id`) / reject / undo (→ proposed; para `ean` → rejected,
+        żeby auto-parowanie jej nie przywróciło). False, gdy pary nie ma albo akcja jest zła."""
+        row = self._db.execute("SELECT source FROM chain_pairs WHERE b_art_id = ?", (b_id,)).fetchone()
+        if row is None:
+            return False
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        sql: str
+        args: tuple[str, ...]
+        if action == "approve" and lidl_id:
+            sql, args = (
+                "SET status = 'approved', lidl_art_id = ?, source = 'manual', decided_at = ?",
+                (lidl_id, now),
+            )
+        elif action == "reject":
+            sql, args = "SET status = 'rejected', lidl_art_id = NULL, decided_at = ?", (now,)
+        elif action == "undo" and row[0] == "ean":
+            sql, args = "SET status = 'rejected', lidl_art_id = NULL, decided_at = ?", (now,)
+        elif action == "undo":
+            sql, args = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL", ()
+        else:
+            return False
+        with self._db:
+            self._db.execute(f"UPDATE chain_pairs {sql} WHERE b_art_id = ?", (*args, b_id))
+        return True
+
+    def chain_pair_list(self) -> list[ChainPair]:
+        names: dict[str, str] = {}
+        for art_id, name, *_rest in self._price_rows():
+            names[art_id] = name
+        rows = self._db.execute(
+            "SELECT b_art_id, status, lidl_art_id, source, candidates FROM chain_pairs"
+        ).fetchall()
+        out = [
+            ChainPair(b, names.get(b, b), st, lid, names.get(lid) if lid else None, src, json.loads(c))
+            for b, st, lid, src, c in rows
+        ]
+        return sorted(out, key=lambda p: (p.b_name.lower(), p.b_art_id))
 
     def pair_propose(self, country: str, foreign_name: str, candidates: list[str]) -> bool:
         """Propozycja pary; istniejący wiersz (też zatwierdzony) zostaje nietknięty. True = nowy wiersz."""
