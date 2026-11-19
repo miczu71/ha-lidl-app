@@ -8,6 +8,34 @@
 </form>
 {% endmacro %}
 <div class="stack" id="sieci-body">
+  <section class="card" aria-labelledby="si-c">
+    <h2 class="s" id="si-c">Porównanie</h2>
+    {% if not comparison or not comparison.has_pairs %}
+    <p class="meta">Zatwierdź pierwszą parę, a pokażemy, która sieć jest tańsza.</p>
+    {% else %}
+    <div class="kpi"><span class="kpi__num tnum">{{ comparison.savings_total }}</span><span class="kpi__cap">tyle taniej wyszłoby w ciągu 12 miesięcy po medianie cen drugiej sieci</span></div>
+    <p class="meta tnum">W Lidlu {{ comparison.savings_lidl }} · w Biedronce {{ comparison.savings_biedronka }} · pary obejmują {{ comparison.covered_products }} z {{ comparison.total_products }} produktów Biedronki i {{ comparison.spend_pct }} wydatków</p>
+    <form method="get" action="{{ base }}/sieci" class="row2">
+      {% for value, label in [("", "Wszystkie"), ("food", "Spożywcze"), ("drugstore", "Drogeria"), ("kids", "Dla dzieci"), ("nonfood", "Pozostałe")] %}
+      <button class="ds-chip{% if comparison.category == value %} ds-chip--on{% endif %}" type="submit" name="kat" value="{{ value }}" aria-pressed="{{ 'true' if comparison.category == value else 'false' }}">{{ label }}</button>
+      {% endfor %}
+    </form>
+    {% if comparison.rows %}
+    <table class="mt tnum">
+      <caption class="vh">Ceny w Lidlu i w Biedronce</caption>
+      <thead><tr><th scope="col">Produkt</th><th scope="col" class="r">Lidl: ostatnia / mediana</th><th scope="col" class="r">Biedronka: ostatnia / mediana</th><th scope="col" class="r">Różnica</th><th scope="col">Tańsza</th></tr></thead>
+      <tbody>{% for r in comparison.rows %}<tr><td>{{ r.name }} <span class="meta">→ {{ r.lidl_name }}</span></td><td class="r">{{ r.lidl_last }} / {{ r.lidl_median }} za {{ r.unit }}</td><td class="r">{{ r.b_last }} / {{ r.b_median }} za {{ r.unit }}</td><td class="r">{{ r.diff }}{% if r.wide %} <span class="meta">(z 12 mies.)</span>{% endif %}</td><td>{% if r.cheaper %}<span class="chain-tag chain-tag--{{ r.cheaper }}">{{ r.cheaper_label }}</span>{% else %}{{ r.cheaper_label }}{% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+    {% if comparison.no_price %}
+    <p class="meta"><strong>Bez ceny</strong></p>
+    {% for m in comparison.no_price %}
+    <div class="row2"><span><strong>{{ m.name }}</strong> <span class="meta">→ {{ m.lidl_name }} · brak zakupów w ciągu 12 miesięcy w jednej z sieci</span></span></div>
+    {% endfor %}
+    {% endif %}
+    {% endif %}
+  </section>
+
   <section class="card" aria-labelledby="si-p">
     <h2 class="s" id="si-p">Do zatwierdzenia</h2>
     {% if not proposals %}

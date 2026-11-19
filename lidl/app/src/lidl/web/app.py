@@ -983,7 +983,7 @@ def create_app(settings: Settings) -> FastAPI:
             '<p class="meta" role="status">Import trwa… Propozycje pojawią się po jego zakończeniu.</p>'
         )
 
-    def chains_ctx(history: History) -> dict[str, Any]:
+    def chains_ctx(history: History, kat: str | None = None) -> dict[str, Any]:
         proposals = chains.proposal_cards(history)
         approved, rejected = (
             chains.decided_rows(history, "approved"),
@@ -994,6 +994,7 @@ def create_app(settings: Settings) -> FastAPI:
             "approved": approved,
             "rejected": rejected,
             "any_pairs": bool(proposals or approved or rejected),
+            "comparison": chains.comparison_view(history, chains.category_filter(kat), date.today()),
         }
 
     def chains_history(request: Request) -> History | None:
@@ -1002,12 +1003,16 @@ def create_app(settings: Settings) -> FastAPI:
         return history if len(history.has_chains()) >= 2 else None
 
     @app.get("/sieci")
-    async def chains_page(request: Request) -> Response:
+    async def chains_page(request: Request, kat: str | None = None) -> Response:
         history = chains_history(request)
         if history is None:
             return Response("Brak paragonów z drugiej sieci.", status_code=404)
         return render(
-            request, "chains.html", section="sieci", llm_enabled=settings.llm_enabled, **chains_ctx(history)
+            request,
+            "chains.html",
+            section="sieci",
+            llm_enabled=settings.llm_enabled,
+            **chains_ctx(history, kat),
         )
 
     @app.get("/sieci/szukaj")

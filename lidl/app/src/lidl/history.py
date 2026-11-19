@@ -286,6 +286,8 @@ class PlPrice:
     price: float
     qty: float
     is_weight: bool
+    paid: float = 0.0  # zapłacone za pozycję (po rabatach); tylko `chain_price_rows`
+    chain: str = ""  # sieć paragonu; tylko `chain_price_rows`
 
 
 @dataclass(frozen=True)
@@ -2218,6 +2220,15 @@ class History:
         return [
             PlPrice(art_id, name, day, price, qty, weight)
             for art_id, name, day, price, _paid, qty, weight in self._price_rows()
+            if art_id in art_ids
+        ]
+
+    def chain_price_rows(self, art_ids: set[str]) -> list[PlPrice]:
+        """Zakupy produktów z obu sieci (cena półkowa, zapłacone, sieć) do porównania sieci (E28.4.3)."""
+        return [
+            PlPrice(art_id, name, day, price, qty, weight, paid, chain)
+            for chain in ("lidl", "biedronka")
+            for art_id, name, day, price, paid, qty, weight in self._price_rows(chain)
             if art_id in art_ids
         ]
 
