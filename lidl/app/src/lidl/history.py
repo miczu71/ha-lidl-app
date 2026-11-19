@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS tickets (
     country TEXT NOT NULL DEFAULT 'PL',
     currency TEXT NOT NULL DEFAULT 'PLN',
     total_orig REAL,
-    fx_rate REAL NOT NULL DEFAULT 1
+    fx_rate REAL NOT NULL DEFAULT 1,
+    chain TEXT NOT NULL DEFAULT 'lidl'
 );
 CREATE TABLE IF NOT EXISTS items (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
@@ -847,6 +848,8 @@ class History:
             self._migrate_v5(path)
         if version < 7:
             self._migrate_v6(path)
+        if version < 8:
+            self._migrate_v7(path)
         self._db.executescript(_SCHEMA)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
@@ -944,6 +947,21 @@ class History:
         finally:
             dest.close()
 
+    def _migrate_v7(self, path: Path) -> None:
+        """v7 → v8: sieć paragonu (`tickets.chain`, domyślnie `lidl`); wcześniej kopia `.pre-biedronka`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        backup = path.with_name(path.name + ".pre-biedronka")
+        dest = sqlite3.connect(backup)
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
+        if any(r[1] == "chain" for r in self._db.execute("PRAGMA table_info(tickets)")):
+            return
+        with self._db:
+            self._db.execute("ALTER TABLE tickets ADD COLUMN chain TEXT NOT NULL DEFAULT 'lidl'")
+
     def fx_get(self, code: str, day: str) -> float | None:
         row = self._db.execute("SELECT mid FROM fx_rates WHERE code = ? AND day = ?", (code, day)).fetchone()
         return float(row[0]) if row else None
@@ -962,6 +980,7 @@ class History:
         tickets: list[dict[str, Any]],
         country: str = "PL",
         fx: Callable[[str, str], float | None] | None = None,
+        chain: str = "lidl",
     ) -> int:
         """Dodaje nowe paragony z listy API (zwraca ich liczbę); istniejącym odświeża tylko `articles`.
 
@@ -1003,13 +1022,14 @@ class History:
                     currency,
                     total_orig,
                     rate,
+                    chain,
                 )
             )
         with self._db:
             self._db.executemany(
                 "INSERT INTO tickets (id, account, day, total, savings, coupons_used, store, articles,"
-                " country, currency, total_orig, fx_rate)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                " country, currency, total_orig, fx_rate, chain)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(id) DO UPDATE SET articles = excluded.articles",
                 rows,
             )

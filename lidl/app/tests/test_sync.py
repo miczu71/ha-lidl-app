@@ -424,3 +424,92 @@ async def test_run_for_cz_skips_details_of_italian_receipt_already_stored(histor
     await sync.import_account("a", full=False, countries=("CZ",))
     assert "it-1" not in src.detail_calls
     assert "cz-1" in src.detail_calls
+
+
+class BiedronkaSource:
+    """Atrapa listy Biedronki: offset 0 = świeże, 1 = archiwum, 2 = koniec (HTTP 400)."""
+
+    def __init__(self) -> None:
+        self.list_calls: list[int] = []
+        self.fail_list: Exception | None = None
+
+    async def tickets(self, slug: str, year_offset: int, country: str = "PL") -> list[dict[str, Any]]:
+        self.list_calls.append(year_offset)
+        if self.fail_list:
+            raise self.fail_list
+        if year_offset > 1:
+            raise LidlPlusError("http_400", status=400)
+        tid = "b:11" if year_offset == 0 else "b:22"
+        return [
+            {
+                "id": tid,
+                "date": "2026-10-05T19:39:20+02:00",
+                "totalAmount": 7.0,
+                "savings": 0,
+                "couponsUsedCount": 0,
+                "storeCode": None,
+                "articlesCount": -1,
+            }
+        ]
+
+    async def ticket(self, slug: str, ticket_id: str, country: str = "PL") -> dict[str, Any]:
+        return {
+            "id": ticket_id,
+            "date": "2026-10-05T19:39:20+02:00",
+            "total_price": 7.0,
+            "store_id": "1234",
+            "store_name": "Sklep X",
+            "cashier_id": "7",
+            "payments": [{"name": "Karta"}],
+            "items": [
+                {
+                    "ean": "5900000000001",
+                    "name": "Mleko",
+                    "quantity": 2,
+                    "unit_price": 3.0,
+                    "total_price_without_discount": 6.0,
+                    "total_discount": 0,
+                    "total_price": 6.0,
+                    "measure_unit": "SZT",
+                },
+                {"name": "Kaucja", "total_price": 1.0},
+            ],
+        }
+
+
+def _bsync(source: Any, history: History) -> HistorySync:
+    async def sleep(seconds: float) -> None:
+        return None
+
+    return HistorySync(source, history, pause=0, sleep=sleep, chain_of=lambda slug: "biedronka")
+
+
+async def test_biedronka_import_walks_fresh_and_archive_until_end(history: History) -> None:
+    src = BiedronkaSource()
+    result = await _bsync(src, history).import_account("osoba-2", full=True)
+    assert src.list_calls == [0, 1, 2]
+    assert (result.new_tickets, result.details, result.stopped) == (2, 2, None)
+    chains = dict(history._db.execute("SELECT id, chain FROM tickets").fetchall())
+    assert chains == {"b:11": "biedronka", "b:22": "biedronka"}
+    detail = history.ticket("b:11")
+    assert detail is not None
+    assert [(ln.product, ln.name, ln.total) for ln in detail.lines] == [("b:5900000000001", "Mleko", 6.0)]
+    assert detail.deposit_charged == 1.0 and detail.payment == "Karta"
+    row = history.ticket_row("b:11")
+    assert row is not None and row["store_code"] == "1234" and row["store"] == "Sklep X"
+    raw = history.raw_detail("b:11")
+    assert raw is not None and "cashier_id" not in raw
+
+
+async def test_biedronka_auth_error_stops_with_auth_flag(history: History) -> None:
+    src = BiedronkaSource()
+    src.fail_list = LidlPlusAuthError("unauthorized")
+    result = await _bsync(src, history).import_account("osoba-2", full=True)
+    assert result.stopped == "unauthorized"
+
+
+async def test_default_chain_is_lidl(history: History) -> None:
+    src = FakeSource({0: ["a"]})
+    sync, _ = _sync(src, history)
+    await sync.import_account("osoba-1", full=False)
+    assert history._db.execute("SELECT chain FROM tickets").fetchall() == [("lidl",)]

@@ -20,6 +20,7 @@ from .client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlu
 from .fx import NbpRates, currency_code
 from .history import History, elapsed_ms
 from .receipt import parse_detail, sanitize_detail
+from .receipt_biedronka import parse_biedronka
 from .receipt_html import ParsedReceipt
 from .settings import COUNTRY
 
@@ -73,8 +74,10 @@ class HistorySync:
         extra_countries: tuple[str, ...] = (),
         rates: NbpRates | None = None,
         session: aiohttp.ClientSession | None = None,
+        chain_of: Callable[[str], str] = lambda slug: "lidl",
     ) -> None:
         self._source = source
+        self._chain_of = chain_of
         self._extra = extra_countries  # K1: dodatkowe kraje w przebiegu dziennym (i „Sprawdź teraz”)
         self._rates = rates or NbpRates(history)
         self._session = session
@@ -169,9 +172,12 @@ class HistorySync:
         stopped: str | None = None
         auth = False
         began = monotonic()
+        chain = self._chain_of(slug)
+        if chain == "biedronka":
+            countries = (COUNTRY,)  # Biedronka: tylko Polska
         try:
             try:
-                new = await self._import_lists(slug, full, COUNTRY)
+                new = await self._import_lists(slug, full, COUNTRY, chain)
                 for country in countries:
                     if country != COUNTRY:
                         new += await self._import_lists(slug, full, country)
@@ -194,7 +200,11 @@ class HistorySync:
                                 ticket_id, None, ParsedReceipt(), country=ticket_country
                             )
                         continue
-                    parsed = parse_detail(detail, ticket_country)
+                    parsed = (
+                        parse_biedronka(detail)
+                        if chain == "biedronka"
+                        else parse_detail(detail, ticket_country)
+                    )
                     if not self._history.save_detail(
                         ticket_id,
                         _store_name(detail),
@@ -229,7 +239,7 @@ class HistorySync:
         )
         return SyncResult(new, details, skipped, stopped, unparsed)
 
-    async def _import_lists(self, slug: str, full: bool, country: str = COUNTRY) -> int:
+    async def _import_lists(self, slug: str, full: bool, country: str = COUNTRY, chain: str = "lidl") -> int:
         new = 0
         for offset in range(MAX_YEAR_OFFSET if full else 1):
             try:
@@ -242,7 +252,7 @@ class HistorySync:
                     break
                 raise
             if country == COUNTRY:
-                new += self._history.upsert_tickets(slug, batch)
+                new += self._history.upsert_tickets(slug, batch, chain=chain)
                 continue
             codes = [(currency_code(t.get("currency"), country), str(t["date"])[:10]) for t in batch]
             await self._rates.prefetch(codes, self._session)
@@ -253,4 +263,5 @@ class HistorySync:
 def _store_name(detail: dict[str, Any]) -> str | None:
     store = detail.get("store")
     name = store.get("name") if isinstance(store, dict) else None
+    name = name or detail.get("store_name")
     return str(name) if name else None

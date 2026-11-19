@@ -16,6 +16,7 @@ from typing import Any
 
 from .client.auth import jwt_payload
 
+CHAINS = ("lidl", "biedronka")
 _SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
 
 
@@ -36,6 +37,7 @@ class Account:
     label: str
     access_token: str | None = None
     refresh_token: str | None = None
+    chain: str = "lidl"
 
     @property
     def connected(self) -> bool:
@@ -76,9 +78,11 @@ class AccountStore:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as err:
             raise KeyError(slug) from err
+        chain = data.get("chain")
         return Account(
             slug=slug,
             label=str(data.get("label") or slug),
+            chain=chain if chain in CHAINS else "lidl",
             access_token=data.get("access_token"),
             refresh_token=data.get("refresh_token"),
         )
@@ -94,15 +98,17 @@ class AccountStore:
                 continue
         return accounts
 
-    def create(self, label: str) -> Account:
+    def create(self, label: str, chain: str = "lidl") -> Account:
+        if chain not in CHAINS:
+            raise ValueError("bad_chain")
         label = label.strip()[:40]
         base = slugify(label)
         slug, n = base, 2
         while self._path(slug).exists():
             slug = f"{base[:29]}-{n}"
             n += 1
-        self._write(slug, {"label": label})
-        return Account(slug=slug, label=label)
+        self._write(slug, {"label": label, "chain": chain})
+        return Account(slug=slug, label=label, chain=chain)
 
     def save_tokens(self, slug: str, tokens: dict[str, str]) -> None:
         account = self.get(slug)
@@ -110,6 +116,7 @@ class AccountStore:
             slug,
             {
                 "label": account.label,
+                "chain": account.chain,
                 "access_token": tokens["access_token"],
                 "refresh_token": tokens["refresh_token"],
             },

@@ -21,6 +21,8 @@ PARSER_VERSION = 3
 _DROP_KEYS = {
     "cardInfo", "rawPaymentInformationHTML", "operatorId", "isEmployee", "fiscalDataAt", "fiscalDataCZ",
     "fiscalDataDe", "ustIdNr", "barCode", "codes", "logoUrl", "watermarkUrl",
+    "receipt_barcode", "extended_transaction_number", "cashier_id", "basket_id", "invoice_id",
+    "id_from_receipt",
 }  # fmt: skip
 _CARD_NUMBER = re.compile(r"\*{2,}\s?\d{2,4}|(?:\d{4}[ -]){3}\d{2,4}")
 

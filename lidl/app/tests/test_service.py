@@ -102,3 +102,90 @@ async def test_api_save_tokens_callback_stores_and_clears_cache(tmp_path: Path, 
         await pl.kwargs["save_tokens"]({"access_token": "a2", "refresh_token": "r2"})
         assert store.get(acc.slug).refresh_token == "r2"
         assert svc._apis == {}
+
+
+class _FakeBiedronka:
+    instances: list[_FakeBiedronka] = []
+
+    def __init__(self, session: object, access: str, refresh: str, save: Any = None) -> None:
+        self.calls: list[tuple[Any, ...]] = []
+        _FakeBiedronka.instances.append(self)
+
+    async def list_all(self, *, archived: bool, max_pages: int) -> list[dict[str, Any]]:
+        self.calls.append(("list", archived, max_pages))
+        return [{"id": 5, "date": "2026-10-05T10:00:00+02:00", "total_price": 9.5}, {"id": None}]
+
+    async def transaction_details(self, tid: str) -> dict[str, Any]:
+        self.calls.append(("detail", tid))
+        return {"id": tid}
+
+    async def transactions(self, page: int) -> dict[str, Any]:
+        self.calls.append(("check", page))
+        return {}
+
+
+async def _biedronka_service(
+    tmp_path: Path, monkeypatch, session: aiohttp.ClientSession
+) -> tuple[LidlService, str]:
+    store = AccountStore(tmp_path)
+    acc = store.create("Osoba 2", chain="biedronka")
+    store.save_tokens(acc.slug, {"access_token": "a", "refresh_token": "r"})
+    _FakeBiedronka.instances.clear()
+    monkeypatch.setattr("lidl.service.BiedronkaApi", _FakeBiedronka)
+    return LidlService(store, session), acc.slug
+
+
+async def test_biedronka_tickets_routing_and_end_of_history(tmp_path: Path, monkeypatch) -> None:
+    from lidl.client.exceptions import LidlPlusError
+
+    async with aiohttp.ClientSession() as session:
+        svc, slug = await _biedronka_service(tmp_path, monkeypatch, session)
+        fresh = await svc.tickets(slug, 0)
+        assert fresh == [
+            {
+                "id": "b:5",
+                "date": "2026-10-05T10:00:00+02:00",
+                "totalAmount": 9.5,
+                "savings": 0,
+                "couponsUsedCount": 0,
+                "storeCode": None,
+                "articlesCount": -1,
+            }
+        ]
+        await svc.tickets(slug, 1)
+        api = _FakeBiedronka.instances[0]
+        assert api.calls == [("list", False, 20), ("list", True, 50)]
+        with pytest.raises(LidlPlusError) as err:
+            await svc.tickets(slug, 2)
+        assert err.value.status == 400
+
+
+async def test_biedronka_ticket_strips_prefix_and_check_lists_page(tmp_path: Path, monkeypatch) -> None:
+    async with aiohttp.ClientSession() as session:
+        svc, slug = await _biedronka_service(tmp_path, monkeypatch, session)
+        assert await svc.ticket(slug, "b:5") == {"id": "5"}
+        await svc.check(slug)
+        assert _FakeBiedronka.instances[0].calls == [("detail", "5"), ("check", 1)]
+
+
+async def test_biedronka_account_rejects_lidl_only_calls(tmp_path: Path, monkeypatch) -> None:
+    from lidl.client.exceptions import LidlPlusError
+
+    async with aiohttp.ClientSession() as session:
+        svc, slug = await _biedronka_service(tmp_path, monkeypatch, session)
+        for call in (
+            svc.promotions(slug),
+            svc.lotteries(slug),
+            svc.coupon_plus(slug),
+            svc.activate(slug, "c"),
+        ):
+            with pytest.raises(LidlPlusError, match="not_supported"):
+                await call
+
+
+async def test_biedronka_login_uses_biedronka_pkce(tmp_path: Path) -> None:
+    store = AccountStore(tmp_path)
+    acc = store.create("Osoba 2", chain="biedronka")
+    async with aiohttp.ClientSession() as session:
+        svc = LidlService(store, session)
+        assert "konto.biedronka.pl" in svc.begin_login(acc.slug)
