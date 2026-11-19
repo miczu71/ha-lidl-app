@@ -64,3 +64,32 @@ w aplikacji Biedronki unieważnia sesję. W repo cofam tylko commity docs.
 ## Weryfikacja
 `report` wypisuje wszystkie miary bez błędów. Liczba transakcji i suma ostatniego miesiąca zgadzają się z aplikacją Moja
 Biedronka (sprawdzasz na telefonie). W `rotation.log` widać udane odświeżenie po >1 h.
+
+---
+
+## Stan E28.0 (2026-11-19, wstrzymany)
+
+**Zrobione i działa** (`~/dev/biedronka-spike`, `spike.py login|code|dump|refresh|report`):
+- Logowanie PKCE: kod wymieniany od razu po skopiowaniu (kod żyje ~1 min; po minucie `invalid_grant`). Tokeny w `~/.secrets/biedronka_osoba1.json`.
+- Sesja: access ~24 h, **refresh 120 dni** (okno `exp - iat`) → bramka sesji spełniona.
+- Kody EAN Lidla (3 417, `n:<EAN>`) wyeksportowane do `data/lidl_codes.txt` (SELECT z `/data/history.db` add-onu, tylko odczyt).
+
+**Blokada bramki historii:**
+- `consents.ereceipt_consents` było `False` (włączone przez usera 2026-11-19, serwer już widzi `True`), a `transactions/?page=1` nadal zwraca 0 (`page_count: 0`). Stare zakupy nie pojawiły się wstecznie.
+- User widzi starsze zakupy w aplikacji po „zobacz starsze zakupy” i w panelu web (`moja.biedronka.pl/panel/ajax/paragons`, POST, sesja PHP w ciasteczku — **inny system niż API aplikacji, nie nadaje się do add-onu**).
+- Nie znamy endpointu/parametrów, których aplikacja używa dla starszych zakupów. Próby bez skutku: 9 wariantów parametrów dat na `transactions/` (serwer je ignoruje), 13 zgadywanych ścieżek (`purchases/`, `receipts/`, `users/me/transactions/` …), `dashboards/dashboard/` bez wskazówek.
+
+## E28.0a Analiza aplikacji Biedronki (zrobić w osobnej rozmowie)
+Cel: znaleźć w kodzie aplikacji endpoint i parametry „zobacz starsze zakupy” (i czy to ta sama baza co `transactions/`), potem sprawdzić je tokenem z `spike.py`.
+
+1. **Pobrać APK Moja Biedronka** (wersja z telefonu usera): APKMirror/APKPure albo na PC z `adb`: `adb shell pm path <pakiet>` + `adb pull`. Zapisać w `~/dev/biedronka-apk/`. Plik z sieci jest niezaufany: tylko analiza statyczna, nic nie uruchamiać, hash SHA-256 do notatki.
+2. **Zainstalować zależności w `~/.local`** (nie w obrazie; kontener ma Debian 12, bez Javy i bez `adb`):
+   - JDK 17+ (pełny, z `jdk.compiler`), np. Temurin w `~/.local/jdk`, `JAVA_HOME` ustawić w `~/.bashrc`.
+   - Wariant **A (REA)**: `jadx-headless-mcp` 0.7.1 (JAR, REA go nie pobiera; źródło do ustalenia), `REA_JADX_MCP_JAR=<abs>`; sprawdzić `npx -y rea-agents@6.8.0 doctor --provider jadx --json` (doctor zgłasza też Node 22.23.2 < wymaganego 22.23.4 — sprawdzić, czy blokuje).
+   - Wariant **B (zapasowy)**: zwykły `jadx` (wydania skylot/jadx na GitHubie, `~/.local/jadx`), dekompilacja do katalogu i grep po `transactions`, `older`, daty. Do wyboru, gdy JAR dla REA jest nieosiągalny.
+   - `adb` nie jest potrzebny, jeśli APK dostarcza user.
+3. **Analiza:** `inspect_android_package` → `search_android_classes` (`Transaction`, `Receipt`, `Purchase`, `History`) → `inspect_android_method` / `trace_android_references`. Jeśli aplikacja okaże się Flutter/React Native, logika jest w pakiecie Dart/JS — wtedy `analyze_javascript_application` albo `inspect_dart_aot`.
+4. **Weryfikacja:** nowy endpoint wywołać tokenem osoba1 (tylko GET), wynik: liczba transakcji i najstarsza data, bez wartości. Bramka: ≥ ~12 mies. historii i EAN w pozycjach.
+5. **Plan awaryjny**, jeśli historii wstecz nie da się pobrać: zbieranie paragonów od dnia włączenia e-paragonów; E28 zachowuje wartość (od teraz), ale bez historii wstecz — zmiana zakresu do uzgodnienia z userem.
+
+**Higiena:** user wkleił w czacie nagłówki żądania z ciasteczkiem `PHPSESSID` panelu web — wylogowanie z `moja.biedronka.pl` zalecone (potwierdzić). Nie wklejać nagłówków ani ciasteczek, tylko sam Request URL.
