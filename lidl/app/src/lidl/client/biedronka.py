@@ -267,6 +267,10 @@ class BiedronkaApi:
     async def carousel(self, carousel_id: str) -> Any:
         return await self.request(f"promos/carousels/{carousel_id}/")
 
+    async def reveal_and_activate(self, offer_id: str) -> Any:
+        """Odsłania i aktywuje ofertę Shakeomatu/Shakeomarki (zapis na koncie, PATCH)."""
+        return await self.request(f"offers/{offer_id}/reveal-and-activate/", method="PATCH")
+
     async def list_all(self, *, archived: bool, max_pages: int) -> list[dict[str, Any]]:
         """Wszystkie strony listy (do `page_count`, najwyżej `max_pages`)."""
         out: list[dict[str, Any]] = []

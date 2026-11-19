@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 import aiohttp
 
-from .chain_savings import URGENT_DAYS, SavedSaving, local_date
+from .chain_savings import URGENT_DAYS, SavedSaving, ShakeResult, local_date
 from .coupons import AccountReport, ActiveCoupon
 from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
@@ -38,6 +38,7 @@ TAG = "lidl-kupony"  # nowe powiadomienie zastępuje poprzednie
 TAG_SCRATCH = "lidl-zdrapki"  # wieczorne przypomnienie nie zastępuje porannego
 TAG_WATCHED = "lidl-obserwowane"  # obserwowane produkty (E15) obok porannego, nie zamiast niego
 TAG_MONTH = "lidl-podsumowanie"  # podsumowanie miesiąca (E19)
+TAG_SHAKEOMAT = "biedronka-shakeomat"  # wynik porannego Shakeomatu Biedronki (E28.5.4)
 TAG_ALERT = "lidl-alert"  # problem techniczny (E23.3), do usługi z opcji alert_notify
 
 
@@ -82,6 +83,20 @@ def bdr_line(rows: list[SavedSaving], today: date) -> str | None:
     if offers:
         parts.append(count_text(offers, "oferta", "oferty", "ofert") + " Tylko dla Ciebie")
     return "Biedronka: " + " · ".join(parts)
+
+
+def compose_shakeomat(results: list[ShakeResult], labels: dict[str, str]) -> tuple[str, str] | None:
+    """Wynik porannego Shakeomatu: po linii na konto; None, gdy nic nie próbowano."""
+    tried = [r for r in results if r.done or r.failed]
+    if not tried:
+        return None
+    lines = []
+    for r in tried:
+        label = labels.get(r.slug, r.slug)
+        lines.append(f"{label}: odsłonięto {r.done}" + (f", błąd: {'; '.join(r.failed)}" if r.failed else ""))
+    failed = any(r.failed for r in tried)
+    title = "Biedronka: Shakeomat — nie wszystko się udało" if failed else "Biedronka: Shakeomat odsłonięty"
+    return title, "\n".join(lines)
 
 
 def compose(

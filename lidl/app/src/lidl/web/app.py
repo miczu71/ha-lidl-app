@@ -191,6 +191,11 @@ def create_app(settings: Settings) -> FastAPI:
                 history,
                 session,
                 dry_run=not settings.auto_activate,
+                shakeomat=(
+                    (lambda: chain_savings.shake_accounts(history, service, date.today()))
+                    if settings.biedronka_auto_shakeomat
+                    else None
+                ),
             )
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.feed = feed
@@ -1033,7 +1038,7 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     @app.get("/biedronka")
-    async def bdr_savings_page(request: Request) -> Response:
+    async def bdr_savings_page(request: Request, m: str | None = None) -> Response:
         history: History = request.app.state.history
         if "biedronka" not in history.has_chains():
             return Response("Brak konta Biedronki.", status_code=404)
@@ -1042,7 +1047,23 @@ def create_app(settings: Settings) -> FastAPI:
             "bdr_savings.html",
             section="biedronka",
             view=bdr_savings.build(history.savings_list(), date.today()),
+            message=bdr_savings.MESSAGES.get(m or ""),
+            auto_shakeomat=settings.biedronka_auto_shakeomat,
         )
+
+    @app.post("/biedronka/shakeomat")
+    async def bdr_shakeomat(request: Request) -> Response:
+        history: History = request.app.state.history
+        if "biedronka" not in history.has_chains():
+            return Response("Brak konta Biedronki.", status_code=404)
+        results = await chain_savings.shake_accounts(history, service(request), date.today())
+        if any(r.failed for r in results):
+            code = "shake_err"
+        elif any(r.done for r in results):
+            code = "shake_ok"
+        else:
+            code = "shake_none"
+        return go(request, f"/biedronka?m={code}")
 
     @app.get("/sieci/szukaj")
     async def chains_search(request: Request, b: str = "", q: str = "") -> Response:

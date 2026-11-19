@@ -7,6 +7,10 @@ configuration:
     description: >-
       Activates general coupons and coupons for products from the Coupons tab on every account. Off = dry run:
       the panel and notification only show what would be activated.
+  biedronka_auto_shakeomat:
+    name: Automatic Biedronka Shakeomat
+    description: >-
+      Every morning reveals the Shakeomat and Shakeomarka on Biedronka accounts (a write to the account, unofficial API) and sends the result to notify.family. Off = only the Reveal now button in the Oszczędzanie tab.
   run_time:
     name: Daily run time
     description: >-

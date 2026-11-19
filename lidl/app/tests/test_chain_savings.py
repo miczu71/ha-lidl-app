@@ -155,3 +155,63 @@ def test_schema_v10_makes_backup(tmp_path: Path) -> None:
     db.close()
     History(path)
     assert (tmp_path / "h.db.pre-chain-savings").exists()
+
+
+class ShakeApi(FakeApi):
+    def __init__(self, fail_ids: set[str] | None = None) -> None:
+        super().__init__()
+        self.revealed: list[str] = []
+        self.fail_ids = fail_ids or set()
+
+    async def reveal_and_activate(self, offer_id: str) -> Any:
+        if offer_id in self.fail_ids:
+            raise LidlPlusError("http_409", status=409)
+        self.revealed.append(offer_id)
+        return {"ok": True}
+
+
+def _shake_rows(h: History) -> None:
+    h.savings_replace(
+        "a",
+        {"shakeomat"},
+        [
+            Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, "2099-01-01T00:00:00Z", {}),
+            Saving("shakeomat", "sh-old", "Shakeomat", None, None, None, "2020-01-01T00:00:00Z", {}),
+            Saving("shakeomat", "sh-2", "Shakeomat", None, None, None, None, {}),
+        ],
+    )
+
+
+async def test_shake_reveals_only_current_and_refreshes(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    _shake_rows(h)
+    api = ShakeApi()
+    result = await chain_savings.shake(h, "a", api, date(2026, 11, 19))  # type: ignore[arg-type]
+    assert sorted(api.revealed) == ["sh-1", "sh-2"]
+    assert (result.done, result.failed) == (2, [])
+    assert "dashboard" in api.calls  # migawka odświeżona po odsłonięciu
+
+
+async def test_shake_reports_failures_and_logs_event(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    _shake_rows(h)
+    api = ShakeApi(fail_ids={"sh-1"})
+    result = await chain_savings.shake(h, "a", api, date(2026, 11, 19))  # type: ignore[arg-type]
+    assert result.done == 1 and len(result.failed) == 1 and "http_409" in result.failed[0]
+    from datetime import datetime
+
+    [event] = h.events(datetime(2000, 1, 1), area="daily")
+    assert (event.level, event.detail["run"]) == ("error", "shakeomat")
+
+
+async def test_shake_without_offer_does_nothing(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    api = ShakeApi()
+    result = await chain_savings.shake(h, "a", api, date(2026, 11, 19))  # type: ignore[arg-type]
+    assert (result.done, result.failed, api.revealed, api.calls) == (0, [], [], [])

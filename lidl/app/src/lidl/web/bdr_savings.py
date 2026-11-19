@@ -9,6 +9,12 @@ from typing import Any
 from lidl.chain_savings import URGENT_DAYS, SavedSaving, local_date
 from lidl.text import fmt_pln
 
+MESSAGES = {
+    "shake_ok": ("ok", "Shakeomat odsłonięty. Nowe oferty widać niżej po odświeżeniu migawki."),
+    "shake_none": ("info", "Brak dzisiejszego Shakeomatu do odsłonięcia."),
+    "shake_err": ("err", "Nie wszystko się udało. Szczegóły są w zakładce Status."),
+}
+
 
 @dataclass
 class SavingsView:

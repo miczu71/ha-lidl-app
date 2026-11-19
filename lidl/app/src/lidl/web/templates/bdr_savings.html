@@ -6,9 +6,14 @@
   <p class="lead">Vouchery i oferty „Tylko dla Ciebie” z konta Biedronki, stan z ostatniego importu.</p>
 </div>
 
+{% if message %}
+<p class="notice notice--{{ message[0] }}" role="status"><span>{{ message[1] }}</span></p>
+{% endif %}
+
 {% if view.shakeomat %}
 <div class="bdr-saving" role="status">
-  <span><strong>Shakeomat dostępny</strong><br><span class="meta">Oferta jest na koncie w ostatniej migawce; odsłonisz ją w aplikacji Moja Biedronka.</span></span>
+  <span><strong>Shakeomat dostępny</strong><br><span class="meta">{% if auto_shakeomat %}Odsłoni się sam rano po imporcie.{% else %}Odsłoń go tutaj albo w aplikacji Moja Biedronka.{% endif %}</span></span>
+  <form method="post" action="{{ base }}/biedronka/shakeomat"><button class="ds-btn" type="submit">Odsłoń teraz</button></form>
 </div>
 {% endif %}
 

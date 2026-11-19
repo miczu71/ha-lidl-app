@@ -16,6 +16,7 @@ import aiohttp
 
 from . import notify
 from .accounts import AccountStore
+from .chain_savings import ShakeResult
 from .coupons import CouponRunner
 from .geo import refresh_store_geo
 from .history import History, elapsed_ms
@@ -114,7 +115,9 @@ class DailyJob:
         session: aiohttp.ClientSession,
         *,
         dry_run: bool,
+        shakeomat: Callable[[], Awaitable[list[ShakeResult]]] | None = None,
     ) -> None:
+        self._shakeomat = shakeomat  # E28.5.4: tylko przy opcji biedronka_auto_shakeomat
         self._store, self._sync, self._runner, self._rewards = store, sync, runner, rewards
         self._promotions, self._history = promotions, history
         self._session = session
@@ -146,6 +149,9 @@ class DailyJob:
             await self._promotions.refresh()
             step = "kupony"  # z nagrodami i powiadomieniem
             report.update(await self._coupons(accounts))
+            if self._shakeomat is not None:
+                step = "shakeomat"  # po imporcie: migawka ma dzisiejszą ofertę
+                await self._morning_shakeomat(self._shakeomat)
             step = "sklepy"  # nowy sklep z dzisiejszych paragonów, na końcu
             await refresh_store_geo(self._session, self._history)
         except Exception as err:
@@ -162,6 +168,12 @@ class DailyJob:
             + ("powiadomienie wysłane" if report["notified"] else "bez powiadomienia"),
             report, duration_ms=elapsed_ms(began),
         )  # fmt: skip
+
+    async def _morning_shakeomat(self, run: Callable[[], Awaitable[list[ShakeResult]]]) -> None:
+        labels = {a.slug: a.label for a in self._store.list()}
+        message = notify.compose_shakeomat(await run(), labels)
+        if message:
+            await notify.send(self._session, message, tag=notify.TAG_SHAKEOMAT)
 
     async def hourly(self) -> None:
         """Godzinny import paragonów (E24): bez kuponów i powiadomień; pomija, gdy trwa poranny przebieg.

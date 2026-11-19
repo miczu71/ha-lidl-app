@@ -24,6 +24,7 @@ class Settings:
     log_level: str
     dev: bool
     auto_activate: bool = False
+    biedronka_auto_shakeomat: bool = False
     run_time: time = DEFAULT_RUN_TIME
     llm_url: str = ""
     llm_key: str = field(default="", repr=False)
@@ -67,6 +68,7 @@ def load_settings() -> Settings:
         log_level=str(options.get("log_level", "info")),
         dev=os.environ.get("LIDL_DEV") == "1",
         auto_activate=options.get("auto_activate") is True,
+        biedronka_auto_shakeomat=options.get("biedronka_auto_shakeomat") is True,
         run_time=(  # format HH:MM pilnuje schema w config.yaml
             time.fromisoformat(str(options["run_time"])) if "run_time" in options else DEFAULT_RUN_TIME
         ),

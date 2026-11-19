@@ -103,6 +103,9 @@ widać ją jako „odłożoną”.
 
 - **Poziom logów** — debug nie wypisuje tokenów ani kodów logowania.
 - **Automatyczna aktywacja kuponów** — wyłączona = tryb próbny (patrz wyżej).
+- **Automatyczny Shakeomat Biedronki** — domyślnie wyłączony. Włączony: rano po imporcie odsłania Shakeomat
+  i Shakeomarkę na kontach Biedronki (zapis na koncie przez nieoficjalne API) i wysyła wynik na `notify.family`.
+  Bez tej opcji zostaje przycisk „Odsłoń teraz” w zakładce Oszczędzanie.
 - **Godzina dziennego przebiegu** — GG:MM, czas lokalny; paragony, kupony i powiadomienie.
 - **Dodatkowe kraje** (`extra_countries`) — kody krajów, z których pobieramy e-paragony po przełączeniu kraju
   w Lidl Plus, np. `CZ`, `IT`. Wystarcza jedno logowanie. Pusta lista = tylko Polska. Import raz dziennie

@@ -51,7 +51,7 @@ class FakeSession:
         self.post_calls: list[dict[str, Any]] = []
 
     def request(self, method: str, url: str, **kw: Any) -> Resp:
-        self.get_calls.append({"url": url, **kw})
+        self.get_calls.append({"url": url, "method": method, **kw})
         item = self.gets.pop(0)
         if isinstance(item, Exception):
             raise item
@@ -182,3 +182,13 @@ async def test_savings_endpoints_paths() -> None:
         "dashboards/dashboard/",
         "promos/carousels/abc/",
     ]
+
+
+async def test_reveal_and_activate_uses_patch_and_keeps_method_on_401_retry() -> None:
+    new = _jwt(time.time() + 3600)
+    s = FakeSession(
+        [Resp(401), Resp(200, {"ok": 1})], [Resp(200, {"access_token": new, "refresh_token": "r1"})]
+    )
+    assert await _api(s).reveal_and_activate("of-1") == {"ok": 1}
+    assert [c["url"].split("/api/v7/")[-1] for c in s.get_calls] == ["offers/of-1/reveal-and-activate/"] * 2
+    assert all(c["method"] == "PATCH" for c in s.get_calls)

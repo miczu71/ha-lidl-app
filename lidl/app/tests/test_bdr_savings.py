@@ -103,3 +103,27 @@ def test_route_lists_vouchers_and_offers(client: TestClient) -> None:
     )
     text = client.get("/biedronka").text
     assert "Rabat 5 zł" in text and "Mleko 1l" in text and "3,49" in text
+
+
+def test_shakeomat_button_runs_reveal_and_redirects(client: TestClient, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    h = _with_biedronka(client)
+    h.savings_replace("b", {"shakeomat"}, [_s("shakeomat", "sh1", "Shakeomat", "2099-01-01T00:00:00Z")])
+    from lidl import chain_savings
+
+    calls: list[str] = []
+
+    async def fake(history, service, today):  # type: ignore[no-untyped-def]
+        calls.append("x")
+        return [chain_savings.ShakeResult("b", 1)]
+
+    monkeypatch.setattr(chain_savings, "shake_accounts", fake)
+    page = client.get("/biedronka").text
+    assert "Odsłoń teraz" in page and 'action="/biedronka/shakeomat"' in page
+    r = client.post("/biedronka/shakeomat")
+    assert r.status_code == 303 and r.headers["location"].endswith("/biedronka?m=shake_ok")
+    assert calls == ["x"]
+    assert "Shakeomat odsłonięty." in client.get("/biedronka?m=shake_ok").text
+
+
+def test_shakeomat_post_404_without_biedronka(client: TestClient) -> None:
+    assert client.post("/biedronka/shakeomat").status_code == 404

@@ -7,6 +7,10 @@ configuration:
     description: >-
       Aktywuje na każdym koncie kupony ogólne i kupony na produkty z zakładki Kupony. Wyłączone = tryb
       próbny: panel i powiadomienie pokazują tylko, co zostałoby aktywowane.
+  biedronka_auto_shakeomat:
+    name: Automatyczny Shakeomat Biedronki
+    description: >-
+      Każdego ranka odsłania Shakeomat i Shakeomarkę na kontach Biedronki (zapis na koncie, nieoficjalne API) i wysyła wynik na notify.family. Wyłączone = tylko przycisk „Odsłoń teraz” w zakładce Oszczędzanie.
   run_time:
     name: Godzina dziennego przebiegu
     description: >-

@@ -460,3 +460,33 @@ async def test_hourly_loop_does_not_repeat_an_hour_when_woken_early() -> None:
     with pytest.raises(asyncio.CancelledError):
         await hourly_loop(job, time(7, 0), now=lambda: clock[0], sleep=sleep)
     assert calls == 2 and waits[1] > 3500  # po 9:00 czekamy do 10:00, nie 0,1 s do „tej samej” 9:00
+
+
+async def test_morning_shakeomat_runs_only_when_enabled_and_pushes_with_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lidl.chain_savings import ShakeResult
+
+    sent: list[tuple[str, str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        sent.append((*message, tag))
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    ran: list[str] = []
+
+    async def shake() -> list[ShakeResult]:
+        ran.append("shake")
+        return [ShakeResult("b", 1)]
+
+    job = _job([])
+    await job()
+    assert ran == [] and not any(t == notify.TAG_SHAKEOMAT for *_, t in sent)  # opcja off = brak kroku
+
+    sent.clear()
+    job = _job([])
+    job._shakeomat = shake  # type: ignore[assignment]
+    await job()
+    assert ran == ["shake"]
+    assert [t for *_, t in sent if t == notify.TAG_SHAKEOMAT] == [notify.TAG_SHAKEOMAT]

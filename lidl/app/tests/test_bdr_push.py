@@ -63,3 +63,20 @@ def test_compose_adds_line_and_sends_alone() -> None:
     alone = notify.compose({}, None, dry_run=False, today=TODAY, bdr=line)
     assert alone == ("Lidl: voucher Biedronki wygasa", line)
     assert notify.compose({}, None, dry_run=False, today=TODAY) is None
+
+
+def test_compose_shakeomat() -> None:
+    from lidl.chain_savings import ShakeResult
+
+    labels = {"b": "Osoba 2"}
+    assert notify.compose_shakeomat([], labels) is None
+    assert notify.compose_shakeomat([ShakeResult("b")], labels) is None
+    assert notify.compose_shakeomat([ShakeResult("b", 1)], labels) == (
+        "Biedronka: Shakeomat odsłonięty",
+        "Osoba 2: odsłonięto 1",
+    )
+    title, body = notify.compose_shakeomat([ShakeResult("b", 0, ["LidlPlusError: http_409"])], labels) or (
+        "",
+        "",
+    )
+    assert "nie wszystko" in title and "http_409" in body

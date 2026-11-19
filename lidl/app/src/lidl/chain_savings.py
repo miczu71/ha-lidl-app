@@ -201,3 +201,68 @@ async def refresh(history: History, slug: str, api: Any) -> FetchResult:
         log.warning("Oszczędzanie Biedronki (%s): %s", slug, error)
         history.log_event("sync", "error", f"Oszczędzanie Biedronki: {error}", {"account": slug})
     return result
+
+
+def _current(valid_to: str | None, today: date) -> bool:
+    end = local_date(valid_to)
+    return end is None or end >= today
+
+
+@dataclass
+class ShakeResult:
+    slug: str
+    done: int = 0
+    failed: list[str] = field(default_factory=list)
+
+
+async def shake(history: History, slug: str, api: Any, today: date) -> ShakeResult:
+    """Odsłania bieżące oferty Shakeomatu z migawki konta (zapis na koncie: przycisk albo opcja auto).
+
+    Błąd jednej oferty nie przerywa pozostałych; błędy trafiają do dziennika (Status), bez treści odpowiedzi.
+    Po udanym odsłonięciu migawka jest odświeżana, żeby panel pokazał nowe oferty."""
+    result = ShakeResult(slug)
+    ids = [
+        r.ext_id
+        for r in history.savings_list()
+        if r.slug == slug
+        and r.kind == "shakeomat"
+        and ((end := local_date(r.valid_to)) is None or end >= today)
+    ]
+    for offer_id in ids:
+        try:
+            await api.reveal_and_activate(offer_id)
+            result.done += 1
+        except Exception as err:
+            result.failed.append(f"{type(err).__name__}: {err}")
+    if result.done:
+        try:
+            await refresh(history, slug, api)
+        except Exception:
+            log.exception("Oszczędzanie Biedronki: odświeżenie po Shakeomacie nieudane")
+    if ids:
+        history.log_event(
+            "daily",
+            "error" if result.failed else "ok",
+            f"Shakeomat Biedronki: odsłonięto {result.done} z {len(ids)}"
+            + (f" ({'; '.join(result.failed)})" if result.failed else ""),
+            {"run": "shakeomat", "account": slug, "done": result.done, "failed": len(result.failed)},
+        )
+    return result
+
+
+async def shake_accounts(history: History, service: Any, today: date) -> list[ShakeResult]:
+    """Shakeomat na wszystkich połączonych kontach Biedronki; błąd konta nie zatrzymuje pozostałych."""
+    results: list[ShakeResult] = []
+    for account in service.store.list():
+        if account.chain != "biedronka" or not account.connected:
+            continue
+        try:
+            api = await service.chain_api(account.slug)
+            results.append(await shake(history, account.slug, api, today))
+        except Exception as err:
+            log.exception("Shakeomat Biedronki (%s) nieudany", account.slug)
+            history.log_event(
+                "daily", "error", f"Shakeomat Biedronki: {err}", {"run": "shakeomat", "account": account.slug}
+            )
+            results.append(ShakeResult(account.slug, 0, [f"{type(err).__name__}: {err}"]))
+    return results
