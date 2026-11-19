@@ -1467,3 +1467,17 @@ def test_months_and_other_views_keep_chain(client: TestClient) -> None:
     assert "w Lidlu i Biedronce" in client.get(f"/miesiace?m={month}").text
     for path in ("/ceny", "/rytm", "/oszczednosci"):
         assert client.get(f"{path}?siec=biedronka").status_code == 200
+
+
+def test_unknown_chain_ignored_in_all_views(client: TestClient) -> None:
+    _connect(client)
+    _two_chains(client)
+    for path in ("/ceny", "/rytm", "/oszczednosci", "/miesiace"):
+        assert client.get(f"{path}?siec=nieznana").status_code == 200
+
+
+def test_months_jump_to_chain_month(client: TestClient) -> None:
+    _connect(client)
+    _two_chains(client)
+    text = client.get("/miesiace?m=2020-01&siec=biedronka").text
+    assert "w Biedronce" in text  # z miesiąca bez zakupów trafia do najnowszego z zakupami

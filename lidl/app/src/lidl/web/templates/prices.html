@@ -52,6 +52,7 @@
   {# pole poza formularzem (jak na Produktach): jego „change” przy utracie fokusu nie wysyła formularza #}
   {{ search_input(q, "Szukaj produktu", "np. masło, kawa, banany", base ~ "/ceny", "ceny-wyniki", form="filtry-cen") }}
   <form class="ctl" id="filtry-cen" method="get" action="{{ base }}/ceny" hx-get="{{ base }}/ceny" hx-trigger="change, submit" hx-target="#ceny-wyniki" hx-select="#ceny-wyniki" hx-swap="outerHTML" hx-indicator="#ceny-wyniki" hx-replace-url="true" hx-sync="this:replace">
+    {% if chain %}<input type="hidden" name="siec" value="{{ chain }}">{% endif %}
     <fieldset>
       <legend>Kolejność</legend>
       <div class="seg seg--narrow">

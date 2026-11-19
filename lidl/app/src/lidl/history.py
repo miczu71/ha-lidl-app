@@ -2190,10 +2190,7 @@ class History:
 
     def has_chains(self) -> set[str]:
         """Sieci, z których są paragony (do pigułek `?siec=`)."""
-        return self._cached(
-            ("chains",),
-            lambda: {c for (c,) in self._db.execute("SELECT DISTINCT chain FROM tickets") if c},
-        )
+        return {c for (c,) in self._db.execute("SELECT DISTINCT chain FROM tickets") if c}
 
     def month_chain_totals(self, month: str) -> dict[str, tuple[int, float]]:
         """Sieć → (paragony, zapłacono) w miesiącu `2026-09`."""

@@ -283,7 +283,9 @@ async def test_monthly_summary_on_the_first_once_and_not_for_empty_month(
     assert sent == []
     await job.monthly(date(2026, 10, 1))
     await job.monthly(date(2026, 10, 1))  # restart tego samego dnia: bez powtórki
-    assert [(title, tag) for title, _, tag in sent] == [("Lidl: podsumowanie miesiąca", "lidl-podsumowanie")]
+    assert [(title, tag) for title, _, tag in sent] == [
+        ("Zakupy: podsumowanie miesiąca", "lidl-podsumowanie")
+    ]
     assert sent[0][1].splitlines()[:2] == [
         "We wrześniu wydaliśmy 50,00 zł w 1 wizycie (+25,0% niż w sierpniu)",
         "Najwięcej na: Produkt A (45,00 zł)",

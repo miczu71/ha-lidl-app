@@ -1506,3 +1506,11 @@ def test_has_chains_and_receipts_export_chain(tmp_path: Path) -> None:
     assert {r["id"]: r["chain"] for r in h.receipts_export()} == {
         "t1": "lidl", "t2": "lidl", "b1": "biedronka",
     }  # fmt: skip
+
+
+def test_has_chains_sees_new_chain_before_details(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [{"id": "t1", "date": "2026-10-01T10:00:00+00:00"}], chain="lidl")
+    assert h.has_chains() == {"lidl"}
+    h.upsert_tickets("b", [{"id": "b:1", "date": "2026-10-02T10:00:00+00:00"}], chain="biedronka")
+    assert h.has_chains() == {"lidl", "biedronka"}  # bez szczegółów (revision się nie zmienia)

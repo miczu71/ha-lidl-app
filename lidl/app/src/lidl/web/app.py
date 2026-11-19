@@ -599,6 +599,7 @@ def create_app(settings: Settings) -> FastAPI:
             top_min_spend=TOP_MIN_SPEND,
             shrink=shrink_rows(history.shrinkflation(today, chain), lambda a: prices_href(request, a)),
             chains=chain_pills(chains, chain, lambda c: link(siec=c, limit="")),
+            chain=chain,
         )
         return render(request, "prices.html", **ctx)
 
@@ -680,6 +681,8 @@ def create_app(settings: Settings) -> FastAPI:
         chain = chain_of(siec, chains)
         known = history.ticket_months(ReceiptFilter(chain=chain))
         today = date.today()
+        if chain and m not in known:  # miesiąc bez zakupów w wybranej sieci: najnowszy z zakupami
+            m = ""
         try:
             start, end = month_bounds(m)
         except ValueError:

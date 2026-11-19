@@ -187,7 +187,7 @@ def compose_month(s: MonthSummary, by_chain: dict[str, tuple[int, float]] | None
     rank = "najdroższy miesiąc w historii" if s.rank == 1 else f"{s.rank}. najdroższy z {s.months} miesięcy"
     lines.append(f"Zaoszczędziliśmy {fmt_pln(s.savings, 2)} · {rank}")
     lines.append("Więcej w panelu, zakładka Miesiące")
-    return "Lidl: podsumowanie miesiąca", "\n".join(lines)
+    return "Zakupy: podsumowanie miesiąca", "\n".join(lines)
 
 
 async def send(

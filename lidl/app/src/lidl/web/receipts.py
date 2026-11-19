@@ -48,7 +48,7 @@ def chain_of(value: str | None, chains: set[str] | None) -> str | None:
 def chain_where(chain: str | None, chains: set[str]) -> str:
     """„w Biedronce” / „w Lidlu”; bez filtra i przy kilku sieciach: „w Lidlu i Biedronce”."""
     only = chain or (next(iter(chains)) if len(chains) == 1 else "")
-    return CHAIN_WHERE.get(only, "w Lidlu i Biedronce")
+    return CHAIN_WHERE.get(only) or ("w Lidlu i Biedronce" if len(chains) > 1 else "w sklepach")
 
 
 def chain_pills(
