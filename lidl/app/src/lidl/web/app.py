@@ -49,7 +49,7 @@ from lidl.text import (
     month_bounds,
 )
 
-from . import chains, countries
+from . import bdr_savings, chains, countries
 from .chart import (
     build_chart,
     build_deposit_chart,
@@ -253,7 +253,8 @@ def create_app(settings: Settings) -> FastAPI:
 
     def render(request: Request, name: str, status_code: int = 200, **ctx: Any) -> Response:
         alert = bool(getattr(request.app.state, "problems", None))  # kropka przy zakładce Status (E23.3)
-        multi_chain = len(request.app.state.history.has_chains()) >= 2  # chip „Sieci” (E28.4.2)
+        chains_present = request.app.state.history.has_chains()
+        multi_chain = len(chains_present) >= 2  # chip „Sieci” (E28.4.2)
         return templates.TemplateResponse(
             request,
             name,
@@ -262,6 +263,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "version": __version__,
                 "alert": alert,
                 "multi_chain": multi_chain,
+                "bdr_tab": "biedronka" in chains_present,  # chip „Oszczędzanie” (E28.5.2)
                 **ctx,
             },
             status_code=status_code,
@@ -1028,6 +1030,18 @@ def create_app(settings: Settings) -> FastAPI:
             section="sieci",
             llm_enabled=settings.llm_enabled,
             **chains_ctx(history, kat),
+        )
+
+    @app.get("/biedronka")
+    async def bdr_savings_page(request: Request) -> Response:
+        history: History = request.app.state.history
+        if "biedronka" not in history.has_chains():
+            return Response("Brak konta Biedronki.", status_code=404)
+        return render(
+            request,
+            "bdr_savings.html",
+            section="biedronka",
+            view=bdr_savings.build(history.savings_list(), date.today()),
         )
 
     @app.get("/sieci/szukaj")

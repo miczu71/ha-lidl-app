@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Oszczędzanie — Lidl Plus{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Oszczędzanie</h1>
+  <p class="lead">Vouchery i oferty „Tylko dla Ciebie” z konta Biedronki, stan z ostatniego importu.</p>
+</div>
+
+{% if view.shakeomat %}
+<div class="bdr-saving" role="status">
+  <span><strong>Shakeomat dostępny</strong><br><span class="meta">Oferta jest na koncie w ostatniej migawce; odsłonisz ją w aplikacji Moja Biedronka.</span></span>
+</div>
+{% endif %}
+
+<div class="stack">
+  <section class="card" aria-labelledby="bs-v">
+    <h2 class="s" id="bs-v">Vouchery</h2>
+    {% if not view.vouchers %}
+    <p class="meta">Brak voucherów na koncie.</p>
+    {% else %}
+    {% if view.urgent_count %}<p class="meta tnum">Wygasają w ciągu 3 dni: {{ view.urgent_count }}</p>{% endif %}
+    {% for v in view.vouchers %}
+    <div class="row2">
+      <span><strong>{{ v.name }}</strong>{% if v.until %} <span class="meta tnum">{{ v.until }}</span>{% endif %}</span>
+      {% if v.urgent %}<span class="chain-tag chain-tag--biedronka">{% if v.days_left == 0 %}dziś{% else %}za {{ v.days_left }} dni{% endif %}</span>{% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+  </section>
+
+  <section class="card" aria-labelledby="bs-o">
+    <h2 class="s" id="bs-o">Oferty „Tylko dla Ciebie”</h2>
+    {% if not view.offers %}
+    <p class="meta">Brak ofert w ostatniej migawce.</p>
+    {% else %}
+    <table class="mt tnum">
+      <caption class="vh">Oferty Biedronki</caption>
+      <thead><tr><th scope="col">Produkt</th><th scope="col" class="r">Cena</th><th scope="col" class="r">Zwykle</th><th scope="col">Ważna</th></tr></thead>
+      <tbody>{% for o in view.offers %}<tr><td>{{ o.name }}{% if o.card_only %} <span class="meta">z kartą</span>{% endif %}{% if o.limit %} <span class="meta">{{ o.limit }}</span>{% endif %}</td><td class="r">{{ o.price }}{% if o.pct %} <span class="meta">−{{ o.pct }}%</span>{% endif %}</td><td class="r">{{ o.regular }}</td><td>{{ o.until }}</td></tr>{% endfor %}</tbody>
+    </table>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

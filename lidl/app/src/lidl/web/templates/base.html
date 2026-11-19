@@ -13,7 +13,7 @@
     // dostaje tylko korzeń panelu. Ramka ma ten sam origin co HA, więc czytamy adres okna nadrzędnego
     // i raz na wejście przechodzimy do paragonu (powrót na listę już nie przekierowuje).
     try {
-      const m = top !== self && top.location.pathname.match(/^\/app\/[^/]+(\/paragony\/[\w-]+|\/kraje|\/sieci)\/?$/);
+      const m = top !== self && top.location.pathname.match(/^\/app\/[^/]+(\/paragony\/[\w-]+|\/kraje|\/sieci|\/biedronka)\/?$/);
       if (m && top.__lidlDeep !== top.location.pathname) {
         top.__lidlDeep = top.location.pathname;
         if (location.pathname !== "{{ base }}" + m[1]) location.replace("{{ base }}" + m[1]);
@@ -33,6 +33,7 @@
       <a class="ds-chip{% if section == 'rytm' %} ds-chip--on{% endif %}" href="{{ base }}/rytm"{% if section == 'rytm' %} aria-current="page"{% endif %}>Rytm</a>
       <a class="ds-chip{% if section == 'kraje' %} ds-chip--on{% endif %}" href="{{ base }}/kraje"{% if section == 'kraje' %} aria-current="page"{% endif %}>Kraje</a>
       {% if multi_chain %}<a class="ds-chip{% if section == 'sieci' %} ds-chip--on{% endif %}" href="{{ base }}/sieci"{% if section == 'sieci' %} aria-current="page"{% endif %}>Sieci</a>{% endif %}
+      {% if bdr_tab %}<a class="ds-chip{% if section == 'biedronka' %} ds-chip--on{% endif %}" href="{{ base }}/biedronka"{% if section == 'biedronka' %} aria-current="page"{% endif %}>Oszczędzanie</a>{% endif %}
       <a class="ds-chip{% if section == 'oszczednosci' %} ds-chip--on{% endif %}" href="{{ base }}/oszczednosci"{% if section == 'oszczednosci' %} aria-current="page"{% endif %}>Oszczędności</a>
       <a class="ds-chip{% if section == 'konta' %} ds-chip--on{% endif %}" href="{{ base }}/konta"{% if section == 'konta' %} aria-current="page"{% endif %}>Konta</a>
       <a class="ds-chip{% if section == 'status' %} ds-chip--on{% endif %}" href="{{ base }}/status"{% if section == 'status' %} aria-current="page"{% endif %}>Status{% if alert %}<span class="dot" aria-hidden="true"></span><span class="vh"> — wymaga działania</span>{% endif %}</a>
