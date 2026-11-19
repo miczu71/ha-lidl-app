@@ -984,17 +984,20 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     def chains_ctx(history: History, kat: str | None = None) -> dict[str, Any]:
-        proposals = chains.proposal_cards(history)
+        all_pairs = history.chain_pair_list()  # raz na żądanie (każde wywołanie skanuje ceny)
+        proposals = chains.proposal_cards(history, all_pairs)
         approved, rejected = (
-            chains.decided_rows(history, "approved"),
-            chains.decided_rows(history, "rejected"),
+            chains.decided_rows(history, "approved", all_pairs),
+            chains.decided_rows(history, "rejected", all_pairs),
         )
         return {
             "proposals": proposals,
             "approved": approved,
             "rejected": rejected,
             "any_pairs": bool(proposals or approved or rejected),
-            "comparison": chains.comparison_view(history, chains.category_filter(kat), date.today()),
+            "comparison": chains.comparison_view(
+                history, chains.category_filter(kat), date.today(), all_pairs
+            ),
         }
 
     def chains_history(request: Request) -> History | None:

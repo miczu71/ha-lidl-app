@@ -9,16 +9,13 @@ from typing import Any
 
 from lidl.history import CATEGORIES, CatalogItem, ChainPair, History, PlPrice
 from lidl.packsize import pack_size
-from lidl.text import matches
-
-from .chart import fmt_pln
+from lidl.text import CHAIN_LABELS, fmt_pln, matches
 
 CATALOG_LIMIT = 100000
 UNPAIRED_LIMIT = 50  # produkty bez propozycji AI (ręczne parowanie) pokazywane naraz
 SOURCE_LABELS = {"ean": "EAN", "ai": "AI", "manual": "ręcznie"}
 RECENT_DAYS = 90  # okno mediany ceny
 WIDE_DAYS = 365  # okno zapasowe mediany, oszczędności i pokrycia (12 miesięcy)
-CHAIN_LABELS = {"lidl": "Lidl", "biedronka": "Biedronka"}
 
 
 def lidl_catalog(history: History) -> dict[str, CatalogItem]:
@@ -33,11 +30,13 @@ def _price(item: CatalogItem) -> str:
     return fmt_pln(item.last_price, 2)
 
 
-def proposal_cards(history: History) -> list[dict[str, Any]]:
+def proposal_cards(history: History, pairs: list[ChainPair] | None = None) -> list[dict[str, Any]]:
     """Produkty Biedronki do decyzji; kandydaci spoza katalogu Lidla są pomijani."""
     lidl, bdr = lidl_catalog(history), _biedronka(history)
     entries = [
-        (p.b_art_id, p.b_name, p.candidates) for p in history.chain_pair_list() if p.status == "proposed"
+        (p.b_art_id, p.b_name, p.candidates)
+        for p in (history.chain_pair_list() if pairs is None else pairs)
+        if p.status == "proposed"
     ]
     # produkty bez żadnego wiersza (np. bez klucza AI): do ręcznego sparowania przez wyszukiwarkę
     entries += [(a, n, []) for a, n in history.chain_pending()[:UNPAIRED_LIMIT]]
@@ -54,7 +53,7 @@ def proposal_cards(history: History) -> list[dict[str, Any]]:
     ]
 
 
-def decided_rows(history: History, status: str) -> list[dict[str, Any]]:
+def decided_rows(history: History, status: str, pairs: list[ChainPair] | None = None) -> list[dict[str, Any]]:
     """Zatwierdzone (z nazwą produktu Lidla i źródłem pary) albo odrzucone pary."""
     return [
         {
@@ -64,7 +63,7 @@ def decided_rows(history: History, status: str) -> list[dict[str, Any]]:
             "source": SOURCE_LABELS.get(p.source or "", ""),
             "is_ean": p.source == "ean",
         }
-        for p in history.chain_pair_list()
+        for p in (history.chain_pair_list() if pairs is None else pairs)
         if p.status == status
     ]
 
@@ -251,9 +250,15 @@ def _pct(v: float) -> str:
     return f"{round(v, 1):+.1f}".replace(".", ",").replace("-", "\u2212") + "%"
 
 
-def comparison_view(history: History, category: str | None, today: date) -> dict[str, Any]:
+def comparison_view(
+    history: History, category: str | None, today: date, all_pairs: list[ChainPair] | None = None
+) -> dict[str, Any]:
     """Dane sekcji „Porównanie” (I/O + formatowanie); liczy `compare`."""
-    pairs = [p for p in history.chain_pair_list() if p.status == "approved" and p.lidl_art_id]
+    pairs = [
+        p
+        for p in (history.chain_pair_list() if all_pairs is None else all_pairs)
+        if p.status == "approved" and p.lidl_art_id
+    ]
     # pokrycie wymaga wszystkich zakupów 12 miesięcy obu sieci, nie tylko par
     ids = {c.art_id for chain in CHAIN_LABELS for c in history.chain_catalog(chain, limit=CATALOG_LIMIT)}
     ids |= {p.b_art_id for p in pairs} | {p.lidl_art_id for p in pairs if p.lidl_art_id}
