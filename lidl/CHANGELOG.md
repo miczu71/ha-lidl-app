@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+
+- **Zakładka „Sieci” (przy paragonach obu sieci):** porównanie cen Lidl ↔ Biedronka. Pary produktów powstają z tego samego EAN
+  (automatycznie), z propozycji AI (wymaga klucza modelu) albo ręcznie przez wyszukiwarkę; każdą parę zatwierdzasz lub odrzucasz.
+- **Porównanie i oszczędność:** dla zatwierdzonych par mediana cen z ostatnich 90 dni (zapasowo 12 miesięcy), różnica w %, tańsza sieć
+  oraz kwota „tyle taniej wyszłoby w ciągu 12 miesięcy”, z filtrem kategorii i pokryciem (ile produktów i wydatków objęto parami).
+  Ceny liczone za kg/l (gramatura w nazwie) albo za sztukę; para ważone↔sztuki albo o różnych gramaturach trafia do „Bez ceny”.
+- Migracja bazy do wersji 9 (tabela `chain_pairs`), kopia `history.db.pre-chain-pairs`.
+
 ## 1.3.0
 
 - **Biedronka obok Lidla:** add-on nazywa się teraz „Zakupy (Lidl + Biedronka)”. W zakładce Konta wybierasz sieć konta
