@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
+from functools import cache
 from typing import Any
 
 from .history import History
@@ -22,6 +23,7 @@ J4U_SLUG = "just4you"
 URGENT_DAYS = 3  # voucher kończący się w tylu dniach trafia do porannego powiadomienia
 
 
+@cache
 def _tz() -> Any:
     try:
         from zoneinfo import ZoneInfo
@@ -76,7 +78,7 @@ class FetchResult:
     failed_kinds: set[str] = field(default_factory=set)
 
 
-def _num(value: Any) -> float | None:
+def _as_float(value: Any) -> float | None:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
@@ -103,8 +105,8 @@ def parse_coupons(data: Any) -> list[Saving]:
                 "voucher",
                 ext_id,
                 name,
-                _num(item.get("price")),
-                _num(item.get("regular_price")),
+                _as_float(item.get("price")),
+                _as_float(item.get("regular_price")),
                 _text(item, "start", "available_from", "valid_from"),
                 _text(item, "end", "available_to", "valid_to"),
                 {},
@@ -144,13 +146,13 @@ def parse_offers(carousel: Any) -> list[Saving]:
                         "offer",
                         ext_id,
                         name,
-                        _num(item.get("price")),
-                        _num(item.get("regular_price")),
+                        _as_float(item.get("price")),
+                        _as_float(item.get("regular_price")),
                         _text(item, "start"),
                         _text(item, "end"),
                         {
                             "offer_type": offer_type,
-                            "unit_price": _num(item.get("unit_price")),
+                            "unit_price": _as_float(item.get("unit_price")),
                             "ean": _text(item, "product_main_ean_code"),
                             "card_only": bool(item.get("only_with_moja_biedronka_card")),
                             "limit": _text(item, "limit_message_short", "limit_message"),
@@ -203,7 +205,7 @@ async def refresh(history: History, slug: str, api: Any) -> FetchResult:
     return result
 
 
-def _current(valid_to: str | None, today: date) -> bool:
+def is_current(valid_to: str | None, today: date) -> bool:
     end = local_date(valid_to)
     return end is None or end >= today
 
@@ -224,9 +226,7 @@ async def shake(history: History, slug: str, api: Any, today: date) -> ShakeResu
     ids = [
         r.ext_id
         for r in history.savings_list()
-        if r.slug == slug
-        and r.kind == "shakeomat"
-        and ((end := local_date(r.valid_to)) is None or end >= today)
+        if r.slug == slug and r.kind == "shakeomat" and is_current(r.valid_to, today)
     ]
     for offer_id in ids:
         try:
@@ -250,19 +250,31 @@ async def shake(history: History, slug: str, api: Any, today: date) -> ShakeResu
     return result
 
 
+def _bdr_slugs(service: Any) -> list[str]:
+    return [a.slug for a in service.store.list() if a.chain == "biedronka" and a.connected]
+
+
+async def refresh_accounts(history: History, service: Any) -> None:
+    """Odświeża migawkę na wszystkich połączonych kontach Biedronki; błąd konta nie zatrzymuje pozostałych."""
+    for slug in _bdr_slugs(service):
+        try:
+            await refresh(history, slug, await service.chain_api(slug))
+        except Exception as err:
+            log.exception("Oszczędzanie Biedronki: odświeżenie nieudane")
+            history.log_event("sync", "error", f"Oszczędzanie Biedronki: {err}", {"account": slug})
+
+
 async def shake_accounts(history: History, service: Any, today: date) -> list[ShakeResult]:
     """Shakeomat na wszystkich połączonych kontach Biedronki; błąd konta nie zatrzymuje pozostałych."""
     results: list[ShakeResult] = []
-    for account in service.store.list():
-        if account.chain != "biedronka" or not account.connected:
-            continue
+    for slug in _bdr_slugs(service):
         try:
-            api = await service.chain_api(account.slug)
-            results.append(await shake(history, account.slug, api, today))
+            api = await service.chain_api(slug)
+            results.append(await shake(history, slug, api, today))
         except Exception as err:
-            log.exception("Shakeomat Biedronki (%s) nieudany", account.slug)
+            log.exception("Shakeomat Biedronki (%s) nieudany", slug)
             history.log_event(
-                "daily", "error", f"Shakeomat Biedronki: {err}", {"run": "shakeomat", "account": account.slug}
+                "daily", "error", f"Shakeomat Biedronki: {err}", {"run": "shakeomat", "account": slug}
             )
-            results.append(ShakeResult(account.slug, 0, [f"{type(err).__name__}: {err}"]))
+            results.append(ShakeResult(slug, 0, [f"{type(err).__name__}: {err}"]))
     return results

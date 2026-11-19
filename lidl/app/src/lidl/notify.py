@@ -12,7 +12,7 @@ from datetime import date, timedelta
 
 import aiohttp
 
-from .chain_savings import URGENT_DAYS, SavedSaving, ShakeResult, local_date
+from .chain_savings import URGENT_DAYS, SavedSaving, ShakeResult, is_current, local_date
 from .coupons import AccountReport, ActiveCoupon
 from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
@@ -79,7 +79,7 @@ def bdr_line(rows: list[SavedSaving], today: date) -> str | None:
     if not urgent:
         return None
     parts = [f"{name} ({_in_days((end - today).days)})" for end, name in sorted(urgent)]
-    offers = sum(1 for r in rows if r.kind == "offer" and (local_date(r.valid_to) or date.max) >= today)
+    offers = sum(1 for r in rows if r.kind == "offer" and is_current(r.valid_to, today))
     if offers:
         parts.append(count_text(offers, "oferta", "oferty", "ofert") + " Tylko dla Ciebie")
     return "Biedronka: " + " · ".join(parts)
