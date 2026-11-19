@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0
+
+- **Biedronka obok Lidla:** add-on nazywa się teraz „Zakupy (Lidl + Biedronka)”. W zakładce Konta wybierasz sieć konta
+  (Lidl Plus albo Moja Biedronka); logowanie do Biedronki robisz raz w przeglądarce (captcha i SMS), a w add-onie zostaje
+  tylko token sesji. Import zaciąga pełną historię (świeże i starsze zakupy z pozycjami i EAN), potem przyrostowo.
+- **Filtr sieci `?siec=`** w Paragonach (ze znacznikiem sieci przy paragonie), Cenach, Miesiącach, Rytmie i Oszczędnościach;
+  pigułki „Wszystkie / Lidl / Biedronka” pojawiają się, gdy w bazie są paragony obu sieci. Podsumowanie miesiąca (push 1. dnia)
+  dodaje linię „Lidl X zł · Biedronka Y zł”, a jego tytuł jest neutralny.
+- Plik dla Budżetu (`receipts.json`) ma pole `chain` w każdym paragonie; prompt kategorii nie zakłada Lidla.
+- Migracja bazy do wersji 8 (kolumna `tickets.chain`), kopia `history.db.pre-biedronka`.
+
 ## 1.2.1
 
 - **Paragony z zagranicy (CZ, IT) pokazują pozycje:** szczegół paragonu i lista Paragonów czytały tylko polską
