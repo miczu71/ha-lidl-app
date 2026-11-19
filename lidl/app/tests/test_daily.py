@@ -105,6 +105,10 @@ class FakeHistory:
     def __init__(self, watched: set[str] | None = None, coupons: list[WatchedCoupon] | None = None) -> None:
         self.watched, self.coupons, self.sent = watched or set(), coupons or [], set[str]()
         self.events: list[tuple[str, str, str, dict[str, Any]]] = []
+        self.savings: list[Any] = []
+
+    def savings_list(self) -> list[Any]:
+        return self.savings
 
     def warm(self) -> None:
         self.warmed = getattr(self, "warmed", 0) + 1
@@ -307,6 +311,25 @@ async def test_morning_run_lands_in_event_log(monkeypatch: pytest.MonkeyPatch) -
         "run": "morning", "accounts": 1, "promotions": 1, "coupons": {"would": 1}, "rewards": 1,
         "notified": True,
     }  # fmt: skip
+
+
+async def test_morning_push_carries_biedronka_line_for_urgent_voucher(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from lidl.chain_savings import SavedSaving
+
+    sent: list[tuple[str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        sent.append(message)
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    history = FakeHistory()
+    end = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%dT12:00:00Z")
+    history.savings = [SavedSaving("b", "voucher", "v1", "Rabat 5 zł", None, None, None, end, {})]
+    await _job([], history=history)()
+    assert any("Biedronka: Rabat 5 zł (jutro)" in body for _title, body in sent)
 
 
 async def test_failed_morning_step_is_logged_as_error_and_reraised() -> None:

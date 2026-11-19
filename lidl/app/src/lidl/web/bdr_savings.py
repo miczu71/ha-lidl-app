@@ -3,35 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date
 from typing import Any
 
-from lidl.chain_savings import SavedSaving
+from lidl.chain_savings import URGENT_DAYS, SavedSaving, local_date
 from lidl.text import fmt_pln
-
-URGENT_DAYS = 3  # voucher kończący się w tylu dniach trafia do porannego powiadomienia
-
-
-def _tz() -> Any:
-    try:
-        from zoneinfo import ZoneInfo
-
-        return ZoneInfo("Europe/Warsaw")
-    except Exception:  # brak bazy stref w obrazie: czas zimowy wystarcza do daty końca
-        return timezone(timedelta(hours=1))
-
-
-def local_date(iso: str | None) -> date | None:
-    """Data (czas polski) z znacznika API, np. `2026-11-21T22:59:59Z` → 21 listopada."""
-    if not iso:
-        return None
-    try:
-        moment = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if moment.tzinfo is None:
-        return moment.date()
-    return moment.astimezone(_tz()).date()
 
 
 @dataclass

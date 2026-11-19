@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from .history import History
@@ -18,6 +19,29 @@ log = logging.getLogger(__name__)
 OFFER_KINDS = {"offer", "shakeomat"}
 SHAKEOMAT_TYPES = ("SHAKEOMAT", "SHAKEOMAT_2", "SHAKEOMARKA")
 J4U_SLUG = "just4you"
+URGENT_DAYS = 3  # voucher kończący się w tylu dniach trafia do porannego powiadomienia
+
+
+def _tz() -> Any:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo("Europe/Warsaw")
+    except Exception:  # brak bazy stref w obrazie: czas zimowy wystarcza do daty końca
+        return timezone(timedelta(hours=1))
+
+
+def local_date(iso: str | None) -> date | None:
+    """Data (czas polski) z znacznika API, np. `2026-11-21T22:59:59Z` → 21 listopada."""
+    if not iso:
+        return None
+    try:
+        moment = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        return moment.date()
+    return moment.astimezone(_tz()).date()
 
 
 @dataclass(frozen=True)

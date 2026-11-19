@@ -12,6 +12,7 @@ from datetime import date, timedelta
 
 import aiohttp
 
+from .chain_savings import URGENT_DAYS, SavedSaving, local_date
 from .coupons import AccountReport, ActiveCoupon
 from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
@@ -63,6 +64,26 @@ def _label(c: ActiveCoupon) -> str:
     return f"{_name(c)} {_discount(c.discount)}"
 
 
+def _in_days(days: int) -> str:
+    return "dziś" if days <= 0 else "jutro" if days == 1 else f"za {days} dni"
+
+
+def bdr_line(rows: list[SavedSaving], today: date) -> str | None:
+    """Linia Biedronki (E28.5.3): vouchery do 3 dni i licznik ofert; None bez pilnego vouchera."""
+    urgent: list[tuple[date, str]] = []
+    for r in rows:
+        end = local_date(r.valid_to) if r.kind == "voucher" else None
+        if end is not None and 0 <= (end - today).days <= URGENT_DAYS:
+            urgent.append((end, r.name))
+    if not urgent:
+        return None
+    parts = [f"{name} ({_in_days((end - today).days)})" for end, name in sorted(urgent)]
+    offers = sum(1 for r in rows if r.kind == "offer" and (local_date(r.valid_to) or date.max) >= today)
+    if offers:
+        parts.append(count_text(offers, "oferta", "oferty", "ofert") + " Tylko dla Ciebie")
+    return "Biedronka: " + " · ".join(parts)
+
+
 def compose(
     results: dict[str, AccountReport],
     rewards: dict[str, Rewards] | None = None,
@@ -70,6 +91,7 @@ def compose(
     dry_run: bool,
     today: date | None = None,
     promos: list[Promotion] | None = None,
+    bdr: str | None = None,
 ) -> tuple[str, str] | None:
     """Tytuł z rekomendacją karty i treść z kuponami per karta, nowymi promocjami i zdrapkami; None, gdy
     żadna karta nie ma aktywnych kuponów na nasze produkty, a nie ma też promocji ani zdrapek."""
@@ -84,6 +106,8 @@ def compose(
     tail = ([f"Nowe promocje: {promo}"] if promo else []) + (
         [f"Zdrapki: {' · '.join(cards)}"] if cards else []
     )
+    if bdr:
+        tail.append(bdr)
     shown = {
         label: sorted((c for c in r.active if c.weight or c.general), key=lambda c: (-c.weight, _name(c)))
         for label, r in results.items()
@@ -94,6 +118,8 @@ def compose(
             title = plural(len(cards), "zdrapka", "zdrapki", "zdrapek") + " do zdrapania"
         elif promos:
             title = count_text(len(promos), "promocja", "promocje", "promocji") + " na Wasze produkty"
+        elif bdr:
+            title = "voucher Biedronki wygasa"
         else:
             return None
         return prefix + title, "\n".join(tail)

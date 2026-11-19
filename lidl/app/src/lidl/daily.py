@@ -216,7 +216,8 @@ class DailyJob:
         promos = self._promotions.active(date.today())
         sent = self._history.watched_sent_keys()
         fresh = _unsent("m", promos, sent)  # poranne: każda promocja raz, choć trwa kilka dni
-        message = notify.compose(results, rewards, dry_run=self.dry_run, promos=list(fresh.values()))
+        bdr = notify.bdr_line(self._history.savings_list(), date.today())
+        message = notify.compose(results, rewards, dry_run=self.dry_run, promos=list(fresh.values()), bdr=bdr)
         notified = await notify.send(self._session, message) if message else False
         if notified and not self.dry_run:
             self._history.mark_watched_sent(fresh, datetime.now().isoformat())
