@@ -303,3 +303,13 @@ def test_page_comparison_shows_amounts(client: TestClient) -> None:
     assert "Bez ceny" not in r.text
     assert client.get("/sieci?kat=nonfood").status_code == 200
     assert client.get("/sieci?kat=bogus").status_code == 200
+
+
+def test_compare_one_sided_pack_size_is_incomparable() -> None:
+    # „Masło 200g” vs „Masło extra” (bez gramatury): cena za sztukę byłaby fałszywą oszczędnością.
+    rows = [
+        _row("l:1", "2026-11-01", 5.0, name="Masło extra"),
+        _row("b:1", "2026-11-02", 4.0, name="Masło 200g"),
+    ]
+    c = compare([_pair()], rows, {}, TODAY)
+    assert c.rows == [] and len(c.no_price) == 1 and c.savings_total == 0.0

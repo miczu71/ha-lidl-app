@@ -147,3 +147,22 @@ def test_decide_approve_reject_undo_for_ai_pair(tmp_path: Path) -> None:
     assert h.chain_pair_decide("b:111", "reject") is True
     assert _pairs(h)["b:111"].status == "rejected"
     assert h.chain_pair_decide("b:nope", "reject") is False
+
+
+async def test_products_missing_from_reply_are_not_resent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    h = _history(tmp_path)
+    calls: list[Any] = []
+
+    async def fake(history: Any, use: str, session: Any, url: str, key: str, model: str, content: Any,
+                   name: str, schema: Any) -> dict[str, Any]:  # fmt: skip
+        calls.append(1)
+        return {"pairs": []}  # model nic nie zwrócił
+
+    monkeypatch.setattr(chain_pairs, "ask_logged", fake)
+    async with aiohttp.ClientSession() as session:
+        await chain_pairs.propose(h, session, _settings(tmp_path))
+        await chain_pairs.propose(h, session, _settings(tmp_path))
+    assert len(calls) == 1  # drugi import: nic do wysłania
+    assert _pairs(h)["b:222"].status == "proposed" and _pairs(h)["b:222"].candidates == []

@@ -99,6 +99,8 @@ async def propose(history: History, session: aiohttp.ClientSession, settings: Se
             for b_id in ids_of[raw_name]:
                 if history.chain_pair_propose(b_id, picked):
                     saved += 1
+        for b_id, _name in chunk:  # model odpowiedział: bez odpowiedzi = brak odpowiednika (ręczne parowanie)
+            history.chain_pair_propose(b_id, [])  # inaczej każdy import wysyłałby je ponownie
     log.info("Pary sieci: %d zapisanych z %d nowych produktów", saved, len(pending))
     return saved
 

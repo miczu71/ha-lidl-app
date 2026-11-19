@@ -134,9 +134,10 @@ class _Unit:
 
 
 def _mode(last_l: PlPrice, last_b: PlPrice) -> tuple[str, str] | None:
-    """(rodzaj, jednostka): ważone → kg; gramatura w tej samej jednostce kg/l → kg/l; inaczej szt.
+    """(rodzaj, jednostka): ważone → kg; gramatura w tej samej jednostce kg/l → kg/l;
+    inaczej szt (tylko gdy gramatury obu nazw się zgadzają albo żadna jej nie ma).
 
-    None = nieporównywalne (jedna pozycja ważona, druga na sztuki — zł/kg ≠ zł/szt).
+    None = nieporównywalne (ważone vs sztuki — zł/kg ≠ zł/szt; różne albo jednostronne gramatury).
     """
     if last_l.is_weight != last_b.is_weight:
         return None
@@ -145,6 +146,8 @@ def _mode(last_l: PlPrice, last_b: PlPrice) -> tuple[str, str] | None:
     pl, pb = pack_size(last_l.name), pack_size(last_b.name)
     if pl and pb and pl[1] == pb[1] and pl[1] in ("kg", "l"):
         return "pack", pl[1]
+    if pl != pb:  # różne/jednostronne gramatury → cena za sztukę byłaby fałszywą oszczędnością
+        return None
     return "piece", "szt"
 
 
