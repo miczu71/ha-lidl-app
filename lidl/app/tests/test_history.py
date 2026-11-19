@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from lidl.history import FOREIGN_PARSER_VERSION, History
+from lidl.history import FOREIGN_PARSER_VERSION, History, ReceiptFilter
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 
 
@@ -997,7 +997,7 @@ def test_receipts_export_splits_paid_amount_by_category(tmp_path: Path) -> None:
     out = {r["id"]: r for r in h.receipts_export()}
     # różnica do zapłaconej (kaucja 0,50 i reszta, razem 1,50) trafia do spożywczych; suma części = zapłacono
     assert out["t1"]["parts"] == {"drugstore": 3.0, "food": 7.5, "kids": 10.0}
-    new = {"country": "PL", "currency": "PLN", "paid_orig": None, "fx_rate": 1.0}
+    new = {"country": "PL", "currency": "PLN", "paid_orig": None, "fx_rate": 1.0, "chain": "lidl"}
     assert out["t1"] | {"parts": None} == new | {
         "id": "t1", "account": "a", "day": "2026-05-01", "purchased_at": None, "paid": 20.5,
         "payment": None, "url_path": "/paragony/t1", "parts": None,
@@ -1450,3 +1450,59 @@ def test_upsert_tickets_stores_chain_and_conflict_keeps_it(tmp_path: Path) -> No
     h.upsert_tickets("a", [_ticket("t1", "2026-01-02")])
     rows = dict(h._db.execute("SELECT id, chain FROM tickets").fetchall())
     assert rows == {"b:1": "biedronka", "t1": "lidl"}
+
+
+def _two_chains(tmp_path: Path) -> History:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-09-05", total=10.0), _ticket("t2", "2025-09-05", total=5.0)])
+    h.upsert_tickets("a", [_ticket("b1", "2026-09-06", total=20.0)], chain="biedronka")
+    h.save_detail("t1", "Sklep X", _receipt(("1", "Mleko", 1, 2.0)))
+    h.save_detail("b1", "Sklep Y", _receipt(("1", "Mleko", 1, 3.0), ("2", "Ser", 1, 9.0)))
+    return h
+
+
+def test_receipt_filter_chain_limits_tickets_months_and_stores(tmp_path: Path) -> None:
+    h = _two_chains(tmp_path)
+    assert {t.id for t in h.tickets(ReceiptFilter(), 10)[0]} == {"t1", "t2", "b1"}
+    found, total = h.tickets(ReceiptFilter(chain="biedronka"), 10)
+    assert [(t.id, t.chain) for t in found] == [("b1", "biedronka")] and total == 1
+    assert h.tickets(ReceiptFilter(chain="lidl"), 10)[0][0].chain == "lidl"
+    assert h.ticket_months(ReceiptFilter(chain="lidl")) == {"2026-09": (1, 10.0), "2025-09": (1, 5.0)}
+    assert h.ticket_months(ReceiptFilter(chain="biedronka")) == {"2026-09": (1, 20.0)}
+    assert [s.paid for s in h.stores(ReceiptFilter(chain="biedronka"))] == [20.0]
+    assert sum(s.paid for s in h.stores(ReceiptFilter(chain="lidl"))) == 15.0
+
+
+def test_price_rows_per_chain_and_cache_keys_do_not_mix(tmp_path: Path) -> None:
+    h = _two_chains(tmp_path)
+    assert len(h._price_rows()) == 3
+    assert len(h._price_rows("lidl")) == 1
+    assert [r[3] for r in h._price_rows("biedronka")] == [3.0, 9.0]
+    assert len(h._price_rows()) == 3  # po wywołaniach z filtrem
+    today = date(2026, 10, 1)
+    assert h.price_overview(today, "biedronka") is not h.price_overview(today, "lidl")
+    assert h.price_overview(today, "lidl") is h.price_overview(today, "lidl")
+    assert h.shrinkflation(today, "biedronka") == [] and h.shrinkflation(today) == []
+
+
+def test_month_summary_chain_and_month_chain_totals(tmp_path: Path) -> None:
+    h = _two_chains(tmp_path)
+    both, lidl, bied = (
+        h.month_summary("2026-09"),
+        h.month_summary("2026-09", "lidl"),
+        h.month_summary("2026-09", "biedronka"),
+    )
+    assert both and lidl and bied
+    assert (both.totals.tickets, lidl.totals.tickets, bied.totals.tickets) == (2, 1, 1)
+    assert lidl.rank == 1 and lidl.months == 2 and bied.months == 1
+    assert h.month_summary("2025-09", "biedronka") is None
+    assert h.month_chain_totals("2026-09") == {"lidl": (1, 10.0), "biedronka": (1, 20.0)}
+    assert h.month_chain_totals("2027-01") == {}
+
+
+def test_has_chains_and_receipts_export_chain(tmp_path: Path) -> None:
+    h = _two_chains(tmp_path)
+    assert h.has_chains() == {"lidl", "biedronka"}
+    assert {r["id"]: r["chain"] for r in h.receipts_export()} == {
+        "t1": "lidl", "t2": "lidl", "b1": "biedronka",
+    }  # fmt: skip

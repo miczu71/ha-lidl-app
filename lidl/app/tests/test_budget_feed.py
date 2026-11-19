@@ -157,6 +157,12 @@ def test_prompt_mentions_czech_or_italian_names() -> None:
     assert "Nazwy mogą być po czesku lub włosku." in PROMPT
 
 
+def test_prompt_is_chain_neutral() -> None:
+    from lidl.budget_feed import PROMPT
+
+    assert "sklepu Lidl" not in PROMPT and "spożywczo-dyskontowego" in PROMPT
+
+
 def _codes(prefix: str, n: int) -> dict[str, str]:
     return {f"{prefix}{i:04d}": f"Produkt {i}" for i in range(n)}
 

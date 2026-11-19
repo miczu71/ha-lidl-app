@@ -196,7 +196,11 @@ class DailyJob:
         if key in self._history.watched_sent_keys():
             return
         summary = self._history.month_summary(month)
-        if summary and await notify.send(self._session, notify.compose_month(summary), tag=notify.TAG_MONTH):
+        if summary and await notify.send(
+            self._session,
+            notify.compose_month(summary, self._history.month_chain_totals(month)),
+            tag=notify.TAG_MONTH,
+        ):
             self._history.mark_watched_sent([key], datetime.now().isoformat())
             self._history.log_event("daily", "ok", f"Podsumowanie {month}: wysłane", {"run": "month"})
 

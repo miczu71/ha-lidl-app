@@ -238,3 +238,20 @@ def test_month_summary_shows_abroad_line_only_when_abroad_spend(tmp_path: Any) -
     assert "W tym za granicą: 42,50 zł (CZ, IT)" in compose_month(abroad)[1].splitlines()
     no_abroad = compose_month(replace(s, abroad_total=0.0))[1].splitlines()
     assert not any("W tym za granicą" in ln for ln in no_abroad)
+
+
+def test_month_summary_chain_line_only_with_two_chains(tmp_path: Any) -> None:
+    from lidl.history import History
+    from lidl.notify import compose_month
+
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [{"id": "s", "date": "2026-09-10T10:00:00+00:00", "totalAmount": 123.45}])
+    h.upsert_tickets(
+        "a", [{"id": "b", "date": "2026-09-11T10:00:00+00:00", "totalAmount": 67.89}], chain="biedronka"
+    )
+    s = h.month_summary("2026-09")
+    assert s is not None
+    both = h.month_chain_totals("2026-09")
+    assert "Lidl 123,45 zł · Biedronka 67,89 zł" in compose_month(s, both)[1].splitlines()
+    assert "Lidl 123,45 zł" not in compose_month(s)[1]
+    assert "Biedronka" not in compose_month(s, {"lidl": both["lidl"]})[1]

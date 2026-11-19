@@ -27,7 +27,8 @@ log = logging.getLogger(__name__)
 NEW_DAYS = 30  # „nowy” produkt = pierwszy zakup w tym oknie; starsze klasyfikuje jednorazowo Claude (E6.2)
 MAX_ITEMS = 80  # produktów w jednym zapytaniu
 PROMPT = (
-    "Przypisz każdy produkt ze sklepu Lidl do jednej kategorii: food (żywność i napoje, też dla zwierząt), "
+    "Przypisz każdy produkt ze sklepu spożywczo-dyskontowego (Lidl lub Biedronka) do jednej kategorii: "
+    "food (żywność i napoje, też dla zwierząt), "
     "drugstore (kosmetyki, higiena, chemia domowa, papier toaletowy, ręczniki papierowe), kids (pieluszki, "
     "chusteczki i kosmetyki dla dzieci, zabawki, ubranka dziecięce), nonfood (reszta: dom, ogród, narzędzia, "
     "odzież, elektronika, torby). Nazwy są skrócone jak na paragonie. "

@@ -155,7 +155,7 @@ def compose_watched(
     return "Lidl: " + title, "\n".join(body)
 
 
-def compose_month(s: MonthSummary) -> tuple[str, str]:
+def compose_month(s: MonthSummary, by_chain: dict[str, tuple[int, float]] | None = None) -> tuple[str, str]:
     """Podsumowanie miesiąca (E19): kwota z porównaniem, top produkt, oszczędności i miejsce w historii."""
     start, _ = month_bounds(s.month)
     tickets = count_text(s.totals.tickets, "wizycie", "wizytach", "wizytach")
@@ -166,6 +166,12 @@ def compose_month(s: MonthSummary) -> tuple[str, str]:
     lines = [spent]
     if s.abroad_total > 0:
         lines.append(f"W tym za granicą: {fmt_pln(s.abroad_total, 2)} ({', '.join(s.abroad_countries)})")
+    if by_chain and len(by_chain) >= 2:
+        names = {"lidl": "Lidl", "biedronka": "Biedronka"}
+        order = sorted(by_chain, key=lambda c: (list(names).index(c) if c in names else len(names), c))
+        lines.append(
+            " · ".join(f"{names.get(c, c.capitalize())} {fmt_pln(by_chain[c][1], 2)}" for c in order)
+        )
     if s.top_spend:
         lines.append(f"Najwięcej na: {s.top_spend[0].name} ({fmt_pln(s.top_spend[0].value, 2)})")
     rank = "najdroższy miesiąc w historii" if s.rank == 1 else f"{s.rank}. najdroższy z {s.months} miesięcy"

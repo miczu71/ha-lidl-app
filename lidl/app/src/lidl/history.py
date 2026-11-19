@@ -482,6 +482,7 @@ class ReceiptFilter:
     start: date | None = None
     end: date | None = None
     country: str | None = None  # kod kraju paragonu (`PL`, `CZ`...)
+    chain: str | None = None  # sieć paragonu (`lidl`, `biedronka`)
 
 
 @dataclass(frozen=True)
@@ -498,6 +499,7 @@ class TicketSummary:
     country: str = "PL"
     currency: str = "PLN"
     total_orig: float | None = None  # kwota w walucie paragonu (tylko zagranica)
+    chain: str = "lidl"
 
 
 @dataclass(frozen=True)
@@ -609,14 +611,14 @@ _TICKET_COLS = (
     " ELSE (SELECT -COALESCE(SUM(discount), 0) * t.fx_rate FROM foreign_items WHERE ticket_id = t.id) END,"
     " CASE WHEN t.country = 'PL' THEN (SELECT COUNT(*) FROM items WHERE ticket_id = t.id)"
     " ELSE (SELECT COUNT(*) FROM foreign_items WHERE ticket_id = t.id) END, t.detail_fetched, t.parsed,"
-    " t.country, t.currency, t.total_orig"
+    " t.country, t.currency, t.total_orig, t.chain"
 )
-_TICKET_N = 13  # liczba kolumn `_TICKET_COLS`; dalsze kolumny zapytania idą po nich
+_TICKET_N = 14  # liczba kolumn `_TICKET_COLS`; dalsze kolumny zapytania idą po nich
 _STORE_KEY = "COALESCE(NULLIF(t.store_code, ''), t.store, '')"
 
 
 def _summary(row: tuple[Any, ...]) -> TicketSummary:
-    tid, account, day, at, store, total, savings, items, fetched, parsed, country, currency, orig = row
+    tid, account, day, at, store, total, savings, items, fetched, parsed, country, currency, orig, chain = row
     status = "pending" if not fetched else "ok" if parsed else "unparsed"
     time = at[11:16] if at and len(at) >= 16 else None
     return TicketSummary(
@@ -632,6 +634,7 @@ def _summary(row: tuple[Any, ...]) -> TicketSummary:
         country or "PL",
         currency or "PLN",
         orig,
+        chain or "lidl",
     )
 
 
@@ -640,6 +643,7 @@ def _receipt_where(f: ReceiptFilter) -> tuple[str, list[str]]:
     for sql, value in (
         ("t.account = ?", f.account),
         ("t.country = ?", f.country),
+        ("t.chain = ?", f.chain),
         (f"{_STORE_KEY} = ?", f.store),
         ("t.day >= ?", f.start and f.start.isoformat()),
         ("t.day <= ?", f.end and f.end.isoformat()),
@@ -1319,9 +1323,10 @@ class History:
             currency,
             total_orig,
             fx_rate,
+            chain,
         ) in self._db.execute(
             "SELECT id, account, day, purchased_at, total, payment, country, currency, total_orig,"
-            " fx_rate FROM tickets" + (" WHERE id = ?" if args else "") + " ORDER BY day, id",
+            " fx_rate, chain FROM tickets" + (" WHERE id = ?" if args else "") + " ORDER BY day, id",
             args,
         ):
             paid = round(paid, 2)
@@ -1345,6 +1350,7 @@ class History:
                     "currency": currency,
                     "paid_orig": total_orig,
                     "fx_rate": rate,
+                    "chain": chain,
                 }
             )
         return out
@@ -1368,12 +1374,18 @@ class History:
         out.sort(key=lambda c: (-c["spend"], c["code"]))
         return out
 
-    def _products(self, start: date | None = None, end: date | None = None) -> dict[str, dict[str, Any]]:
+    def _products(
+        self, start: date | None = None, end: date | None = None, chain: str | None = None
+    ) -> dict[str, dict[str, Any]]:
         """Pozycje z paragonów z dni `start`–`end` (domknięty, bez zakresu: całość) zebrane per produkt
         (po moście nazw); nazwa i cena z ostatniego zakupu."""
-        return self._cached(("products", start, end), lambda: self._collect_products(start, end))
+        return self._cached(
+            ("products", start, end, chain), lambda: self._collect_products(start, end, chain)
+        )
 
-    def _collect_products(self, start: date | None, end: date | None) -> dict[str, dict[str, Any]]:
+    def _collect_products(
+        self, start: date | None, end: date | None, chain: str | None
+    ) -> dict[str, dict[str, Any]]:
         resolve = self._resolver()
         where = ""
         args: list[str] = []
@@ -1383,6 +1395,9 @@ class History:
         if end is not None:
             where += " AND t.day <= ?"
             args.append(end.isoformat())
+        if chain:
+            where += " AND t.chain = ?"
+            args.append(chain)
         rows = self._db.execute(
             "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day, i.discount, i.coupon,"
             f" i.total, i.is_weight FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE 1 = 1{where}"
@@ -1867,7 +1882,9 @@ class History:
             is not None
         )
 
-    def purchase_totals(self, start: date | None = None, end: date | None = None) -> PurchaseTotals:
+    def purchase_totals(
+        self, start: date | None = None, end: date | None = None, chain: str | None = None
+    ) -> PurchaseTotals:
         """Ile zapłacono łącznie oraz kaucje pobrane i zwrócone (zakres dat domknięty, bez zakresu: całość).
 
         „Zapłacono” to suma kwot paragonów (po rabatach, z saldem kaucji). Kaucje liczymy tylko z paragonów
@@ -1883,6 +1900,9 @@ class History:
         if end is not None:
             where += " AND t.day <= ?"
             args.append(end.isoformat())
+        if chain is not None:
+            where += " AND t.chain = ?"
+            args.append(chain)
         paid, tickets = self._db.execute(
             f"SELECT SUM(t.total), COUNT(*) FROM tickets t WHERE 1 = 1{where}", args
         ).fetchone()
@@ -1962,15 +1982,17 @@ class History:
             b = _next_bucket(b, step)
         return series
 
-    def _price_rows(self) -> list[_PriceRow]:
-        return self._cached(("price_rows",), self._collect_price_rows)
+    def _price_rows(self, chain: str | None = None) -> list[_PriceRow]:
+        return self._cached(("price_rows", chain), lambda: self._collect_price_rows(chain))
 
-    def _collect_price_rows(self) -> list[_PriceRow]:
+    def _collect_price_rows(self, chain: str | None) -> list[_PriceRow]:
         resolve = self._resolver()
         rows = self._db.execute(
             "SELECT i.art_id, i.name, t.day, i.unit_price, i.total + i.discount, i.quantity, i.is_weight"
             " FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE i.quantity > 0 AND i.unit_price > 0"
-            " ORDER BY t.day, i.ticket_id, i.line"
+            + (" AND t.chain = ?" if chain else "")
+            + " ORDER BY t.day, i.ticket_id, i.line",
+            (chain,) if chain else (),
         )
         return [
             (resolve(art_id, name), name, date.fromisoformat(day), price, paid, qty, bool(weight))
@@ -2107,14 +2129,14 @@ class History:
         """Zmiany ceny półkowej r/r (E7), od największej podwyżki."""
         return self.price_overview(today).changes
 
-    def price_overview(self, today: date | None = None) -> PriceOverview:
+    def price_overview(self, today: date | None = None, chain: str | None = None) -> PriceOverview:
         """Zmiany cen r/r, inflacja koszyka (zmiany ważone wydatkami z 365 dni) i jej seria miesięczna od
         pierwszego miesiąca z rokiem historii (miesiące bez porównania pominięte), z jednego odczytu."""
         today = today or date.today()
-        return self._cached(("prices", today), lambda: self._price_overview(today))
+        return self._cached(("prices", today, chain), lambda: self._price_overview(today, chain))
 
-    def _price_overview(self, today: date) -> PriceOverview:
-        rows = self._price_rows()
+    def _price_overview(self, today: date, chain: str | None) -> PriceOverview:
+        rows = self._price_rows(chain)
         days = [r[2] for r in rows]
         changes, total = _price_changes(rows, days, today)
         series = []
@@ -2153,10 +2175,10 @@ class History:
             rows[-1][1], rows[-1][6], points, changes[0] if changes else None, unit, per_unit
         )
 
-    def shrinkflation(self, today: date | None = None) -> list[Shrink]:
+    def shrinkflation(self, today: date | None = None, chain: str | None = None) -> list[Shrink]:
         """Mniejsze opakowanie przy nie niższej cenie (E18), od największej podwyżki ceny jednostkowej."""
         today = today or date.today()
-        return self._cached(("shrink", today), lambda: _shrinkflation(self._price_rows(), today))
+        return self._cached(("shrink", today, chain), lambda: _shrinkflation(self._price_rows(chain), today))
 
     def tickets(self, f: ReceiptFilter, limit: int) -> tuple[list[TicketSummary], int]:
         """Paragony od najnowszych (do `limit`) i liczba wszystkich pasujących do filtrów (E8)."""
@@ -2185,10 +2207,24 @@ class History:
         )
         return {m: (n, round(s, 2)) for m, n, s in rows}
 
-    def month_summary(self, month: str) -> MonthSummary | None:
+    def has_chains(self) -> set[str]:
+        """Sieci, z których są paragony (do pigułek `?siec=`)."""
+        return {c for (c,) in self._db.execute("SELECT DISTINCT chain FROM tickets") if c}
+
+    def month_chain_totals(self, month: str) -> dict[str, tuple[int, float]]:
+        """Sieć → (paragony, zapłacono) w miesiącu `2026-09`."""
+        start, end = month_bounds(month)
+        rows = self._db.execute(
+            "SELECT t.chain, COUNT(*), SUM(t.total) FROM tickets t WHERE t.day >= ? AND t.day <= ?"
+            " GROUP BY 1",
+            (start.isoformat(), end.isoformat()),
+        )
+        return {c: (n, round(total, 2)) for c, n, total in rows}
+
+    def month_summary(self, month: str, chain: str | None = None) -> MonthSummary | None:
         """Podsumowanie miesiąca `2026-09` (E19); None, gdy w miesiącu nie było paragonów."""
         start, end = month_bounds(month)
-        f = ReceiptFilter(start=start, end=end)
+        f = ReceiptFilter(start=start, end=end, chain=chain)
         where, args = _receipt_where(f)
         tickets = [
             _summary(r)
@@ -2197,10 +2233,10 @@ class History:
         if not tickets:
             return None
         abroad = [t for t in tickets if t.country != "PL"]
-        by_month = self.ticket_months(ReceiptFilter(end=end))
+        by_month = self.ticket_months(ReceiptFilter(end=end, chain=chain))
         paid = {m: total for m, (_, total) in by_month.items()}
         resolve = self._resolver()
-        products = self._products(start, end)
+        products = self._products(start, end, chain)
         earlier = {resolve(art, name) for art, name in self._db.execute(
             "SELECT DISTINCT i.art_id, i.name FROM items i JOIN tickets t ON t.id = i.ticket_id"
             " WHERE t.day < ?",
@@ -2224,7 +2260,7 @@ class History:
         stores = self.stores(f)
         return MonthSummary(
             month=month,
-            totals=self.purchase_totals(start, end),
+            totals=self.purchase_totals(start, end, chain),
             savings=round(-sum(p["discount"] for p in products.values()), 2),
             coupons=round(-sum(p["coupon"] for p in products.values()), 2),
             prev_paid=paid.get((start - timedelta(days=1)).strftime("%Y-%m")),
