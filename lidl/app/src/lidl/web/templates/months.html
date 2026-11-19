@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ title or "Miesiące" }} — Lidl Plus{% endblock %}
+{% from "_macros.html" import chain_links %}
 {% macro bars(items) %}<ol class="mw-bars">
   {% for p in items %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}
 </ol>{% endmacro %}
@@ -14,11 +15,13 @@
   <span>Brak historii zakupów. Pobierz ją w zakładce Produkty.</span>
 </p>
 {% else %}
+{{ chain_links(chains) }}
 <div class="mw-head">
   <a class="mw-step{% if not nav.prev %} mw-step--off{% endif %}" {% if nav.prev %}href="{{ nav.prev }}"{% else %}aria-disabled="true"{% endif %} aria-label="Poprzedni miesiąc"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></a>
   <div class="mw-title">
     <h1 class="t">{{ title }}</h1>
     <form class="mw-pick" method="get" action="{{ base }}/miesiace">
+      {% if chain %}<input type="hidden" name="siec" value="{{ chain }}">{% endif %}
       <label class="vh" for="m">Wybierz miesiąc</label>
       <select class="field" id="m" name="m" onchange="this.form.submit()">
         {% for o in nav.options %}<option value="{{ o.value }}"{% if o.on %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
@@ -32,14 +35,14 @@
 {% if not view %}
 <p class="notice notice--info" role="status">
   <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 11v6M12 7.5h.01"/></svg></span>
-  <span>W tym miesiącu nie było zakupów w Lidlu.</span>
+  <span>W tym miesiącu nie było zakupów{% if chain %} w tej sieci{% endif %}.</span>
 </p>
 {% else %}
 {% set v = view %}
 <section class="card mw-hero" aria-labelledby="mw-sum">
   {% if v.in_progress %}<p class="sum">Miesiąc w toku: liczby zmienią się do jego końca, porównania pojawią się po nim.</p>{% endif %}
   <h2 class="vh" id="mw-sum">Wydatki</h2>
-  <p class="mw-say">{{ v.in_month|capitalize }} zostawiliśmy w Lidlu <strong class="mw-big">{{ v.paid }}</strong></p>
+  <p class="mw-say">{{ v.in_month|capitalize }} zostawiliśmy {{ where }} <strong class="mw-big">{{ v.paid }}</strong></p>
   {% if v.abroad %}<p class="sum">w tym za granicą: {{ v.abroad }}</p>{% endif %}
   {% if v.compare %}<ul class="mw-cmp">
     {% for c in v.compare %}<li>{% set d = c.delta %}{% include "_delta.html" %}<span>{{ c.label }}</span></li>{% endfor %}

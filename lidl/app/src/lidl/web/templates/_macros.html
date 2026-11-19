@@ -32,7 +32,7 @@
 
 {# Wiersz paragonu albo zakupu (E8): cały wiersz prowadzi do paragonu; kwota po prawej, rabaty (`notes`) na zielono #}
 {% macro ticket_row(r) %}
-<li><a class="pr pr--amt" href="{{ r.href }}"><span class="pr__name">{% if r.flag %}{{ flag(r.flag) }} {% endif %}{{ r.when }}</span><span class="pr__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}{% for n in r.notes %}<span class="pr__save">{{ n }}</span>{% endfor %}{% if r.status %}<span><span class="tag">{{ r.status }}</span></span>{% endif %}</span><span class="pr__amt">{{ r.total }}{% if r.orig %} <span class="pr__orig">({{ r.orig }})</span>{% endif %}</span></a></li>
+<li><a class="pr pr--amt" href="{{ r.href }}"><span class="pr__name">{% if r.flag %}{{ flag(r.flag) }} {% endif %}{{ r.when }}{% if r.chain %} <span class="chain-tag chain-tag--{{ r.chain }}">{{ "Biedronka" if r.chain == "biedronka" else "Lidl" }}</span>{% endif %}</span><span class="pr__meta">{% for m in r.meta %}<span>{{ m }}</span>{% endfor %}{% for n in r.notes %}<span class="pr__save">{{ n }}</span>{% endfor %}{% if r.status %}<span><span class="tag">{{ r.status }}</span></span>{% endif %}</span><span class="pr__amt">{{ r.total }}{% if r.orig %} <span class="pr__orig">({{ r.orig }})</span>{% endif %}</span></a></li>
 {% endmacro %}
 
 {# Stan (E23, zakładka Status): ikona z symboli `#lv-<poziom>` strony, opcjonalny tekst albo nazwa dla czytnika #}
@@ -43,3 +43,18 @@
 {% macro bar(done, total, label, thin=false) -%}
 <div class="prog{% if thin %} prog--thin{% endif %}" role="progressbar" aria-label="{{ label }}" aria-valuenow="{{ done }}" aria-valuemax="{{ total }}"><div class="prog__fill" style="width: {{ (100 * done / (total or 1))|round }}%"></div></div>
 {%- endmacro %}
+
+{# Filtr sieci (E28.2): pigułki-odnośniki (Ceny, Miesiące); `pills` = receipts.chain_pills(), None = jedna sieć, bez filtra #}
+{% macro chain_links(pills) %}
+{% if pills %}<nav class="nav" aria-label="Sieć">{% for p in pills %}<a class="ds-chip{% if p.on %} ds-chip--on{% endif %}" href="{{ p.href }}"{% if p.on %} aria-current="true"{% endif %}>{{ p.label }}</a>{% endfor %}</nav>{% endif %}
+{% endmacro %}
+
+{# To samo jako przełącznik w formularzu filtrów (Paragony, Rytm, Oszczędności): radio `siec`; `pills` jak wyżej #}
+{% macro chain_radios(pills) %}
+{% if pills %}<fieldset>
+  <legend>Sieć</legend>
+  <div class="seg seg--narrow">
+    {% for p in pills %}<label><input type="radio" name="siec" value="{{ p.value }}"{% if p.on %} checked{% endif %}><span>{{ p.label }}</span></label>{% endfor %}
+  </div>
+</fieldset>{% endif %}
+{% endmacro %}

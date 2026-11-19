@@ -65,7 +65,16 @@ from .products import (
     ranking_rows,
     reward_cards,
 )
-from .receipts import TICKETS_LIMIT, detail_view, month_groups, parse_filter, product_rows, purchases_view
+from .receipts import (
+    TICKETS_LIMIT,
+    chain_of,
+    chain_pills,
+    detail_view,
+    month_groups,
+    parse_filter,
+    product_rows,
+    purchases_view,
+)
 from .rhythm import heatmap, map_points, store_rows
 from .savings import savings_view
 from .status import FILTERS as STATUS_FILTERS
@@ -79,7 +88,7 @@ HERE = Path(__file__).parent
 INGRESS_PROXY = "172.30.32.2"
 WARM_DELAY = 5  # s
 PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
-RECEIPT_PARAMS = ("q", "konto", "sklep", "kraj", "od", "do", "limit")
+RECEIPT_PARAMS = ("q", "konto", "sklep", "kraj", "od", "do", "limit", "siec")
 # E6: kategorie produktu dla Budżetu Domowego i skąd się wzięły (brak = spożywcze do sprawdzenia)
 PENDING_SHOWN = 30
 CATEGORY_LABELS = {"food": "Spożywcze", "drugstore": "Drogeria", "kids": "Dla dzieci", "nonfood": "Inne"}
@@ -248,7 +257,10 @@ def create_app(settings: Settings) -> FastAPI:
             started=state.started,
             version=__version__,
             run_time=settings.run_time,
-            accounts=[(a.slug, a.label, a.connected) for a in accounts],
+            accounts=[
+                (a.slug, f"{a.label} (Biedronka)" if a.chain == "biedronka" else a.label, a.connected)
+                for a in accounts
+            ],
             events=history.events(datetime.now() - EVENTS_KEEP),
             progress={a.slug: sync.progress(a.slug) for a in accounts},
             daily_running=state.job.in_progress,
@@ -546,11 +558,13 @@ def create_app(settings: Settings) -> FastAPI:
         order = "wydatki" if params.get("kolejnosc") == "wydatki" else "zmiana"
         limit = parse_limit(params.get("limit"))
         today = date.today()
+        chains = history.has_chains()
+        chain = chain_of(params, chains)
 
         def link(**over: object) -> str:
-            return query_link(request, "/ceny", params, ("q", "kolejnosc", "limit"), **over)
+            return query_link(request, "/ceny", params, ("q", "kolejnosc", "limit", "siec"), **over)
 
-        overview = history.price_overview(today)
+        overview = history.price_overview(today, chain)
         changes = overview.changes
         found = [c for c in changes if matches(c.name, q)] if q else changes
         if order == "wydatki":
@@ -574,7 +588,8 @@ def create_app(settings: Settings) -> FastAPI:
             ups=price_rows(ups, lambda a: prices_href(request, a)),
             downs=price_rows(downs, lambda a: prices_href(request, a)),
             top_min_spend=TOP_MIN_SPEND,
-            shrink=shrink_rows(history.shrinkflation(today), lambda a: prices_href(request, a)),
+            shrink=shrink_rows(history.shrinkflation(today, chain), lambda a: prices_href(request, a)),
+            chains=chain_pills(chains, chain, lambda c: link(siec=c, limit="")),
         )
         return render(request, "prices.html", **ctx)
 
@@ -613,11 +628,16 @@ def create_app(settings: Settings) -> FastAPI:
         if target == "paragony-produkty":  # wyszukiwanie na żywo: tylko wyniki
             return render(request, "_receipts_products.html", **ctx)
         countries = history.countries()
-        f, bad = parse_filter(params, set(labels), countries)
+        chains = history.has_chains()
+        f, bad = parse_filter(params, set(labels), countries, chains)
         limit = parse_limit(params.get("limit"), TICKETS_LIMIT, cap=TICKETS_LIMIT * 100)
         tickets, total = ([], 0) if bad else history.tickets(f, limit)
         groups = month_groups(
-            tickets, {} if bad else history.ticket_months(f), labels, lambda t: receipt_href(request, t)
+            tickets,
+            {} if bad else history.ticket_months(f),
+            labels,
+            lambda t: receipt_href(request, t),
+            show_chain=len(chains) > 1,
         )
         ctx.update(
             f=f,
@@ -641,12 +661,15 @@ def create_app(settings: Settings) -> FastAPI:
             stores=stores,
             has_history=has_history,
             countries=sorted(countries),
+            chains=chain_pills(chains, f.chain, lambda c: ""),
         )
 
     @app.get("/miesiace")
-    async def months(request: Request, m: str = "") -> Response:
+    async def months(request: Request, m: str = "", siec: str = "") -> Response:
         history: History = request.app.state.history
-        known = history.ticket_months(ReceiptFilter())
+        chains = history.has_chains()
+        chain = chain_of({"siec": siec}, chains)
+        known = history.ticket_months(ReceiptFilter(chain=chain))
         today = date.today()
         try:
             start, end = month_bounds(m)
@@ -657,10 +680,10 @@ def create_app(settings: Settings) -> FastAPI:
             start, end = month_bounds(m)
         month = start.strftime("%Y-%m")
 
-        def href(key: str) -> str:
-            return f"{base(request)}/miesiace?{urlencode({'m': key})}"
+        def href(key: str, c: str | None = chain) -> str:
+            return f"{base(request)}/miesiace?{urlencode({k: v for k, v in (('m', key), ('siec', c)) if v})}"
 
-        summary = history.month_summary(month)
+        summary = history.month_summary(month, chain)
         view = summary and month_view(
             summary,
             account_labels(request),
@@ -670,6 +693,9 @@ def create_app(settings: Settings) -> FastAPI:
             receipt_href=lambda t: receipt_href(request, t),
         )
         bounds = {"od": start.isoformat(), "do": end.isoformat()}
+        month_receipts = (
+            f"{base(request)}/paragony?{urlencode({**bounds, **({'siec': chain} if chain else {})})}"
+        )
         return render(
             request,
             "months.html",
@@ -678,19 +704,31 @@ def create_app(settings: Settings) -> FastAPI:
             title=fmt_month_year(start),
             view=view,
             nav=month_nav(known, month, href),
-            receipts=f"{base(request)}/paragony?{urlencode(bounds)}",
+            receipts=month_receipts,
+            chains=chain_pills(chains, chain, lambda c: href(month, c or None)),
+            chain=chain,
+            where={"lidl": "w Lidlu", "biedronka": "w Biedronce"}.get(
+                chain or (next(iter(chains)) if len(chains) == 1 else ""), "w Lidlu i Biedronce"
+            ),
         )
 
     @app.get("/rytm")
-    async def rhythm(request: Request, konto: str = "", okres: str = "", miara: str = "") -> Response:
+    async def rhythm(
+        request: Request, konto: str = "", okres: str = "", miara: str = "", siec: str = ""
+    ) -> Response:
         history: History = request.app.state.history
         labels = account_labels(request)
+        chains = history.has_chains()
         start = None if okres == "all" else date.today() - timedelta(days=365)
-        f = ReceiptFilter(account=konto if konto in labels else None, start=start)
+        f = ReceiptFilter(
+            account=konto if konto in labels else None, start=start, chain=chain_of({"siec": siec}, chains)
+        )
 
         def store_href(code: str) -> str:  # Paragony z tym samym kontem i okresem
             od = start.isoformat() if start else ""
-            return query_link(request, "/paragony", {}, (), konto=f.account or "", sklep=code, od=od)
+            return query_link(
+                request, "/paragony", {}, (), konto=f.account or "", sklep=code, od=od, siec=f.chain or ""
+            )
 
         r, stores, spend = history.rhythm(f), history.stores(f), miara == "wydatki"
         ctx: dict[str, Any] = {
@@ -703,17 +741,21 @@ def create_app(settings: Settings) -> FastAPI:
             "grid": heatmap(r, spend),
             "stores": store_rows(stores, labels, store_href),
             "points": map_points(stores, store_href),
+            "chains": chain_pills(chains, f.chain, lambda c: ""),
         }
         if request.headers.get("hx-target") == "rytm-wyniki":  # filtry na żywo: tylko wyniki
             return render(request, "_rhythm_results.html", **ctx)
         return render(request, "rhythm.html", **ctx, has_history=history.ticket_count() > 0)
 
     @app.get("/oszczednosci")
-    async def savings(request: Request, konto: str = "", okres: str = "") -> Response:
+    async def savings(request: Request, konto: str = "", okres: str = "", siec: str = "") -> Response:
         history: History = request.app.state.history
         labels = account_labels(request)
+        chains = history.has_chains()
         start = None if okres == "all" else date.today() - timedelta(days=365)
-        f = ReceiptFilter(account=konto if konto in labels else None, start=start)
+        f = ReceiptFilter(
+            account=konto if konto in labels else None, start=start, chain=chain_of({"siec": siec}, chains)
+        )
         result = history.savings_breakdown(f)
         ctx: dict[str, Any] = {
             "section": "oszczednosci",
@@ -721,6 +763,7 @@ def create_app(settings: Settings) -> FastAPI:
             "f": f,
             "view": savings_view(result, lambda a: purchases_href(request, a)),
             "chart": build_savings_chart(result.months),
+            "chains": chain_pills(chains, f.chain, lambda c: ""),
         }
         if request.headers.get("hx-target") == "oszczednosci-wyniki":  # filtry na żywo: tylko wyniki
             return render(request, "_savings_results.html", **ctx)

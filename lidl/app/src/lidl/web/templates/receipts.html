@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Paragony — Lidl Plus{% endblock %}
-{% from "_macros.html" import search_input %}
+{% from "_macros.html" import search_input, chain_radios %}
 {% block main %}
 <div>
   <h1 class="t">Paragony</h1>
@@ -26,6 +26,7 @@
 <section class="card" aria-labelledby="lista-h">
   <h2 class="s" id="lista-h">Wszystkie paragony</h2>
   <form class="ctl" id="filtry-paragonow" method="get" action="{{ base }}/paragony" hx-get="{{ base }}/paragony" hx-trigger="change, submit" hx-target="#paragony-lista" hx-select="#paragony-lista" hx-swap="outerHTML" hx-indicator="#paragony-lista" hx-replace-url="true" hx-sync="this:replace">
+    {{ chain_radios(chains) }}
     {% if accounts|length > 1 %}
     <fieldset>
       <legend>Konto</legend>

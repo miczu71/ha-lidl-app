@@ -1427,3 +1427,43 @@ def test_biedronka_account_gets_its_own_login_page(client: TestClient) -> None:
 def test_unknown_chain_falls_back_to_lidl(client: TestClient) -> None:
     client.post("/accounts", data={"label": "Osoba 3", "chain": "zabka"})
     assert "chain-biedronka" not in client.get("/accounts/osoba-3/login").text
+
+
+def _two_chains(client: TestClient) -> None:
+    history = client.app.state.history  # type: ignore[attr-defined]
+    day = date.today() - timedelta(days=3)
+    history.upsert_tickets(
+        "osoba-1", [{"id": "l1", "date": f"{day}T10:00:00+00:00", "totalAmount": 10.0}], chain="lidl"
+    )
+    history.upsert_tickets(
+        "osoba-1", [{"id": "b:1", "date": f"{day}T11:00:00+00:00", "totalAmount": 20.0}], chain="biedronka"
+    )
+
+
+def test_chain_filter_hidden_with_one_chain(client: TestClient) -> None:
+    _seed(client)
+    for path in ("/paragony", "/ceny", "/miesiace", "/rytm", "/oszczednosci"):
+        assert 'aria-label="Sieć"' not in client.get(path).text
+        assert 'name="siec"' not in client.get(path).text
+
+
+def test_receipts_filter_by_chain_and_tag(client: TestClient) -> None:
+    _connect(client)
+    _two_chains(client)
+    both = client.get("/paragony").text
+    assert 'name="siec"' in both and "chain-tag--biedronka" in both and "chain-tag--lidl" in both
+    only = client.get("/paragony?siec=biedronka").text
+    assert "20,00 zł" in only and "10,00 zł" not in only
+    assert "20,00 zł" in client.get("/paragony?siec=nieznana").text  # nieznana sieć = brak filtra
+    assert "10,00 zł" in client.get("/paragony?siec=nieznana").text
+
+
+def test_months_and_other_views_keep_chain(client: TestClient) -> None:
+    _connect(client)
+    _two_chains(client)
+    month = (date.today() - timedelta(days=3)).strftime("%Y-%m")
+    text = client.get(f"/miesiace?m={month}&siec=biedronka").text
+    assert "w Biedronce" in text and 'name="siec" value="biedronka"' in text
+    assert "w Lidlu i Biedronce" in client.get(f"/miesiace?m={month}").text
+    for path in ("/ceny", "/rytm", "/oszczednosci"):
+        assert client.get(f"{path}?siec=biedronka").status_code == 200

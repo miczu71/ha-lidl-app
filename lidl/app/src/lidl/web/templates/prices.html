@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% block title %}Ceny — Lidl Plus{% endblock %}
-{% from "_macros.html" import price_row, search_input %}
+{% from "_macros.html" import price_row, search_input, chain_links %}
 {% block main %}
 <div>
   <h1 class="t">Ceny</h1>
   <p class="lead">Jak zmieniają się ceny tego, co kupujemy. Cena z półki, bez rabatów, porównana rok do roku.</p>
 </div>
+{{ chain_links(chains) }}
 
 {% if not basket %}
 <p class="notice notice--info" role="status">

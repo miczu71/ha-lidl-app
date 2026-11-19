@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Rytm — Lidl Plus{% endblock %}
+{% from "_macros.html" import chain_radios %}
 {% block head %}
   <link rel="stylesheet" href="{{ base }}/static/leaflet.css?v={{ version }}">
   <script src="{{ base }}/static/leaflet.js?v={{ version }}" defer></script>
@@ -19,6 +20,7 @@
 {# filtry i przełącznik miary (w wynikach) odświeżają wyniki na żywo jednym zestawem atrybutów htmx #}
 <div class="stack" hx-get="{{ base }}/rytm" hx-trigger="change" hx-include="#filtry-rytmu, [name='miara']" hx-target="#rytm-wyniki" hx-select="#rytm-wyniki" hx-swap="outerHTML" hx-indicator="#rytm-wyniki" hx-replace-url="true" hx-sync="this:replace">
 <form class="ctl" id="filtry-rytmu" method="get" action="{{ base }}/rytm">
+  {{ chain_radios(chains) }}
   {% if accounts|length > 1 %}
   <fieldset>
     <legend>Konto</legend>

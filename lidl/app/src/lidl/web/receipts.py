@@ -20,7 +20,10 @@ _STATUS = {"pending": "Bez pozycji", "unparsed": "Nierozpoznany"}
 
 
 def parse_filter(
-    params: Mapping[str, str], accounts: set[str], countries: set[str] | None = None
+    params: Mapping[str, str],
+    accounts: set[str],
+    countries: set[str] | None = None,
+    chains: set[str] | None = None,
 ) -> tuple[ReceiptFilter, bool]:
     """Filtry z adresu; nieznane konto i błędne daty pomijamy. Drugi element: „Od” później niż „Do”."""
     start, end = parse_date(params.get("od")), parse_date(params.get("do"))
@@ -32,8 +35,31 @@ def parse_filter(
         start=start,
         end=end,
         country=country if country == "PL" or country in (countries or ()) else None,
+        chain=chain_of(params, chains),
     )
     return f, bool(start and end and start > end)
+
+
+def chain_of(params: Mapping[str, str], chains: set[str] | None) -> str | None:
+    """Sieć z `?siec=`: tylko znana w bazie i tylko przy ≥2 sieciach (inaczej filtr nic nie wnosi)."""
+    value = params.get("siec")
+    return value if chains and len(chains) > 1 and value in chains else None
+
+
+CHAIN_LABELS = {"lidl": "Lidl", "biedronka": "Biedronka"}
+
+
+def chain_pills(
+    chains: set[str], current: str | None, href: Callable[[str], str]
+) -> list[dict[str, Any]] | None:
+    """Pigułki „Wszystkie / Lidl / Biedronka” (kolejność stała); None, gdy w bazie jest jedna sieć."""
+    if len(chains) < 2:
+        return None
+    items = [("", "Wszystkie"), *((c, CHAIN_LABELS.get(c, c)) for c in ("lidl", "biedronka") if c in chains)]
+    return [
+        {"value": value, "label": label, "href": href(value), "on": (current or "") == value}
+        for value, label in items
+    ]
 
 
 Money = Callable[[float], str]
@@ -75,6 +101,7 @@ def month_groups(
     months: Mapping[str, tuple[int, float]],
     labels: Mapping[str, str],
     href: Callable[[str], str],
+    show_chain: bool = False,
 ) -> list[dict[str, Any]]:
     """Paragony pogrupowane po miesiącach; liczba i suma z całego miesiąca (nie tylko z pokazanych)."""
     groups: list[dict[str, Any]] = []
@@ -101,6 +128,7 @@ def month_groups(
                 "status": _STATUS.get(t.status),
                 "total": fmt_pln(t.total, 2),
                 "flag": _flag(t),
+                "chain": t.chain if show_chain else None,
                 "orig": _orig(t),
                 "href": href(t.id),
             }
