@@ -16,7 +16,17 @@ from .coupons import AccountReport, ActiveCoupon
 from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
 from .rewards import Rewards
-from .text import count_text, fmt_in_month, fmt_pct, fmt_pln, fmt_until, month_bounds, plural
+from .text import (
+    CHAIN_LABELS,
+    chain_label,
+    count_text,
+    fmt_in_month,
+    fmt_pct,
+    fmt_pln,
+    fmt_until,
+    month_bounds,
+    plural,
+)
 
 log = logging.getLogger(__name__)
 
@@ -167,11 +177,11 @@ def compose_month(s: MonthSummary, by_chain: dict[str, tuple[int, float]] | None
     if s.abroad_total > 0:
         lines.append(f"W tym za granicą: {fmt_pln(s.abroad_total, 2)} ({', '.join(s.abroad_countries)})")
     if by_chain and len(by_chain) >= 2:
-        names = {"lidl": "Lidl", "biedronka": "Biedronka"}
-        order = sorted(by_chain, key=lambda c: (list(names).index(c) if c in names else len(names), c))
-        lines.append(
-            " · ".join(f"{names.get(c, c.capitalize())} {fmt_pln(by_chain[c][1], 2)}" for c in order)
+        order = sorted(
+            by_chain,
+            key=lambda c: (c not in CHAIN_LABELS, list(CHAIN_LABELS).index(c) if c in CHAIN_LABELS else 0, c),
         )
+        lines.append(" · ".join(f"{chain_label(c)} {fmt_pln(by_chain[c][1], 2)}" for c in order))
     if s.top_spend:
         lines.append(f"Najwięcej na: {s.top_spend[0].name} ({fmt_pln(s.top_spend[0].value, 2)})")
     rank = "najdroższy miesiąc w historii" if s.rank == 1 else f"{s.rank}. najdroższy z {s.months} miesięcy"

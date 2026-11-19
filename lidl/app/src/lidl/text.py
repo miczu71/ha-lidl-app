@@ -16,6 +16,15 @@ _IN_MONTH = [
 ]  # fmt: skip
 
 
+# sieci w kolejności wyświetlania: nazwa i miejscownik („zostawiliśmy w Biedronce”)
+CHAIN_LABELS = {"lidl": "Lidl", "biedronka": "Biedronka"}
+CHAIN_WHERE = {"lidl": "w Lidlu", "biedronka": "w Biedronce"}
+
+
+def chain_label(chain: str) -> str:
+    return CHAIN_LABELS.get(chain, chain.capitalize())
+
+
 def _fold(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text.casefold().replace("ł", "l"))
     return "".join(c for c in decomposed if not unicodedata.combining(c))

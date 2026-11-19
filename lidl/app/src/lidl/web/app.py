@@ -39,7 +39,15 @@ from lidl.rewards import RewardsRunner
 from lidl.service import LidlService
 from lidl.settings import COUNTRY, Settings
 from lidl.sync import HistorySync
-from lidl.text import count_text, fmt_date, fmt_time_day_month, matches, month_bounds
+from lidl.text import (
+    CHAIN_LABELS,
+    chain_label,
+    count_text,
+    fmt_date,
+    fmt_time_day_month,
+    matches,
+    month_bounds,
+)
 
 from . import countries
 from .chart import (
@@ -69,6 +77,7 @@ from .receipts import (
     TICKETS_LIMIT,
     chain_of,
     chain_pills,
+    chain_where,
     detail_view,
     month_groups,
     parse_filter,
@@ -258,7 +267,7 @@ def create_app(settings: Settings) -> FastAPI:
             version=__version__,
             run_time=settings.run_time,
             accounts=[
-                (a.slug, f"{a.label} (Biedronka)" if a.chain == "biedronka" else a.label, a.connected)
+                (a.slug, f"{a.label} ({chain_label(a.chain)})" if a.chain != "lidl" else a.label, a.connected)
                 for a in accounts
             ],
             events=history.events(datetime.now() - EVENTS_KEEP),
@@ -314,7 +323,7 @@ def create_app(settings: Settings) -> FastAPI:
             slugify(label)
         except ValueError:
             return go(request, "/konta")
-        account = service(request).store.create(label, chain if chain in ("lidl", "biedronka") else "lidl")
+        account = service(request).store.create(label, chain if chain in CHAIN_LABELS else "lidl")
         return go(request, f"/accounts/{account.slug}/login")
 
     @app.get("/accounts/{slug}/login")
@@ -559,7 +568,7 @@ def create_app(settings: Settings) -> FastAPI:
         limit = parse_limit(params.get("limit"))
         today = date.today()
         chains = history.has_chains()
-        chain = chain_of(params, chains)
+        chain = chain_of(params.get("siec"), chains)
 
         def link(**over: object) -> str:
             return query_link(request, "/ceny", params, ("q", "kolejnosc", "limit", "siec"), **over)
@@ -661,14 +670,14 @@ def create_app(settings: Settings) -> FastAPI:
             stores=stores,
             has_history=has_history,
             countries=sorted(countries),
-            chains=chain_pills(chains, f.chain, lambda c: ""),
+            chains=chain_pills(chains, f.chain),
         )
 
     @app.get("/miesiace")
     async def months(request: Request, m: str = "", siec: str = "") -> Response:
         history: History = request.app.state.history
         chains = history.has_chains()
-        chain = chain_of({"siec": siec}, chains)
+        chain = chain_of(siec, chains)
         known = history.ticket_months(ReceiptFilter(chain=chain))
         today = date.today()
         try:
@@ -681,7 +690,7 @@ def create_app(settings: Settings) -> FastAPI:
         month = start.strftime("%Y-%m")
 
         def href(key: str, c: str | None = chain) -> str:
-            return f"{base(request)}/miesiace?{urlencode({k: v for k, v in (('m', key), ('siec', c)) if v})}"
+            return query_link(request, "/miesiace", {}, (), m=key, siec=c or "")
 
         summary = history.month_summary(month, chain)
         view = summary and month_view(
@@ -693,9 +702,7 @@ def create_app(settings: Settings) -> FastAPI:
             receipt_href=lambda t: receipt_href(request, t),
         )
         bounds = {"od": start.isoformat(), "do": end.isoformat()}
-        month_receipts = (
-            f"{base(request)}/paragony?{urlencode({**bounds, **({'siec': chain} if chain else {})})}"
-        )
+        month_receipts = query_link(request, "/paragony", {}, (), **bounds, siec=chain or "")
         return render(
             request,
             "months.html",
@@ -707,9 +714,7 @@ def create_app(settings: Settings) -> FastAPI:
             receipts=month_receipts,
             chains=chain_pills(chains, chain, lambda c: href(month, c or None)),
             chain=chain,
-            where={"lidl": "w Lidlu", "biedronka": "w Biedronce"}.get(
-                chain or (next(iter(chains)) if len(chains) == 1 else ""), "w Lidlu i Biedronce"
-            ),
+            where=chain_where(chain, chains),
         )
 
     @app.get("/rytm")
@@ -721,7 +726,7 @@ def create_app(settings: Settings) -> FastAPI:
         chains = history.has_chains()
         start = None if okres == "all" else date.today() - timedelta(days=365)
         f = ReceiptFilter(
-            account=konto if konto in labels else None, start=start, chain=chain_of({"siec": siec}, chains)
+            account=konto if konto in labels else None, start=start, chain=chain_of(siec, chains)
         )
 
         def store_href(code: str) -> str:  # Paragony z tym samym kontem i okresem
@@ -741,7 +746,7 @@ def create_app(settings: Settings) -> FastAPI:
             "grid": heatmap(r, spend),
             "stores": store_rows(stores, labels, store_href),
             "points": map_points(stores, store_href),
-            "chains": chain_pills(chains, f.chain, lambda c: ""),
+            "chains": chain_pills(chains, f.chain),
         }
         if request.headers.get("hx-target") == "rytm-wyniki":  # filtry na żywo: tylko wyniki
             return render(request, "_rhythm_results.html", **ctx)
@@ -754,7 +759,7 @@ def create_app(settings: Settings) -> FastAPI:
         chains = history.has_chains()
         start = None if okres == "all" else date.today() - timedelta(days=365)
         f = ReceiptFilter(
-            account=konto if konto in labels else None, start=start, chain=chain_of({"siec": siec}, chains)
+            account=konto if konto in labels else None, start=start, chain=chain_of(siec, chains)
         )
         result = history.savings_breakdown(f)
         ctx: dict[str, Any] = {
@@ -763,7 +768,7 @@ def create_app(settings: Settings) -> FastAPI:
             "f": f,
             "view": savings_view(result, lambda a: purchases_href(request, a)),
             "chart": build_savings_chart(result.months),
-            "chains": chain_pills(chains, f.chain, lambda c: ""),
+            "chains": chain_pills(chains, f.chain),
         }
         if request.headers.get("hx-target") == "oszczednosci-wyniki":  # filtry na żywo: tylko wyniki
             return render(request, "_savings_results.html", **ctx)

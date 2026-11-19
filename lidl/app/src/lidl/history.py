@@ -1387,17 +1387,7 @@ class History:
         self, start: date | None, end: date | None, chain: str | None
     ) -> dict[str, dict[str, Any]]:
         resolve = self._resolver()
-        where = ""
-        args: list[str] = []
-        if start is not None:
-            where += " AND t.day >= ?"
-            args.append(start.isoformat())
-        if end is not None:
-            where += " AND t.day <= ?"
-            args.append(end.isoformat())
-        if chain:
-            where += " AND t.chain = ?"
-            args.append(chain)
+        where, args = _receipt_where(ReceiptFilter(start=start, end=end, chain=chain))
         rows = self._db.execute(
             "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.ticket_id, t.day, i.discount, i.coupon,"
             f" i.total, i.is_weight FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE 1 = 1{where}"
@@ -1892,17 +1882,7 @@ class History:
         Zachodzi (dla paragonów PL): pozycje po rabatach + pobrane − zwrócone = zapłacono.
         „Zapłacono” obejmuje też zagranicę w PLN, kaucje tylko PL.
         """
-        where = ""
-        args: list[str] = []
-        if start is not None:
-            where += " AND t.day >= ?"
-            args.append(start.isoformat())
-        if end is not None:
-            where += " AND t.day <= ?"
-            args.append(end.isoformat())
-        if chain is not None:
-            where += " AND t.chain = ?"
-            args.append(chain)
+        where, args = _receipt_where(ReceiptFilter(start=start, end=end, chain=chain))
         paid, tickets = self._db.execute(
             f"SELECT SUM(t.total), COUNT(*) FROM tickets t WHERE 1 = 1{where}", args
         ).fetchone()
@@ -1987,12 +1967,13 @@ class History:
 
     def _collect_price_rows(self, chain: str | None) -> list[_PriceRow]:
         resolve = self._resolver()
+        chain_sql, chain_args = _receipt_where(ReceiptFilter(chain=chain))
         rows = self._db.execute(
             "SELECT i.art_id, i.name, t.day, i.unit_price, i.total + i.discount, i.quantity, i.is_weight"
             " FROM items i JOIN tickets t ON t.id = i.ticket_id WHERE i.quantity > 0 AND i.unit_price > 0"
-            + (" AND t.chain = ?" if chain else "")
+            + chain_sql
             + " ORDER BY t.day, i.ticket_id, i.line",
-            (chain,) if chain else (),
+            chain_args,
         )
         return [
             (resolve(art_id, name), name, date.fromisoformat(day), price, paid, qty, bool(weight))
@@ -2209,7 +2190,10 @@ class History:
 
     def has_chains(self) -> set[str]:
         """Sieci, z których są paragony (do pigułek `?siec=`)."""
-        return {c for (c,) in self._db.execute("SELECT DISTINCT chain FROM tickets") if c}
+        return self._cached(
+            ("chains",),
+            lambda: {c for (c,) in self._db.execute("SELECT DISTINCT chain FROM tickets") if c},
+        )
 
     def month_chain_totals(self, month: str) -> dict[str, tuple[int, float]]:
         """Sieć → (paragony, zapłacono) w miesiącu `2026-09`."""

@@ -7,7 +7,7 @@ from datetime import date
 from typing import Any
 
 from lidl.history import Purchase, RankedProduct, ReceiptFilter, ReceiptLine, TicketDetail, TicketSummary
-from lidl.text import count_text, fmt_date, fmt_day_month, fmt_money
+from lidl.text import CHAIN_LABELS, CHAIN_WHERE, chain_label, count_text, fmt_date, fmt_day_month, fmt_money
 
 from .chart import fmt_month_year, fmt_pln, fmt_qty, parse_date
 from .prices import fmt_price
@@ -35,27 +35,29 @@ def parse_filter(
         start=start,
         end=end,
         country=country if country == "PL" or country in (countries or ()) else None,
-        chain=chain_of(params, chains),
+        chain=chain_of(params.get("siec"), chains),
     )
     return f, bool(start and end and start > end)
 
 
-def chain_of(params: Mapping[str, str], chains: set[str] | None) -> str | None:
+def chain_of(value: str | None, chains: set[str] | None) -> str | None:
     """Sieć z `?siec=`: tylko znana w bazie i tylko przy ≥2 sieciach (inaczej filtr nic nie wnosi)."""
-    value = params.get("siec")
     return value if chains and len(chains) > 1 and value in chains else None
 
 
-CHAIN_LABELS = {"lidl": "Lidl", "biedronka": "Biedronka"}
+def chain_where(chain: str | None, chains: set[str]) -> str:
+    """„w Biedronce” / „w Lidlu”; bez filtra i przy kilku sieciach: „w Lidlu i Biedronce”."""
+    only = chain or (next(iter(chains)) if len(chains) == 1 else "")
+    return CHAIN_WHERE.get(only, "w Lidlu i Biedronce")
 
 
 def chain_pills(
-    chains: set[str], current: str | None, href: Callable[[str], str]
+    chains: set[str], current: str | None, href: Callable[[str], str] = lambda _: ""
 ) -> list[dict[str, Any]] | None:
     """Pigułki „Wszystkie / Lidl / Biedronka” (kolejność stała); None, gdy w bazie jest jedna sieć."""
     if len(chains) < 2:
         return None
-    items = [("", "Wszystkie"), *((c, CHAIN_LABELS.get(c, c)) for c in ("lidl", "biedronka") if c in chains)]
+    items = [("", "Wszystkie"), *((c, CHAIN_LABELS[c]) for c in CHAIN_LABELS if c in chains)]
     return [
         {"value": value, "label": label, "href": href(value), "on": (current or "") == value}
         for value, label in items
@@ -129,6 +131,7 @@ def month_groups(
                 "total": fmt_pln(t.total, 2),
                 "flag": _flag(t),
                 "chain": t.chain if show_chain else None,
+                "chain_label": chain_label(t.chain),
                 "orig": _orig(t),
                 "href": href(t.id),
             }
