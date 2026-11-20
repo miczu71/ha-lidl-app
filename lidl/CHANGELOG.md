@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0
+
+- **Nazwa i logo:** panel w pasku bocznym nazywa się „Zakupy”, nagłówek „Zakupy (Lidl + Biedronka)”. Nowe logo: kwadrat
+  dzielony po przekątnej (Lidl i Biedronka), koszyk na linii podziału — w sklepie add-onów i w nagłówku panelu.
+- **Menu w 5 działach** zamiast 12 zakładek: Paragony (Paragony, Produkty), Kupony, Oszczędności (Oszczędności,
+  Oszczędzanie), Analiza (Ceny, Miesiące, Rytm, Kraje, Sieci), Ustawienia (Konta, Status — kropka alertu na dziale).
+  Adresy stron bez zmian, więc linki z Budżetu działają jak dotąd. Znak Biedronki w logo to na razie mały PNG ze sklepu
+  Budżetu (rozmyty przy dużych rozmiarach) — do wymiany na oficjalny wektor.
+
 ## 1.5.2
 
 - **Biedronka: oszczędności miesiąca miały znak minus** (np. −495 zł zamiast +495 zł): rabat pozycji z paragonu Biedronki był

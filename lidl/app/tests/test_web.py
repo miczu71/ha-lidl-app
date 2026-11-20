@@ -241,6 +241,19 @@ def test_menu_groups_sections_into_five_departments(client: TestClient) -> None:
     assert 'href="/produkty"' not in konta
 
 
+@pytest.mark.parametrize(
+    "route",
+    [
+        "/paragony", "/produkty", "/kupony", "/oszczednosci", "/ceny",
+        "/miesiace", "/rytm", "/kraje", "/konta", "/status",
+    ],
+)
+def test_every_section_activates_exactly_one_department(client: TestClient, route: str) -> None:
+    """Strona spoza mapy menu nie może zostać bez aktywnego działu (cicha regresja)."""
+    r = client.get(route)
+    assert r.status_code == 200 and r.text.count("navtop--on") == 1
+
+
 def test_root_is_coupons_without_check_now(client: TestClient) -> None:
     text = client.get("/").text
     assert '<h1 class="t">Kupony</h1>' in text and "Sprawdź teraz" not in text
