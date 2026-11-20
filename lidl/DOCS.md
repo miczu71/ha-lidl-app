@@ -1,4 +1,4 @@
-# Lidl Plus
+# Zakupy (Lidl + Biedronka)
 
 Nieoficjalny add-on do kont Lidl Plus (Polska). Obsługuje wiele kont (np. po jednym na osobę w domu).
 

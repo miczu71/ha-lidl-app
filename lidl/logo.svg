@@ -1,4 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="250" height="100" viewBox="0 0 250 100"><svg x="4" y="14" width="72" height="72" viewBox="0 0 60 60" fill="currentColor">
+<svg xmlns="http://www.w3.org/2000/svg" width="250" height="100" viewBox="0 0 250 100"><svg x="6" y="0" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="100" viewBox="0 0 128 128">
+<defs><clipPath id="c"><rect width="128" height="128" rx="24"/></clipPath></defs>
+<g clip-path="url(#c)">
+<path d="M0 0H128L0 128z" fill="#0050aa"/>
+<path d="M128 0V128H0z" fill="#ffffff"/>
+<svg x="10" y="10" width="52" height="52" viewBox="0 0 60 60">
     <path fill="#0050aa" d="M0.522 0.522h58.957v58.957h-58.957z"></path>
     <path fill="#fff" d="M59.478 0.522v58.957h-58.957v-58.957h58.957zM60 0h-60v60h60v-60z"></path>
     <path fill="#fff000" d="M30 3.85c-14.442 0-26.15 11.708-26.15 26.15s11.708 26.15 26.15 26.15c14.438 0 26.144-11.702 26.15-26.139v-0.001c0-14.444-11.706-26.154-26.149-26.16h-0.001z"></path>
@@ -8,4 +13,12 @@
     <path fill="#e60a14" d="M30 2.087c-0.002 0-0.003 0-0.005 0-15.419 0-27.918 12.499-27.918 27.918s12.499 27.918 27.918 27.918c15.417 0 27.915-12.496 27.918-27.913v-0c-0.003-15.417-12.497-27.915-27.912-27.923h-0.001zM30 56.155c-14.442 0-26.15-11.708-26.15-26.15s11.708-26.15 26.15-26.15c14.442 0 26.15 11.708 26.15 26.15 0 0.004 0 0.007 0 0.011v-0.001c-0.012 14.434-11.714 26.131-26.149 26.134h-0z"></path>
     <path fill="#0050aa" d="M36.913 25.148h-7.826v1.774h1.372v6.162h-1.388v1.784h7.826c5.812 0 5.885-9.72 0.016-9.72z"></path>
     <path fill="#fff000" d="M35.812 31.826h-0.391v-3.652h0.329c1.717 0 1.717 3.652 0.063 3.652z"></path>
-</svg><text x="88" y="50" dominant-baseline="central" font-size="34" font-family="Roboto, 'Segoe UI', Helvetica, Arial, sans-serif" font-weight="700" fill="#0050aa">Lidl Plus</text></svg>
+</svg>
+<image x="66" y="66" width="52" height="52" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACUElEQVR4nI2PX0hTcRiGj9vOztn5s3O2OZ3DLY3GCp3SjVKIRBEolCYrCJmRRUbihGTDBIOoyAQtCbroQooIEYoiMi3FkpJGmZJKSLbIujCWJrYu1Lx4+3axmzgrP3g5H5z3efh+DJNicnk1Lbm7WdnmMkjVOZySlar/N2ykNBHgzkrjdF4l87LP7qrPNgi5GxIkJQ7G2Nzeei4am/+GhVgMb0Yjv0u8vtCGJa3Bpn7QrK6sJj6IjLzA/Z5eeGT7vv/CGQxrHe5/Ek+AV89fwtT4BCbfTWFibByB8sq2f8L0dl0moyt6NjC4Fl/+icmpaczHviMWeY1fH6Pw7y67mBL26MWaYjF9duRgzVrPhTb0PR5AZ/kBnD1ah1P7/bjZ0bW+WbDu1IRLRVu4rzGEIV8xJs1OhBgjuo8cx+C16+gIHEM4eHo93+H2a59tkPKai0tX8jz5aGdVNLAKvrA2fGJ4PMzIRsDrwwlOXnIYJIemoMruvvH0ZBAVDIswZ0EvZ8UdyiujDYt6C6r0MoaMVpTwlkOagh2qY2xwSyGiehW1vAW3CGZ4FRUk+0GSr5Q4pYqzhDUFuZwy2q034zZnwxmC31O5jERdtC/S/pnSQrJdJqVRU+Dj1ZYPVKql0l2ClmmPUmYpif0epUCQsdWk7NUUOHlVorfPFPHqwlsqLxnTUUmibXTFS5I+MgvYI8rPs3lVpylIjItXt+fwat0DwYw5k4J6UUa5JKFT4XBYEqfpvzMlnJxNdEmhYL5SLYlzDbKwHJCkmQKTEnbyFlar/wcJOvGPd5Z0JAAAAABJRU5ErkJggg=="/>
+<path d="M128 0L0 128" stroke="#e60a14" stroke-width="4"/>
+<rect width="128" height="128" rx="24" fill="none" stroke="#b8bfc7" stroke-width="4"/>
+</g>
+<circle cx="64" cy="64" r="19" fill="#1e2124" stroke="#ffffff" stroke-width="4"/>
+<svg x="50" y="50" width="28" height="28" viewBox="0 0 24 24"><g fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.4 11h10.2l2-8H6.2"/><circle cx="9.5" cy="19.5" r="1.4"/><circle cx="16.5" cy="19.5" r="1.4"/></g></svg>
+</svg>
+<text x="116" y="46" font-family="Figtree,Arial,sans-serif" font-weight="800" font-size="30" fill="#1e2124">Zakupy</text><text x="116" y="72" font-family="Figtree,Arial,sans-serif" font-weight="600" font-size="15" fill="#636d79">Lidl + Biedronka</text></svg>

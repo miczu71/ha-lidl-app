@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Lidl Plus{% endblock %}</title>
+  <title>{% block title %}Zakupy{% endblock %}</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="{{ base }}/static/app.css?v={{ version }}">
   <script src="{{ base }}/static/htmx.min.js?v={{ version }}" defer></script>
@@ -22,22 +22,39 @@
   </script>
 </head>
 <body>
-  <header class="bar">{% block bar %}<a href="{{ base }}/">Lidl Plus</a>{% endblock %}</header>
+  <header class="bar">{% block bar %}<a class="brand" href="{{ base }}/"><img src="{{ base }}/static/mark.svg?v={{ version }}" width="28" height="28" alt="">Zakupy (Lidl + Biedronka)</a>{% endblock %}</header>
   <main class="body"><div class="wrap">
-    {% if section %}<nav class="nav" aria-label="Sekcje">
-      <a class="ds-chip{% if section == 'kupony' %} ds-chip--on{% endif %}" href="{{ base }}/kupony"{% if section == 'kupony' %} aria-current="page"{% endif %}>Kupony</a>
-      <a class="ds-chip{% if section == 'produkty' %} ds-chip--on{% endif %}" href="{{ base }}/produkty"{% if section == 'produkty' %} aria-current="page"{% endif %}>Produkty</a>
-      <a class="ds-chip{% if section == 'ceny' %} ds-chip--on{% endif %}" href="{{ base }}/ceny"{% if section == 'ceny' %} aria-current="page"{% endif %}>Ceny</a>
-      <a class="ds-chip{% if section == 'paragony' %} ds-chip--on{% endif %}" href="{{ base }}/paragony"{% if section == 'paragony' %} aria-current="page"{% endif %}>Paragony</a>
-      <a class="ds-chip{% if section == 'miesiace' %} ds-chip--on{% endif %}" href="{{ base }}/miesiace"{% if section == 'miesiace' %} aria-current="page"{% endif %}>Miesiące</a>
-      <a class="ds-chip{% if section == 'rytm' %} ds-chip--on{% endif %}" href="{{ base }}/rytm"{% if section == 'rytm' %} aria-current="page"{% endif %}>Rytm</a>
-      <a class="ds-chip{% if section == 'kraje' %} ds-chip--on{% endif %}" href="{{ base }}/kraje"{% if section == 'kraje' %} aria-current="page"{% endif %}>Kraje</a>
-      {% if multi_chain %}<a class="ds-chip{% if section == 'sieci' %} ds-chip--on{% endif %}" href="{{ base }}/sieci"{% if section == 'sieci' %} aria-current="page"{% endif %}>Sieci</a>{% endif %}
-      {% if bdr_tab %}<a class="ds-chip{% if section == 'biedronka' %} ds-chip--on{% endif %}" href="{{ base }}/biedronka"{% if section == 'biedronka' %} aria-current="page"{% endif %}>Oszczędzanie</a>{% endif %}
-      <a class="ds-chip{% if section == 'oszczednosci' %} ds-chip--on{% endif %}" href="{{ base }}/oszczednosci"{% if section == 'oszczednosci' %} aria-current="page"{% endif %}>Oszczędności</a>
-      <a class="ds-chip{% if section == 'konta' %} ds-chip--on{% endif %}" href="{{ base }}/konta"{% if section == 'konta' %} aria-current="page"{% endif %}>Konta</a>
-      <a class="ds-chip{% if section == 'status' %} ds-chip--on{% endif %}" href="{{ base }}/status"{% if section == 'status' %} aria-current="page"{% endif %}>Status{% if alert %}<span class="dot" aria-hidden="true"></span><span class="vh"> — wymaga działania</span>{% endif %}</a>
-    </nav>{% endif %}
+    {% if section %}
+    {# Menu: 5 działów + podzakładki. Trasy bez zmian; Sieci i Oszczędzanie tylko gdy są dane (multi_chain / bdr_tab). #}
+    {% set menu_depts = [
+      ("Paragony", "M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6",
+        [("paragony", "Paragony", true), ("produkty", "Produkty", true)]),
+      ("Kupony", "M3 12V4h8l10 10-8 8z M7.5 8.5h.01",
+        [("kupony", "Kupony", true)]),
+      ("Oszczędności", "M19 5L5 19 M7 9a2 2 0 100-4 2 2 0 000 4z M17 19a2 2 0 100-4 2 2 0 000 4z",
+        [("oszczednosci", "Oszczędności", true), ("biedronka", "Oszczędzanie", bdr_tab)]),
+      ("Analiza", "M4 20h17 M7 20v-7 M12 20V5 M17 20v-10",
+        [("ceny", "Ceny", true), ("miesiace", "Miesiące", true), ("rytm", "Rytm", true), ("kraje", "Kraje", true), ("sieci", "Sieci", multi_chain)]),
+      ("Ustawienia", "M4 7h10 M18 7h2 M4 17h2 M10 17h10 M16 5v4 M8 15v4",
+        [("konta", "Konta", true), ("status", "Status", true)]),
+    ] %}
+    {% set menu_ns = namespace(menu_subs=[]) %}
+    <nav class="nav nav--top" aria-label="Działy">
+      {% for name, icon, items in menu_depts %}
+        {% set vis = items | selectattr(2) | list %}
+        {% set on = vis | selectattr(0, "equalto", section) | list | length > 0 %}
+        {% if on %}{% set menu_ns.menu_subs = vis %}{% endif %}
+        <a class="navtop{% if on %} navtop--on{% endif %}" href="{{ base }}/{{ vis[0][0] }}"{% if on %} aria-current="page"{% endif %}>
+          <span class="navtop__ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ icon }}"/></svg>{% if alert and name == "Ustawienia" %}<span class="dot" aria-hidden="true"></span>{% endif %}</span>
+          <span>{{ name }}</span>{% if alert and name == "Ustawienia" %}<span class="vh"> — wymaga działania</span>{% endif %}
+        </a>
+      {% endfor %}
+    </nav>
+    {% if menu_ns.menu_subs | length > 1 %}<nav class="nav" aria-label="Sekcje">
+      {% for key, label, _ in menu_ns.menu_subs %}
+      <a class="ds-chip{% if section == key %} ds-chip--on{% endif %}" href="{{ base }}/{{ key }}"{% if section == key %} aria-current="page"{% endif %}>{{ label }}{% if key == "status" and alert %}<span class="dot" aria-hidden="true"></span><span class="vh"> — wymaga działania</span>{% endif %}</a>
+      {% endfor %}
+    </nav>{% endif %}{% endif %}
     {% block main %}{% endblock %}
   </div></main>
   <footer class="body" style="padding-top: 0"><div class="wrap"><div class="foot">Nieoficjalny add-on, niepowiązany z Lidl · Wersja {{ version }}</div></div></footer>

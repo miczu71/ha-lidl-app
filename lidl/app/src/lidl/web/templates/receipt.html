@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import flag, flag_sprite %}
-{% block title %}{{ "Paragon " ~ receipt.when if receipt else "Paragon" }} — Lidl Plus{% endblock %}
+{% block title %}{{ "Paragon " ~ receipt.when if receipt else "Paragon" }} — Zakupy{% endblock %}
 {% block bar %}<a class="back" href="{{ back }}" aria-label="{{ 'Wróć do zakupów produktu' if from_product else 'Wróć do paragonów' }}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Paragony</span>{% endblock %}
 {% block main %}
 {% if not receipt %}

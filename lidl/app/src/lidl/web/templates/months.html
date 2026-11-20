@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ title or "Miesiące" }} — Lidl Plus{% endblock %}
+{% block title %}{{ title or "Miesiące" }} — Zakupy{% endblock %}
 {% from "_macros.html" import chain_links %}
 {% macro bars(items) %}<ol class="mw-bars">
   {% for p in items %}<li><a href="{{ p.href }}">{{ p.name }}</a><span class="mw-amt">{{ p.amount }}</span><span class="mw-track" aria-hidden="true"><span style="width: {{ p.bar }}%"></span></span></li>{% endfor %}

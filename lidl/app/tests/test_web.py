@@ -218,6 +218,29 @@ def test_navigation_links_products_and_accounts(client: TestClient) -> None:
     assert 'href="/produkty"' in text and 'href="/konta"' in text and 'aria-current="page"' in text
 
 
+def test_menu_groups_sections_into_five_departments(client: TestClient) -> None:
+    """Menu ma 5 działów; bez drugiej sieci brak „Sieci” i „Oszczędzania”."""
+    text = client.get("/ceny").text
+    assert 'aria-label="Działy"' in text
+    for dept in ("Paragony", "Kupony", "Oszczędności", "Analiza", "Ustawienia"):
+        assert f"<span>{dept}</span>" in text
+    assert text.count("navtop--on") == 1
+    # aktywny dział Analiza → podzakładki, Ceny wybrane
+    assert (
+        'aria-current="page">Ceny<' in text
+        and ">Miesiące<" in text
+        and ">Rytm<" in text
+        and ">Kraje<" in text
+    )
+    assert 'href="/sieci"' not in text and 'href="/biedronka"' not in text
+    # Kupony to dział z jedną stroną: bez drugiego rzędu
+    assert 'aria-label="Sekcje"' not in client.get("/kupony").text
+    # Ustawienia: Konta i Status
+    konta = client.get("/konta").text
+    assert ">Konta<" in konta and ">Status<" in konta and 'href="/status"' in konta
+    assert 'href="/produkty"' not in konta
+
+
 def test_root_is_coupons_without_check_now(client: TestClient) -> None:
     text = client.get("/").text
     assert '<h1 class="t">Kupony</h1>' in text and "Sprawdź teraz" not in text
@@ -1329,7 +1352,7 @@ def _seed_savings(client: TestClient) -> tuple[str, str]:
 def test_savings_page_shows_totals_ranking_and_promo_groups(client: TestClient) -> None:
     _seed_savings(client)
     text = client.get("/oszczednosci").text
-    assert 'aria-current="page">Oszczędności' in text
+    assert "navtop--on" in text and "<span>Oszczędności</span>" in text
     assert "5,50 zł" in text  # razem: kupony 3,50 + promocje 2,00, bez paragonu sprzed roku
     assert "użyty 2×" in text and "średnio 1,75 zł" in text and "/paragony/produkt/111" in text
     assert "1 produkt z kuponem użytym co najmniej 2 razy" in text

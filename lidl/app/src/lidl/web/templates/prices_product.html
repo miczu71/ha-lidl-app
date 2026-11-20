@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ product.name if product else "Produkt" }} — Ceny — Lidl Plus{% endblock %}
+{% block title %}{{ product.name if product else "Produkt" }} — Ceny — Zakupy{% endblock %}
 {% block bar %}<a class="back" href="{{ base }}/ceny" aria-label="Wróć do cen"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></a><span>Ceny</span>{% endblock %}
 {% block main %}
 {% if not product %}

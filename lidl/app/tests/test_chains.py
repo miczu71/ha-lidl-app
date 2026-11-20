@@ -86,7 +86,7 @@ def test_page_lists_proposal_and_pending(client: TestClient) -> None:
     assert f'value="{mleko}"' in r.text  # kandydat AI jako przycisk
     # wyzwalacz wyszukiwarki musi słuchać pola szukania, nie pierwszego (ukrytego) inputu formularza
     assert "from:find input[type=search]" in r.text
-    assert 'href="/sieci"' in client.get("/kupony").text
+    assert 'href="/sieci"' in client.get("/ceny").text
     assert "\\/sieci" in client.get("/kupony").text  # regex głębokiego linku z Budżetu
 
 

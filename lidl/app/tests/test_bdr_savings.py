@@ -86,7 +86,7 @@ def _with_biedronka(client: TestClient) -> History:
 
 def test_route_shows_tab_and_empty_state(client: TestClient) -> None:
     _with_biedronka(client)
-    assert 'href="/biedronka"' in client.get("/kupony").text
+    assert 'href="/biedronka"' in client.get("/oszczednosci").text
     r = client.get("/biedronka")
     assert r.status_code == 200 and "Oszczędzanie" in r.text and "Brak voucherów" in r.text
 

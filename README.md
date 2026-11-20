@@ -1,4 +1,4 @@
-# Lidl Plus — add-on Home Assistant (nieoficjalny)
+# Zakupy (Lidl + Biedronka) — add-on Home Assistant (nieoficjalny)
 
 Add-on, który łączy się z kontami Lidl Plus kilku osób w jednym domu i — etapami — zbiera paragony,
 sprawdza kupony i gazetki pod kątem produktów, które naprawdę kupujecie, aktywuje pasujące kupony
@@ -21,7 +21,7 @@ nie przewiduje — używasz na własne ryzyko (zmiany API, blokada konta).
 
 1. Home Assistant → Ustawienia → Add-ony → Sklep z dodatkami → ⋮ → **Repozytoria** → dodaj
    `https://github.com/miczu71/ha-lidl-app`.
-2. Zainstaluj **Lidl Plus**, uruchom, otwórz panel „Lidl”.
+2. Zainstaluj **Zakupy (Lidl + Biedronka)**, uruchom, otwórz panel „Zakupy”.
 3. Dodaj konto i zaloguj je (instrukcja na ekranie i w zakładce Dokumentacja).
 
 ## Bezpieczeństwo
