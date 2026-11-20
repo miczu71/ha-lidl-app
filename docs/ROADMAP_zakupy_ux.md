@@ -1,5 +1,9 @@
 # ROADMAP — Zakupy UX (nazwa, logo, menu)
 
+**Status 2026-11-20: E1–E3 ✅, wydane 1.6.0 (`73ce7f8`) + poprawka 1.6.1 (mark.svg brakował w `package-data`, wykryte na żywo).**
+Na żywo: 1.6.1, 5 działów, głębokie linki OK, 390 px bez poziomego przewijania. Otwarte: tytuł panelu w pasku bocznym HA
+nadal „Lidl” (Core trzyma stary tytuł do restartu Core albo przełączenia „Pokaż na pasku bocznym” w Info add-onu — robi user).
+
 Wywiad 2026-11-20. Wydanie jedno, na koniec E3 (etapy to commity). Makiety: https://claude.ai/artifact/46ifqGdFg4CQoVN7XUfzBH
 
 ## Ustalenia
