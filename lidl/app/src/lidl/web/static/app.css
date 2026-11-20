@@ -138,8 +138,8 @@ code { font-size: 13px; background: var(--surface-inset); border-radius: var(--r
 .nav--top { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-1); }
 .nav--top + .nav { margin-top: var(--space-2); }
 .navtop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; padding: var(--space-2) 2px; border-radius: 14px; color: var(--ink); text-decoration: none; font: 700 11px/16px var(--font-sans); text-align: center; letter-spacing: -0.01em; }
-.navtop:hover { background: var(--surface-inset); }
-.navtop--on, .navtop--on:hover { background: var(--blue); color: var(--on-blue, #fff); }
+.navtop:hover { background: var(--blue-wash); }
+.navtop--on, .navtop--on:hover { background: var(--blue); color: var(--on-blue); }
 .navtop__ic { position: relative; display: inline-flex; }
 .navtop__ic .dot { position: absolute; top: -2px; right: -4px; }
 .navtop--on .dot { box-shadow: 0 0 0 2px var(--blue); }

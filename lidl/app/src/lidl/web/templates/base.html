@@ -42,11 +42,12 @@
     <nav class="nav nav--top" aria-label="Działy">
       {% for name, icon, items in menu_depts %}
         {% set vis = items | selectattr(2) | list %}
-        {% set on = vis | selectattr(0, "equalto", section) | list | length > 0 %}
+        {% set on = section in (vis | map("first") | list) %}
+        {% set warn = alert and name == "Ustawienia" %}
         {% if on %}{% set menu_ns.menu_subs = vis %}{% endif %}
         <a class="navtop{% if on %} navtop--on{% endif %}" href="{{ base }}/{{ vis[0][0] }}"{% if on %} aria-current="page"{% endif %}>
-          <span class="navtop__ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ icon }}"/></svg>{% if alert and name == "Ustawienia" %}<span class="dot" aria-hidden="true"></span>{% endif %}</span>
-          <span>{{ name }}</span>{% if alert and name == "Ustawienia" %}<span class="vh"> — wymaga działania</span>{% endif %}
+          <span class="navtop__ic"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="{{ icon }}"/></svg>{% if warn %}<span class="dot" aria-hidden="true"></span>{% endif %}</span>
+          <span>{{ name }}</span>{% if warn %}<span class="vh"> — wymaga działania</span>{% endif %}
         </a>
       {% endfor %}
     </nav>
