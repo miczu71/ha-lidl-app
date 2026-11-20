@@ -308,7 +308,10 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   na mapie Rytmu. Żywa baza (odczyt): kody Biedronki 4-cyfrowe, Lidla `PLxxxx` — bez kolizji, więc bez migracji v11; jeden sklep ma adres `---`
   (zapis NULL). Zestaw 653 OK (bez `test_leaflet.py`), ruff/mypy czyste; Playwright 390/1280 na demo: punkt koralowy Biedronki + niebieskie Lidla, konsola czysta.
   NIEZWERYFIKOWANE na żywo: trafność Nominatim dla 8 sklepów Biedronki (ręcznie 2–3 punkty vs adres po wydaniu).
-  **Następny: E28.6.3 wydanie 1.5.1** (simplify → code-review + silent-failure-hunter + pr-test-analyzer + security → release → weryfikacja na żywo).
+  **E28.6.3 ✅ WYDANE jako 1.5.1 2026-11-20** (simplify → code-review + silent-failure-hunter + pr-test-analyzer + security → poprawki `1ebb7e0` → release `bda6706`, tag `v1.5.1` non-draft; 656 passed + 1 poprawiony po pełnym przebiegu (bez `test_leaflet.py`), ruff/mypy czyste, pubguard 0 flag).
+  Poprawki z review: migracja v11 kasuje puste punkty Biedronki z 1.5.0 (blokowały geokodowanie — `known` w `biedronka_stores_without_geo`), zła odpowiedź Nominatim = bez zapisu (ponowienie jutro), usuwany przedrostek ulicy (`ul.`/`al.`/`pl.`/`os.`) i pusty kod pocztowy, `_geo_lock` (start + poranny przebieg nie geokodują naraz), wspólna stała SQL pary.
+  Na żywo: wersja 1.5.1 (Supervisor + stopka), start bez ERROR, `/rytm`: 10 punktów, w tym 4 Biedronki ze współrzędnymi (z 8 sklepów; reszta bez adresu/trafienia albo jeszcze w kolejce). NIEZWERYFIKOWANE: trafność 2–3 punktów vs adres (robi user na mapie).
+  NIEBLOKUJĄCE z review (poza 1.5.1): klucz `store_geo` tylko po `code` (konwencja formatów, nie schemat), wiek migawki z dziennika (`fetched_at` w migawce), Shakeomat warn nie znika po późniejszym sukcesie, `chain_pair_decide` ignoruje wynik (cichy no-op), brak testu trasy `_savings_fetched`, jeden zły sklep przerywa przebieg geokodowania.
   E28.6b (punkty zależne od weryfikacji E28.5 na żywo) — po porównaniu migawki z aplikacją Moja Biedronka.
 - **P2 Cena na półce Biedronki:** `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) dla produktów z gwiazdką E15
   kupowanych w Biedronce → push `lidl-obserwowane` przy promocji. Najpierw spike GET (kształt odpowiedzi, wybór sklepu).
