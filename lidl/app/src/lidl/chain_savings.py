@@ -311,12 +311,6 @@ async def shake(
     for tile in tiles:
         try:
             reply = await api.reveal_and_activate(tile.ext_id)
-            result.done += 1
-            history.savings_mark_revealed(slug, tile.ext_id, today)
-            if isinstance(reply, dict) and not reply_keys:
-                reply_keys = sorted(
-                    str(k) for k in reply
-                )  # kształt odpowiedzi PATCH (same klucze, bez wartości)
         except Exception as err:
             if getattr(err, "status", None) == 409:
                 result.skipped += 1
@@ -324,6 +318,12 @@ async def shake(
                     history.savings_mark_revealed(slug, tile.ext_id, today)
             else:
                 result.failed.append(f"{type(err).__name__}: {err}")
+            continue
+        result.done += 1  # zapis znacznika poza try: jego błąd nie jest błędem odsłonięcia
+        history.savings_mark_revealed(slug, tile.ext_id, today)
+        if isinstance(reply, dict) and not reply_keys:
+            reply_keys = sorted(str(k) for k in reply)  # kształt odpowiedzi PATCH (same klucze, bez wartości)
+    refresh_failed = False
     if result.done:
         try:
             await refresh(history, slug, api)
@@ -333,6 +333,7 @@ async def shake(
                 if r.slug == slug and r.kind == "offer" and r.ext_id not in offers_before
             ]
         except Exception:
+            refresh_failed = True
             log.exception("Oszczędzanie Biedronki: odświeżenie po Shakeomacie nieudane")
     if tiles:
         history.log_event(
@@ -341,6 +342,7 @@ async def shake(
             f"Shakeomat Biedronki: odsłonięto {result.done} z {len(tiles)}"
             + (f", pominięto {result.skipped} (jeszcze niedostępne)" if result.skipped else "")
             + (f"; nowe oferty: {', '.join(result.new_offers)}" if result.new_offers else "")
+            + (" (migawka nieodświeżona)" if refresh_failed else "")
             + (f" ({'; '.join(result.failed)})" if result.failed else ""),
             {
                 "run": "shakeomat",
@@ -349,6 +351,7 @@ async def shake(
                 "skipped": result.skipped,
                 "failed": len(result.failed),
                 "reply_keys": reply_keys,
+                "refresh_failed": refresh_failed,
             },
         )
     return result

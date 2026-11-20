@@ -207,3 +207,22 @@ def test_shake_card_disabled_button_with_next_time(client: TestClient) -> None:
     assert "Następny Shakeomat od 13:47" in page and "disabled" in page and "data-ready-at" in page
     card = client.get("/biedronka/shakeomat/karta")
     assert card.status_code == 200 and "Następny Shakeomat od 13:47" in card.text
+
+
+def test_shake_card_route_404_without_biedronka(client: TestClient) -> None:
+    assert client.get("/biedronka/shakeomat/karta").status_code == 404
+
+
+def test_shake_htmx_wait_and_plain_post_redirect(client: TestClient, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    h = _with_biedronka(client)
+    h.savings_replace("b", {"shakeomat"}, [_s("shakeomat", "sh1", "Shakeomat", "2099-01-01T00:00:00Z")])
+    from lidl import chain_savings
+
+    async def fake(history, service, today):  # type: ignore[no-untyped-def]
+        return [chain_savings.ShakeResult("b", skipped=1)]
+
+    monkeypatch.setattr(chain_savings, "shake_accounts", fake)
+    htmx = client.post("/biedronka/shakeomat", headers={"hx-request": "true"})
+    assert "jeszcze dostępny" in htmx.text and 'id="bdr-shake"' in htmx.text
+    plain = client.post("/biedronka/shakeomat")
+    assert plain.status_code == 303 and plain.headers["location"].endswith("?m=shake_wait")

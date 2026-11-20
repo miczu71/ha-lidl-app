@@ -85,13 +85,16 @@
     // Karta Shakeomatu: przycisk wyłączony do `data-ready-at`; odliczanie przy < 1 h, o czasie odświeża kartę (htmx).
     (() => {
       let timer = null;
+      let last = 0; // znacznik ostatniego pobrania karty: bez pętli GET, gdy zegar klienta wyprzedza serwer
       const tick = () => {
         const card = document.getElementById("bdr-shake");
         const at = card && Date.parse(card.dataset.readyAt || "");
         if (!card || !at) return;
         const left = Math.ceil((at - Date.now()) / 1000);
         if (left <= 0) {
-          timer = null;
+          const pause = 5000 - (Date.now() - last);
+          if (pause > 0) { timer = setTimeout(tick, pause); return; }
+          last = Date.now();
           if (window.htmx) htmx.ajax("GET", card.dataset.card, { target: "#bdr-shake", swap: "outerHTML" });
           else card.querySelector("button")?.removeAttribute("disabled");
           return;

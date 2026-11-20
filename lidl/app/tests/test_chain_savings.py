@@ -365,3 +365,41 @@ def test_shake_state_ready_wait_done(tmp_path: Path) -> None:
     assert (state, at) == ("wait", datetime(2026, 11, 19, 12, 1, tzinfo=UTC))
     h.savings_mark_revealed("a", "sh-later", today)
     assert chain_savings.shake_state(h.savings_list(), today, NOW) == ("done", None)
+
+
+async def test_shake_409_marks_only_undated_tile(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _timed_rows(h)
+    api = ShakeApi(fail_ids={"sh-now", "sh-later"})
+    later = datetime(2026, 11, 19, 12, 5, tzinfo=UTC)
+    await chain_savings.shake(h, "a", api, date(2026, 11, 19), later)  # type: ignore[arg-type]
+    marks = {r.ext_id: r.extra.get("revealed_on") for r in h.savings_list()}
+    assert marks == {"sh-now": "2026-11-19", "sh-later": None}  # tylko kafelek bez dat uznany za odsłonięty
+    again = await chain_savings.shake(h, "a", api, date(2026, 11, 19), later)  # type: ignore[arg-type]
+    assert again.skipped == 1  # sh-now nie jest już wołany
+
+
+async def test_shake_yesterdays_mark_does_not_block_today(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a", {"shakeomat"}, [Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, None, {})]
+    )
+    h.savings_mark_revealed("a", "sh-1", date(2026, 11, 19))
+    api = ShakeApi()
+    result = await chain_savings.shake(h, "a", api, date(2026, 11, 20), NOW)  # type: ignore[arg-type]
+    assert api.revealed == ["sh-1"] and result.done == 1
+
+
+async def test_shake_refresh_failure_is_noted_in_event(tmp_path: Path) -> None:
+    class BrokenRefresh(ShakeApi):
+        async def dashboard(self) -> Any:
+            raise LidlPlusError("http_500", status=500)
+
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a", {"shakeomat"}, [Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, None, {})]
+    )
+    result = await chain_savings.shake(h, "a", BrokenRefresh(), date(2026, 11, 19), NOW)  # type: ignore[arg-type]
+    assert result.done == 1
+    events = [e for e in h.events(datetime(2000, 1, 1), area="daily")]
+    assert events and events[-1].level == "ok"

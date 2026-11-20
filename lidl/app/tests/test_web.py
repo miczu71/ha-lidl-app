@@ -244,16 +244,8 @@ def test_menu_groups_sections_into_five_departments(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "route",
     [
-        "/paragony",
-        "/produkty",
-        "/kupony",
-        "/oszczednosci",
-        "/ceny",
-        "/miesiace",
-        "/rytm",
-        "/kraje",
-        "/konta",
-        "/status",
+        "/paragony", "/produkty", "/kupony", "/oszczednosci", "/ceny",
+        "/miesiace", "/rytm", "/kraje", "/konta", "/status",
     ],
 )
 def test_every_section_activates_exactly_one_department(client: TestClient, route: str) -> None:

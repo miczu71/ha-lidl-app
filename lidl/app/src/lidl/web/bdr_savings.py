@@ -70,7 +70,8 @@ def build(
         view.fetched_label = "Jeszcze bez danych"
     else:
         view.fetched_label = f"Dane z {fetched:%d.%m, %H:%M}"
-        view.stale = (now or datetime.now()) - fetched > STALE_AFTER
+        local_now = now.astimezone().replace(tzinfo=None) if now and now.tzinfo else now or datetime.now()
+        view.stale = local_now - fetched > STALE_AFTER
     moment = now if now is not None and now.tzinfo is not None else datetime.now(UTC)
     view.shake_state, ready_at = shake_state(rows, today, moment)
     view.shakeomat = view.shake_state != "none"
