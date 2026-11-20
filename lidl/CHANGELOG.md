@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.1
+
+- Poprawka 1.6.0: logo w nagłówku panelu (`static/mark.svg`) nie trafiało do obrazu add-onu (pominięte w `package-data`),
+  więc przeglądarka dostawała 404. Test pilnuje teraz, by każdy plik z `static/` wchodził do pakietu.
+
 ## 1.6.0
 
 - **Nazwa i logo:** panel w pasku bocznym nazywa się „Zakupy”, nagłówek „Zakupy (Lidl + Biedronka)”. Nowe logo: kwadrat

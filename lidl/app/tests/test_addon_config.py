@@ -32,3 +32,17 @@ def test_requirements_are_pinned() -> None:
         ln for ln in (ADDON / "requirements.txt").read_text().splitlines() if ln and not ln.startswith("#")
     ]
     assert lines and all("==" in ln for ln in lines)
+
+
+def test_package_data_covers_static_files() -> None:
+    """Każdy plik z web/static musi wejść do obrazu (incydent 1.6.0: brak mark.svg)."""
+    import fnmatch
+    import tomllib
+
+    data = tomllib.loads((ADDON / "app" / "pyproject.toml").read_text())
+    globs = data["tool"]["setuptools"]["package-data"]["lidl.web"]
+    static = ADDON / "app" / "src" / "lidl" / "web"
+    for f in (static / "static").rglob("*"):
+        if f.is_file():
+            rel = f.relative_to(static).as_posix()
+            assert any(fnmatch.fnmatch(rel, g) for g in globs), rel
