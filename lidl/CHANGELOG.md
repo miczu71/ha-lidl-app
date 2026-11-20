@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2
+
+- **Biedronka: oszczędności miesiąca miały znak minus** (np. −495 zł zamiast +495 zł): rabat pozycji z paragonu Biedronki był
+  zapisywany jako dodatni, a reszta kodu (oszczędności, cena po rabacie) zakłada ujemny jak w Lidlu. Poprawiony parser i migracja
+  bazy do wersji 12, która odwraca znak rabatu istniejących pozycji Biedronki (kopia `history.db.pre-bdr-discount`).
+
 ## 1.5.1
 
 - **Mapa sklepów Biedronki:** adresy sklepów z paragonów są geokodowane w Nominatim (OpenStreetMap; wychodzi tylko
