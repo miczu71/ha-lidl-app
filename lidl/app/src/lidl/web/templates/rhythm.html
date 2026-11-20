@@ -51,6 +51,10 @@
       if (!el || !data || !window.L) return;
       const points = JSON.parse(data.textContent), css = getComputedStyle(document.documentElement);
       const blue = css.getPropertyValue("--blue").trim(), deep = css.getPropertyValue("--blue-deep").trim();
+      const probe = document.body.appendChild(document.createElement("i"));
+      probe.className = "chain-biedronka"; probe.hidden = true;
+      const bdr = getComputedStyle(probe).getPropertyValue("--blue").trim(); // akcent sieci z app.css
+      probe.remove();
       const top = Math.max(...points.map((p) => p.visits));
       map = L.map(el, { scrollWheelZoom: false });
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -65,7 +69,7 @@
         pop.append(name, meta, link);
         L.circleMarker([p.lat, p.lon], {
           radius: 7 + Math.sqrt(p.visits) * 1.6, color: "#fff", weight: 2,
-          fillColor: p.visits === top ? deep : blue, fillOpacity: 0.88,
+          fillColor: p.chain === "biedronka" ? bdr : p.visits === top ? deep : blue, fillOpacity: 0.88,
         }).addTo(map).bindPopup(pop);
       }
       map.fitBounds(points.map((p) => [p.lat, p.lon]), { padding: [28, 28], maxZoom: 15 });

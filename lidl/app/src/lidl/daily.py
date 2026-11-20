@@ -18,7 +18,7 @@ from . import notify
 from .accounts import AccountStore
 from .chain_savings import ShakeResult
 from .coupons import CouponRunner
-from .geo import refresh_store_geo
+from .geo import refresh_all_store_geo
 from .history import History, elapsed_ms
 from .promotions import Promotion, PromotionRunner
 from .rewards import Rewards, RewardsRunner
@@ -162,7 +162,7 @@ class DailyJob:
                         {"run": "shakeomat"},
                     )
             step = "sklepy"  # nowy sklep z dzisiejszych paragonów, na końcu
-            await refresh_store_geo(self._session, self._history)
+            await refresh_all_store_geo(self._session, self._history)
         except Exception as err:
             self._history.log_event(
                 "daily", "error", f"Poranny przebieg przerwany ({step}): {type(err).__name__}: {err}",

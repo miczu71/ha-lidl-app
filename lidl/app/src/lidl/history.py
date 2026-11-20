@@ -584,6 +584,9 @@ class StoreStats:
     accounts: dict[str, int]  # konto → paragony
     # (szerokość, długość) z `store_geo`; None przed pobraniem albo dla sklepu spoza listy Lidla
     location: tuple[float, float] | None
+    chain: str = (
+        "lidl"  # sieć sklepu; kody Biedronki (`1892`) i Lidla (`PL1120`) się nie zderzają w `store_geo`
+    )
 
     @property
     def tickets(self) -> int:
@@ -2479,15 +2482,23 @@ class History:
         where, args = _receipt_where(f or ReceiptFilter())
         for row in self._db.execute(
             f"SELECT {_TICKET_COLS}, {_STORE_KEY}, NULLIF(t.store_name, ''), t.store_address, t.store_postal,"
-            f" t.store_locality FROM tickets t WHERE t.country = 'PL'{where} ORDER BY t.day",
+            f" t.store_locality, t.chain FROM tickets t WHERE t.country = 'PL'{where} ORDER BY t.day",
             args,
         ):
             t = _summary(row[:_TICKET_N])
-            code, name, street, postal, locality = row[_TICKET_N:]
+            code, name, street, postal, locality, chain = row[_TICKET_N:]
             if not code:
                 continue
             s = found.setdefault(
-                code, {"name": code, "address": "", "paid": 0.0, "savings": 0.0, "accounts": Counter()}
+                code,
+                {
+                    "name": code,
+                    "address": "",
+                    "paid": 0.0,
+                    "savings": 0.0,
+                    "accounts": Counter(),
+                    "chain": chain,
+                },
             )
             s["name"] = name or s["name"]
             if street:
@@ -2501,7 +2512,7 @@ class History:
             (
                 StoreStats(
                     c, s["name"], s["address"], round(s["paid"], 2), round(s["savings"], 2),
-                    s["last_day"], dict(s["accounts"]), geo.get(c),
+                    s["last_day"], dict(s["accounts"]), geo.get(c), s["chain"] or "lidl",
                 )
                 for c, s in found.items()
             ),
@@ -2518,6 +2529,26 @@ class History:
             f"SELECT DISTINCT {_STORE_KEY} FROM tickets t WHERE t.country = 'PL' AND t.chain = 'lidl'"
         )
         return {code for (code,) in rows if code} - self._store_geo().keys()
+
+    def biedronka_stores_without_geo(self) -> dict[str, tuple[str, str, str]]:
+        """Sklepy Biedronki jeszcze nie geokodowane: kod → (ulica, kod pocztowy, miejscowość) z najnowszego
+        paragonu (do `geo.py`). Brak adresu (API oddaje `---`) = puste pola."""
+        rows = self._db.execute(
+            "SELECT t.store_code, t.store_address, t.store_postal, t.store_locality FROM tickets t"
+            " WHERE t.country = 'PL' AND t.chain = 'biedronka' AND COALESCE(t.store_code, '') <> ''"
+            " ORDER BY t.day"
+        )
+        known = self._store_geo().keys()
+
+        def clean(value: str | None) -> str:
+            value = (value or "").strip()
+            return "" if value == "---" else value
+
+        return {
+            code: (clean(street), clean(postal), clean(locality))
+            for code, street, postal, locality in rows
+            if code not in known
+        }
 
     def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:
         with self._db:

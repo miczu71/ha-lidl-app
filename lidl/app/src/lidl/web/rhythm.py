@@ -83,6 +83,7 @@ def map_points(stores: list[StoreStats], href: Callable[[str], str]) -> list[dic
             "visits": s.tickets,
             "meta": f"{count_text(s.tickets, 'wizyta', 'wizyty', 'wizyt')} · {fmt_pln(s.paid)}",
             "href": href(s.code),
+            "chain": s.chain,
         }
         for s in stores
         if s.location

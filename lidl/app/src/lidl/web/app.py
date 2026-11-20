@@ -30,7 +30,7 @@ from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.coupons import CouponRunner
 from lidl.daily import EVENING, EVENTS_KEEP, MONTHLY, DailyJob, at_time_loop, hourly_loop
-from lidl.geo import refresh_store_geo
+from lidl.geo import refresh_all_store_geo
 from lidl.history import CANDIDATE_MIN_PURCHASES, CATEGORIES, History, ReceiptFilter
 from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
@@ -219,7 +219,7 @@ def create_app(settings: Settings) -> FastAPI:
                 loops.append(asyncio.create_task(warm_later(history)))
                 # promocje od razu po restarcie, nie dopiero rano
                 loops.append(asyncio.create_task(promotions.refresh()))
-                loops.append(asyncio.create_task(refresh_store_geo(session, history)))  # mapa w Rytmie
+                loops.append(asyncio.create_task(refresh_all_store_geo(session, history)))  # mapa w Rytmie
                 loops.append(asyncio.create_task(feed.refresh()))  # plik dla Budżetu po aktualizacji add-onu
                 if leaflet is not None:
                     loops.append(asyncio.create_task(leaflet.run_forever()))

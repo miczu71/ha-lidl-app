@@ -5,7 +5,7 @@ from typing import Any
 
 import aiohttp
 
-from lidl.geo import STORES_URL, refresh_store_geo
+from lidl.geo import NOMINATIM_URL, STORES_URL, refresh_store_geo, refresh_store_geo_biedronka
 from lidl.history import History
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 
@@ -90,3 +90,76 @@ async def test_biedronka_store_is_not_sent_to_the_lidl_list_and_gets_no_null_row
     assert await refresh_store_geo(FakeSession(STORES), h) == 1  # type: ignore[arg-type]
     codes = {row[0] for row in h._db.execute("SELECT code FROM store_geo")}
     assert codes == {"PL0001", "PL0002"}  # brak wiersza NULL dla kodu Biedronki
+
+
+class NominatimSession:
+    """Podstawiony klient HTTP: odpowiedzi wg kolejki; zapisuje parametry zapytań."""
+
+    def __init__(self, *answers: Any) -> None:
+        self.answers, self.requests = list(answers), []
+
+    def get(self, url: str, **kwargs: Any) -> FakeResponse:
+        assert url == NOMINATIM_URL
+        self.requests.append(kwargs)
+        return FakeResponse(self.answers.pop(0))
+
+
+def _bdr_history(tmp_path: Path, *stores: tuple[str, str, str, str]) -> History:
+    """Paragony Biedronki; adres sklepu zapisuje szczegół paragonu, więc kolumny ustawiamy wprost."""
+    h = History(tmp_path / "b.db")
+    h.upsert_tickets(
+        "a",
+        [
+            {"id": f"b{i}", "date": "2026-01-02T10:00:00+00:00", "totalAmount": 3.0, "storeCode": s[0]}
+            for i, s in enumerate(stores)
+        ],
+        chain="biedronka",
+    )
+    with h._db:
+        h._db.executemany(
+            "UPDATE tickets SET store_code = ?, store_address = ?, store_postal = ?, store_locality = ?"
+            " WHERE id = ?",
+            [(code, street, postal, city, f"b{i}") for i, (code, street, postal, city) in enumerate(stores)],
+        )
+    return h
+
+
+def test_biedronka_address_comes_from_the_ticket_and_placeholder_is_blank(tmp_path: Path) -> None:
+    h = _bdr_history(
+        tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"), ("7003", "---", "---", "---")
+    )
+    assert h.biedronka_stores_without_geo() == {
+        "7001": ("ul. Przykładowa 1", "50-001", "Miasto A"),
+        "7003": ("", "", ""),
+    }
+
+
+async def test_biedronka_geocoded_once_with_generic_agent_and_public_address_only(tmp_path: Path) -> None:
+    h = _bdr_history(tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"))
+    session = NominatimSession([{"lat": "51.1", "lon": "17.0"}])
+    assert await refresh_store_geo_biedronka(session, h, pause=0) == 1  # type: ignore[arg-type]
+    assert {s.code: (s.chain, s.location) for s in h.stores()} == {"7001": ("biedronka", (51.1, 17.0))}
+    request = session.requests[0]
+    assert request["params"]["street"] == "ul. Przykładowa 1" and request["params"]["format"] == "jsonv2"
+    assert set(request["headers"]) == {"User-Agent"} and "@" not in request["headers"]["User-Agent"]
+    assert await refresh_store_geo_biedronka(session, h, pause=0) == 0  # type: ignore[arg-type]
+    assert len(session.requests) == 1  # znany sklep nie jest pytany ponownie
+
+
+async def test_biedronka_no_hit_or_no_address_saves_null_but_network_error_saves_nothing(
+    tmp_path: Path,
+) -> None:
+    h = _bdr_history(
+        tmp_path,
+        ("1111", "ul. A 1", "50-001", "Miasto A"),
+        ("2222", "---", "---", "---"),
+        ("3333", "ul. C 3", "50-003", "Miasto B"),
+    )
+    session = NominatimSession([], aiohttp.ClientError("brak sieci"))
+    assert await refresh_store_geo_biedronka(session, h, pause=0) == 0  # type: ignore[arg-type]
+    saved = dict(h._db.execute("SELECT code, lat FROM store_geo"))
+    assert saved == {
+        "1111": None,
+        "2222": None,
+    }  # brak trafienia i brak adresu = NULL; 3333 (błąd sieci) → jutro
+    assert h.biedronka_stores_without_geo().keys() == {"3333"}
