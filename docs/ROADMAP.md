@@ -292,6 +292,20 @@ Każdy etap niesie wartość sam z siebie; po każdym checkpoint.
   E28.3 Budżet (logo sieci + link do paragonu przy transakcji, obie sieci) → E28.4 porównanie cen (EAN + podobne przez AI, 1.4.0, plan `docs/PLAN_E28_4.md`) →
   E28.5 oszczędzanie (vouchery, oferty, auto-Shakeomat opcjonalny + przycisk; bez naklejek; 1.5.0; **WYDANE jako 1.5.0 2026-11-19**, plan `docs/PLAN_E28_5.md`: 5.0 spike GET → 5.1 odczyt+model → 5.2 zakładka → 5.3 push → 5.4 Shakeomat → 5.5 wydanie; simplify `de4cfc6` → code-review + silent-failure-hunter + pr-test-analyzer + security → poprawki `eb64565` → release `e986eb1`, tag `v1.5.0` non-draft; 639 passed (bez `test_leaflet.py`), ruff/mypy czyste, pubguard 0 flag; backup add-onu `bf388e72`; na żywo: wersja 1.5.0, zakładka „Oszczędzanie” przez Ingress, konsola czysta, start bez błędów. Poprawki z review: nieznany kształt API = błąd części (stare wiersze zostają), migawka odświeżana przed Shakeomatem, krok Shakeomatu i linia Biedronki nie zatrzymują porannego przebiegu, `offer_id` kodowany w URL. **NIEZWERYFIKOWANE na żywo:** migawka jest pusta do najbliższego importu z `after_import` (poranny 07:00 albo „Sprawdź teraz”) — wtedy user porównuje vouchery/oferty/daty z aplikacją Moja Biedronka (kryterium sukcesu); kształt vouchera nigdy nie widziany; `reveal-and-activate` nieużyte (opcja auto off; auto włączać dopiero po potwierdzeniu, że przycisk robi to samo co aplikacja). Doradcze bez poprawki: CSRF jak w innych POST, błędy Shakeomatu nie tworzą Problemu/alertu w Statusie, `auth` nie oznaczane w błędach migawki, wpisy `sync/error` zasłaniają „ostatni import”, panel bez wieku migawki, scalenie `Saving`/`SavedSaving`, `_migrate_vN` powtarzane). Propozycje poza E28: P1–P3 w planie.
 
+## Propozycje po E28 (2026-11-20)
+
+Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed startem, kolejność z użytkownikiem.
+
+- **E28.6 Domknięcie uwag E28.4/E28.5** (drobne, jedno wydanie 1.5.x): błędy Shakeomatu i `KeyRejected` jako Problem/alert
+  w Statusie; `auth` w błędach migawki; wiek migawki w zakładce Oszczędzanie; `?kat=` gubiony po htmx w Sieci; „Cofnij”
+  dla odrzuconej pary EAN; komunikat przy złej akcji w `/sieci/para`; `hx-trigger … from:find input` w
+  `_countries_body.html:59` (Kraje); sklepy Biedronki na mapie Rytmu (lokalizator sklepów — do rozpoznania).
+  Warunek wstępny: weryfikacja na żywo E28.5 (migawka vs aplikacja Moja Biedronka) — jej wynik może dopisać punkty.
+- **P2 Cena na półce Biedronki:** `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) dla produktów z gwiazdką E15
+  kupowanych w Biedronce → push `lidl-obserwowane` przy promocji. Najpierw spike GET (kształt odpowiedzi, wybór sklepu).
+- **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
+  kosztu limitów freellmapi (skill `pomiar`); bez tego odpada.
+
 ## Ryzyka
 
 Regulamin Lidla (ryzyko blokady konta), zmiany API i `App-Version`, rotacja refresh tokenu (utrata = ponowne

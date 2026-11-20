@@ -119,6 +119,7 @@ Najpierw kopia tego planu do `docs/ROADMAP.md` (sekcja E28) i `docs/PLAN_E28_bie
 - **P2 Cena na półce teraz:** `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) dla obserwowanych produktów
   Biedronki — alert, gdy promocja.
 - **P3 Gazetka Biedronki:** API jej nie daje; ewentualnie publiczna gazetka + AI jak w E4 (koszt limitów freellmapi).
+- P2/P3 → `docs/ROADMAP.md`, sekcja „Propozycje po E28” (2026-11-20).
 
 ## Pierwszy krok wykonania (po zatwierdzeniu)
 Tylko zapis: ta roadmapa → `docs/ROADMAP.md` (sekcja E28 + D2) i `docs/PLAN_E28_biedronka.md` w `ha-lidl-app`,
