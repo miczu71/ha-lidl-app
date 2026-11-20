@@ -79,7 +79,12 @@ def test_items_discount_weight_and_keys() -> None:
     r = parse_biedronka(DETAIL)
     assert [i.art_id for i in r.items] == ["b:5900000000001", "b:5900000000002", "b:bułka"]
     milk, apples, _ = r.items
-    assert (milk.quantity, milk.unit_price, milk.total, milk.discount) == (2, 3.0, 6.0, 1.0)
+    assert (milk.quantity, milk.unit_price, milk.total, milk.discount) == (
+        2,
+        3.0,
+        6.0,
+        -1.0,
+    )  # rabat ujemny jak w Lidlu
     assert not milk.is_weight and apples.is_weight
     assert milk.coupon == 0 and milk.promo == ""
 
@@ -115,7 +120,7 @@ def test_payment_store_and_time() -> None:
 
 def test_totals_add_up_to_receipt_total() -> None:
     r = parse_biedronka(DETAIL)
-    assert round(sum(i.total - i.discount for i in r.items) + r.deposit, 2) == DETAIL["total_price"]
+    assert round(sum(i.total + i.discount for i in r.items) + r.deposit, 2) == DETAIL["total_price"]
 
 
 def test_sanitize_drops_identifiers() -> None:

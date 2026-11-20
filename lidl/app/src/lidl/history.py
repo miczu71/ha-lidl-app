@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 _PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
@@ -902,6 +902,8 @@ class History:
         self._db.executescript(_SCHEMA)
         if has_tables and version < 11:
             self._migrate_v10()
+        if has_tables and version < 12:
+            self._migrate_v11(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1023,6 +1025,22 @@ class History:
             self._db.backup(dest)
         finally:
             dest.close()
+
+    def _migrate_v11(self, path: Path) -> None:
+        """v11 → v12: pozycje Biedronki miały rabat dodatni, a kod (ceny, oszczędności) zakłada
+        ujemny jak w Lidlu — negujemy `items.discount` Biedronki; wcześniej kopia `.pre-bdr-discount`."""
+        if "chain" not in {r[1] for r in self._db.execute("PRAGMA table_info(tickets)")}:
+            return  # baza sprzed Biedronki nie ma jej pozycji
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-bdr-discount"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
+        with self._db:
+            self._db.execute(
+                "UPDATE items SET discount = -ABS(discount) WHERE ticket_id IN"
+                " (SELECT id FROM tickets WHERE chain = 'biedronka')"
+            )
 
     def _migrate_v10(self) -> None:
         """v10 → v11: wersja 1.5.0 zapisała kodom Biedronki puste punkty (pytała o nie listę Lidla), co

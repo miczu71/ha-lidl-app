@@ -44,7 +44,7 @@ def parse_biedronka(detail: dict[str, Any]) -> ParsedReceipt:
                 quantity=_num(line.get("quantity") or 1),
                 unit_price=_num(line.get("unit_price")),
                 total=_num(line.get("total_price_without_discount")),
-                discount=abs(_num(line.get("total_discount"))),
+                discount=-abs(_num(line.get("total_discount"))),  # ujemny, jak rabaty Lidla
                 is_weight=str(line.get("measure_unit") or "").upper() == "KG",
             )
         )
