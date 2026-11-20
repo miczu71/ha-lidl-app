@@ -126,7 +126,7 @@ MESSAGES = {
 
 def _savings_fetched(history: History) -> datetime | None:
     """Czas ostatniego udanego odświeżenia migawki Oszczędzania (dziennik, 30 dni)."""
-    latest = history.events(datetime.now() - timedelta(days=30), area="savings", limit=1)
+    latest = history.events(datetime.now() - EVENTS_KEEP, area="savings", limit=1)
     return latest[0].ts if latest else None
 
 

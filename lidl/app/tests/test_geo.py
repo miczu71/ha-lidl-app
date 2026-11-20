@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
+import pytest
 
+from lidl import geo
 from lidl.geo import NOMINATIM_URL, STORES_URL, refresh_store_geo, refresh_store_geo_biedronka
 from lidl.history import History
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
@@ -140,7 +142,7 @@ async def test_biedronka_geocoded_once_with_generic_agent_and_public_address_onl
     assert await refresh_store_geo_biedronka(session, h, pause=0) == 1  # type: ignore[arg-type]
     assert {s.code: (s.chain, s.location) for s in h.stores()} == {"7001": ("biedronka", (51.1, 17.0))}
     request = session.requests[0]
-    assert request["params"]["street"] == "ul. Przykładowa 1" and request["params"]["format"] == "jsonv2"
+    assert request["params"]["street"] == "Przykładowa 1" and request["params"]["format"] == "jsonv2"
     assert set(request["headers"]) == {"User-Agent"} and "@" not in request["headers"]["User-Agent"]
     assert await refresh_store_geo_biedronka(session, h, pause=0) == 0  # type: ignore[arg-type]
     assert len(session.requests) == 1  # znany sklep nie jest pytany ponownie
@@ -163,3 +165,45 @@ async def test_biedronka_no_hit_or_no_address_saves_null_but_network_error_saves
         "2222": None,
     }  # brak trafienia i brak adresu = NULL; 3333 (błąd sieci) → jutro
     assert h.biedronka_stores_without_geo().keys() == {"3333"}
+
+
+async def test_biedronka_malformed_answer_saves_nothing_and_retries_tomorrow(tmp_path: Path) -> None:
+    h = _bdr_history(tmp_path, ("1111", "ul. A 1", "50-001", "Miasto A"))
+    session = NominatimSession({"error": "x"})
+    assert await refresh_store_geo_biedronka(session, h, pause=0) == 0  # type: ignore[arg-type]
+    assert h.biedronka_stores_without_geo().keys() == {"1111"}  # bez zapisu NULL
+
+
+async def test_refresh_all_store_geo_one_source_failing_does_not_block_the_other(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    called: list[str] = []
+
+    async def boom(session: object, history: object) -> int:
+        raise RuntimeError("x")
+
+    async def ok(session: object, history: object) -> int:
+        called.append("bdr")
+        return 0
+
+    monkeypatch.setattr(geo, "refresh_store_geo", boom)
+    monkeypatch.setattr(geo, "refresh_store_geo_biedronka", ok)
+    await geo.refresh_all_store_geo(None, _history(tmp_path))  # type: ignore[arg-type]
+    assert called == ["bdr"]
+
+
+def test_migration_v11_drops_empty_points_of_biedronka_codes_left_by_1_5_0(tmp_path: Path) -> None:
+    h = _bdr_history(tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"))
+    h.save_store_geo([("7001", None, None), ("PL0001", None, None), ("PL0009", 52.2, 21.0)])
+    h._db.execute("PRAGMA user_version = 10")
+    h._db.commit()
+    h2 = History(tmp_path / "b.db")
+    assert dict(h2._db.execute("SELECT code, lat FROM store_geo")) == {"PL0001": None, "PL0009": 52.2}
+
+
+async def test_biedronka_street_prefix_is_stripped_and_empty_postal_omitted(tmp_path: Path) -> None:
+    h = _bdr_history(tmp_path, ("7001", "ul. Przykładowa 1", "", "Miasto A"))
+    session = NominatimSession([])
+    await refresh_store_geo_biedronka(session, h, pause=0)  # type: ignore[arg-type]
+    params = session.requests[0]["params"]
+    assert params["street"] == "Przykładowa 1" and "postalcode" not in params

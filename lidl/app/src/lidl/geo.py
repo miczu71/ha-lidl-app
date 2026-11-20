@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 import aiohttp
 
@@ -69,10 +70,11 @@ async def refresh_store_geo_biedronka(
         if not first:
             await asyncio.sleep(pause)
         first = False
-        params = {
-            "format": "jsonv2", "limit": "1", "countrycodes": "pl",
-            "street": street, "postalcode": postal, "city": city,
-        }  # fmt: skip
+        # OSM nie ma przedrostków „ul.”/„al.”/„pl.” w nazwach ulic; pusty kod pocztowy pomijamy
+        street = re.sub(r"^(ul|al|pl|os)\.?\s+", "", street, flags=re.IGNORECASE)
+        params = {"format": "jsonv2", "limit": "1", "countrycodes": "pl", "street": street, "city": city}
+        if postal:
+            params["postalcode"] = postal
         try:
             async with session.get(
                 NOMINATIM_URL, params=params, headers=NOMINATIM_HEADERS, timeout=NOMINATIM_TIMEOUT
@@ -83,9 +85,10 @@ async def refresh_store_geo_biedronka(
         except (aiohttp.ClientError, TimeoutError) as err:
             log.warning("Sklepy Biedronki: Nominatim nieosiągalny (%s) — ponowię jutro", err)
             return located
-        except (ValueError, KeyError, IndexError, TypeError) as err:
-            log.warning("Sklepy Biedronki: nieznany kształt odpowiedzi Nominatim dla %s (%s)", code, err)
-            point = (None, None)
+        except (ValueError, KeyError, TypeError) as err:
+            # zły kształt (HTML z proxy, captcha, dict po 429) jest przejściowy — jak błąd sieci, bez zapisu
+            log.warning("Sklepy Biedronki: zła odpowiedź Nominatim dla %s (%s) — ponowię jutro", code, err)
+            return located
         history.save_store_geo([(code, *point)])
         located += point[0] is not None
     if missing:
@@ -93,10 +96,14 @@ async def refresh_store_geo_biedronka(
     return located
 
 
+_geo_lock = asyncio.Lock()  # start dodatku i poranny przebieg nie geokodują naraz (limit 1 zapytanie/s)
+
+
 async def refresh_all_store_geo(session: aiohttp.ClientSession, history: History) -> None:
     """Oba źródła współrzędnych; błąd jednego nie blokuje drugiego."""
-    for refresh in (refresh_store_geo, refresh_store_geo_biedronka):
-        try:
-            await refresh(session, history)
-        except Exception:
-            log.exception("Sklepy: %s nieudane", refresh.__name__)
+    async with _geo_lock:
+        for refresh in (refresh_store_geo, refresh_store_geo_biedronka):
+            try:
+                await refresh(session, history)
+            except Exception:
+                log.exception("Sklepy: %s nieudane", refresh.__name__)

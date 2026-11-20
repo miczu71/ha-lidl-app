@@ -54,7 +54,8 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
+_PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
 ADDON_START = date(2026, 10, 7)  # pierwsza aktywacja kuponów przez add-on; granica „przed / po” w E16
@@ -899,6 +900,8 @@ class History:
         if version < 10:
             self._migrate_v9(path)
         self._db.executescript(_SCHEMA)
+        if has_tables and version < 11:
+            self._migrate_v10()
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1020,6 +1023,17 @@ class History:
             self._db.backup(dest)
         finally:
             dest.close()
+
+    def _migrate_v10(self) -> None:
+        """v10 → v11: wersja 1.5.0 zapisała kodom Biedronki puste punkty (pytała o nie listę Lidla), co
+        blokuje geokodowanie adresów (E28.6) — kasujemy te puste punkty."""
+        if "store_code" not in {r[1] for r in self._db.execute("PRAGMA table_info(tickets)")}:
+            return  # bardzo stara baza bez kodów sklepów nie miała też punktów 1.5.0
+        with self._db:
+            self._db.execute(
+                "DELETE FROM store_geo WHERE lat IS NULL AND code IN"
+                " (SELECT store_code FROM tickets WHERE chain = 'biedronka')"
+            )
 
     def _migrate_v9(self, path: Path) -> None:
         """v9 → v10: tabela `chain_savings` (powstaje ze _SCHEMA); wcześniej kopia `.pre-chain-savings`."""
@@ -2196,7 +2210,7 @@ class History:
         elif action == "undo" and row[0] == "ean":
             sql, args = "SET status = 'rejected', lidl_art_id = NULL, decided_at = ?", (now,)
         elif action == "undo":
-            sql, args = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL", ()
+            sql, args = _PAIR_BACK_TO_PROPOSED, ()
         elif action == "restore" and row[0] == "ean" and row[1] == "rejected":
             lidl = self.ean_matches([b_id]).get(b_id)
             if lidl:
@@ -2205,10 +2219,7 @@ class History:
                     (lidl, now),
                 )
             else:
-                sql, args = (
-                    "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL",
-                    (),
-                )
+                sql, args = _PAIR_BACK_TO_PROPOSED, ()
         else:
             return False
         with self._db:
