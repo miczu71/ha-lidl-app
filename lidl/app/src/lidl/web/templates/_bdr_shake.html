@@ -1,0 +1,19 @@
+{# Karta Shakeomatu (też odpowiedź htmx na „Odsłoń teraz” i na odblokowanie o czasie). `flash` = wynik kliknięcia. #}
+<div class="bdr-saving" id="bdr-shake" role="status"{% if view.shake_state == "wait" %} data-ready-at="{{ view.shake_ready_at }}" data-card="{{ base }}/biedronka/shakeomat/karta"{% endif %}>
+  <span>
+    {%- if view.shake_state == "ready" %}<strong>Shakeomat dostępny</strong>
+    {%- elif view.shake_state == "wait" %}<strong>Następny Shakeomat od {{ view.shake_next_label }}</strong>
+    {%- else %}<strong>Dzisiejszy Shakeomat odsłonięty</strong>{% endif %}<br>
+    <span class="meta">
+      {%- if view.shake_state == "ready" %}{% if auto_shakeomat %}Odsłoni się sam rano po imporcie.{% else %}Odsłoń go tutaj albo w aplikacji Moja Biedronka.{% endif %}
+      {%- elif view.shake_state == "wait" %}Przycisk odblokuje się o tej godzinie<span data-countdown></span>.
+      {%- elif view.shake_offers %}Oferty z Shakeomatu: {{ view.shake_offers | join(", ") }}.
+      {%- else %}Wylosowana oferta jest na liście poniżej albo w aplikacji Moja Biedronka.{% endif %}</span>
+    {%- if flash %}<br><span class="meta notice--{{ flash[0] }}">{{ flash[1] }}</span>{% endif %}
+  </span>
+  {%- if view.shake_state in ("ready", "wait") %}
+  <form method="post" action="{{ base }}/biedronka/shakeomat" hx-post="{{ base }}/biedronka/shakeomat" hx-target="#bdr-shake" hx-swap="outerHTML">
+    <button class="ds-btn" type="submit"{% if view.shake_state == "wait" %} disabled{% endif %}>Odsłoń teraz</button>
+  </form>
+  {%- endif %}
+</div>

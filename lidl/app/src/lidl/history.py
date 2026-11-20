@@ -1088,6 +1088,21 @@ class History:
                     ),
                 )
 
+    def savings_mark_revealed(self, slug: str, ext_id: str, day: date) -> None:
+        """Zapisuje w `extra` kafelka Shakeomatu dzień odsłonięcia (znacznik przeżywa odświeżenie migawki)."""
+        with self._db:
+            row = self._db.execute(
+                "SELECT extra FROM chain_savings WHERE slug = ? AND kind = 'shakeomat' AND ext_id = ?",
+                (slug, ext_id),
+            ).fetchone()
+            if row is None:
+                return
+            extra = {**json.loads(row[0]), "revealed_on": day.isoformat()}
+            self._db.execute(
+                "UPDATE chain_savings SET extra = ? WHERE slug = ? AND kind = 'shakeomat' AND ext_id = ?",
+                (json.dumps(extra, ensure_ascii=False), slug, ext_id),
+            )
+
     def savings_list(self) -> list[Any]:
         from .chain_savings import SavedSaving
 

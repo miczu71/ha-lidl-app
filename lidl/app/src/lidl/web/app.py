@@ -1050,6 +1050,24 @@ def create_app(settings: Settings) -> FastAPI:
             auto_shakeomat=settings.biedronka_auto_shakeomat,
         )
 
+    def shake_card(request: Request, flash: tuple[str, str] | None = None) -> Response:
+        history: History = request.app.state.history
+        view = bdr_savings.build(history.savings_list(), date.today(), _savings_fetched(history))
+        return render(
+            request,
+            "_bdr_shake.html",
+            view=view,
+            flash=flash,
+            auto_shakeomat=settings.biedronka_auto_shakeomat,
+        )
+
+    @app.get("/biedronka/shakeomat/karta")
+    async def bdr_shake_card(request: Request) -> Response:
+        """Świeża karta Shakeomatu (skrypt woła ją o czasie odblokowania przycisku)."""
+        if "biedronka" not in request.app.state.history.has_chains():
+            return Response("Brak konta Biedronki.", status_code=404)
+        return shake_card(request)
+
     @app.post("/biedronka/shakeomat")
     async def bdr_shakeomat(request: Request) -> Response:
         history: History = request.app.state.history
@@ -1062,8 +1080,16 @@ def create_app(settings: Settings) -> FastAPI:
             code = "shake_err"
         elif any(r.done for r in results):
             code = "shake_ok"
+        elif any(r.skipped for r in results):
+            code = "shake_wait"
         else:
             code = "shake_none"
+        if request.headers.get("hx-request"):  # wynik od razu na karcie, bez przeładowania strony
+            level, text = bdr_savings.MESSAGES[code]
+            new = [name for r in results for name in r.new_offers]
+            if new:
+                text += f" Nowa oferta: {', '.join(new)}."
+            return shake_card(request, (level, text))
         return go(request, f"/biedronka?m={code}")
 
     @app.get("/sieci/szukaj")

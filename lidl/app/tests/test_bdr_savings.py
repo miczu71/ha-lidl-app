@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from fastapi.testclient import TestClient
 
@@ -153,3 +153,57 @@ def test_build_labels_snapshot_age() -> None:
     old = build([], TODAY, datetime(2026, 11, 18, 7, 0), now)
     assert old.stale
     assert build([], TODAY).fetched_label == "Jeszcze bez danych"
+
+
+def test_build_shake_state_and_next_label(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    now = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+    later = Saving(
+        "shakeomat", "sh2", "Shakeomat", None, None, "2026-11-19T12:47:00Z", "2026-11-19T22:59:59Z", {}
+    )
+    rows = _saved([later], tmp_path)
+    v = build(rows, TODAY, now=now)
+    assert (v.shakeomat, v.shake_state, v.shake_next_label, v.shake_ready_at) == (
+        True, "wait", "13:47", "2026-11-19T12:47:00+00:00",
+    )  # fmt: skip
+    ready = _saved([_s("shakeomat", "sh1", "Shakeomat", None)], tmp_path / "r")
+    assert build(ready, TODAY, now=now).shake_state == "ready"
+
+
+def test_shake_card_htmx_shows_result_without_redirect(client: TestClient, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    h = _with_biedronka(client)
+    h.savings_replace("b", {"shakeomat"}, [_s("shakeomat", "sh1", "Shakeomat", "2099-01-01T00:00:00Z")])
+    from lidl import chain_savings
+
+    async def fake(history, service, today):  # type: ignore[no-untyped-def]
+        history.savings_mark_revealed("b", "sh1", today)
+        return [chain_savings.ShakeResult("b", 1, new_offers=["Mleko 1l"])]
+
+    monkeypatch.setattr(chain_savings, "shake_accounts", fake)
+    r = client.post("/biedronka/shakeomat", headers={"hx-request": "true"})
+    assert r.status_code == 200 and 'id="bdr-shake"' in r.text
+    assert "Shakeomat odsłonięty." in r.text and "Nowa oferta: Mleko 1l." in r.text
+    assert "Dzisiejszy Shakeomat odsłonięty" in r.text and "<button" not in r.text  # nic więcej do kliknięcia
+
+
+def test_shake_card_disabled_button_with_next_time(client: TestClient) -> None:
+    h = _with_biedronka(client)
+    h.savings_replace(
+        "b",
+        {"shakeomat"},
+        [
+            Saving(
+                "shakeomat",
+                "sh2",
+                "Shakeomat",
+                None,
+                None,
+                "2099-01-01T12:47:00Z",
+                "2099-01-01T22:59:59Z",
+                {},
+            )
+        ],
+    )
+    page = client.get("/biedronka").text
+    assert "Następny Shakeomat od 13:47" in page and "disabled" in page and "data-ready-at" in page
+    card = client.get("/biedronka/shakeomat/karta")
+    assert card.status_code == 200 and "Następny Shakeomat od 13:47" in card.text

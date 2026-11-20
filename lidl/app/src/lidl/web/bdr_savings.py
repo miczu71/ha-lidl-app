@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from lidl.chain_savings import URGENT_DAYS, SavedSaving, local_date
+from lidl.chain_savings import URGENT_DAYS, SavedSaving, local_date, local_hhmm, shake_state
 from lidl.text import fmt_pln
 
 MESSAGES = {
-    "shake_ok": ("ok", "Shakeomat odsłonięty. Nowe oferty widać niżej po odświeżeniu migawki."),
-    "shake_none": ("info", "Brak dzisiejszego Shakeomatu do odsłonięcia."),
+    "shake_ok": ("ok", "Shakeomat odsłonięty."),
+    "shake_wait": (
+        "info",
+        "Ten Shakeomat nie jest jeszcze dostępny. Przycisk odblokuje się o podanej godzinie.",
+    ),
+    "shake_none": ("info", "Brak Shakeomatu do odsłonięcia."),
     "shake_noacc": ("err", "Konto Biedronki nie jest połączone. Zaloguj się ponownie w ustawieniach konta."),
     "shake_err": ("err", "Nie wszystko się udało. Szczegóły są w zakładce Status."),
 }
@@ -24,7 +28,11 @@ STALE_AFTER = timedelta(hours=36)
 class SavingsView:
     vouchers: list[dict[str, Any]] = field(default_factory=list)
     offers: list[dict[str, Any]] = field(default_factory=list)
-    shakeomat: bool = False
+    shakeomat: bool = False  # jest kafelek Shakeomatu ważny dziś (karta widoczna)
+    shake_state: str = "none"  # none | ready | wait | done (chain_savings.shake_state)
+    shake_next_label: str = ""  # „13:47” (czas polski), gdy wait
+    shake_ready_at: str = ""  # ISO UTC dla skryptu odblokowującego przycisk
+    shake_offers: list[str] = field(default_factory=list)  # oferty oznaczone jako z Shakeomatu
     urgent_count: int = 0
     fetched_label: str = ""  # „Dane z 20.11, 07:02” albo „Jeszcze bez danych”
     stale: bool = False  # migawka starsza niż STALE_AFTER (pominięty poranny przebieg)
@@ -63,13 +71,21 @@ def build(
     else:
         view.fetched_label = f"Dane z {fetched:%d.%m, %H:%M}"
         view.stale = (now or datetime.now()) - fetched > STALE_AFTER
+    moment = now if now is not None and now.tzinfo is not None else datetime.now(UTC)
+    view.shake_state, ready_at = shake_state(rows, today, moment)
+    view.shakeomat = view.shake_state != "none"
+    if ready_at is not None:
+        view.shake_next_label = local_hhmm(ready_at)
+        view.shake_ready_at = ready_at.isoformat()
     for row in rows:
+        if row.kind == "shakeomat":  # karta Shakeomatu liczy się z `shake_state`, nie z listy
+            continue
         entry = _entry(row, today)
         if entry is None:
             continue
-        if row.kind == "shakeomat":
-            view.shakeomat = True
-        elif row.kind == "voucher":
+        if row.kind == "offer" and row.extra.get("from_shakeomat"):
+            view.shake_offers.append(row.name)
+        if row.kind == "voucher":
             view.vouchers.append(entry)
         elif row.kind == "offer":
             view.offers.append(entry)

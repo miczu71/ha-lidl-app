@@ -81,5 +81,29 @@
       document.addEventListener("htmx:afterSettle", apply);
     })();
   </script>
+  <script>
+    // Karta Shakeomatu: przycisk wyłączony do `data-ready-at`; odliczanie przy < 1 h, o czasie odświeża kartę (htmx).
+    (() => {
+      let timer = null;
+      const tick = () => {
+        const card = document.getElementById("bdr-shake");
+        const at = card && Date.parse(card.dataset.readyAt || "");
+        if (!card || !at) return;
+        const left = Math.ceil((at - Date.now()) / 1000);
+        if (left <= 0) {
+          timer = null;
+          if (window.htmx) htmx.ajax("GET", card.dataset.card, { target: "#bdr-shake", swap: "outerHTML" });
+          else card.querySelector("button")?.removeAttribute("disabled");
+          return;
+        }
+        const out = card.querySelector("[data-countdown]");
+        if (out) out.textContent = left < 3600 ? ` (za ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")})` : "";
+        timer = setTimeout(tick, 1000);
+      };
+      const start = () => { clearTimeout(timer); tick(); };
+      document.addEventListener("DOMContentLoaded", start);
+      document.addEventListener("htmx:afterSettle", start);
+    })();
+  </script>
 </body>
 </html>

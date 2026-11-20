@@ -11,12 +11,7 @@
 <p class="notice notice--{{ message[0] }}" role="status"><span>{{ message[1] }}</span></p>
 {% endif %}
 
-{% if view.shakeomat %}
-<div class="bdr-saving" role="status">
-  <span><strong>Shakeomat dostępny</strong><br><span class="meta">{% if auto_shakeomat %}Odsłoni się sam rano po imporcie.{% else %}Odsłoń go tutaj albo w aplikacji Moja Biedronka.{% endif %}</span></span>
-  <form method="post" action="{{ base }}/biedronka/shakeomat"><button class="ds-btn" type="submit">Odsłoń teraz</button></form>
-</div>
-{% endif %}
+{% if view.shakeomat %}{% include "_bdr_shake.html" %}{% endif %}
 
 <div class="stack">
   <section class="card" aria-labelledby="bs-v">

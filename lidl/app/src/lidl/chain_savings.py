@@ -8,8 +8,8 @@ tolerancyjny: nieznane pola pomija, a element bez identyfikatora i nazwy odrzuca
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from dataclasses import dataclass, field, replace
+from datetime import UTC, date, datetime, timedelta, timezone
 from functools import cache
 from typing import Any
 
@@ -44,6 +44,11 @@ def local_date(iso: str | None) -> date | None:
     if moment.tzinfo is None:
         return moment.date()
     return moment.astimezone(_tz()).date()
+
+
+def local_hhmm(moment: datetime) -> str:
+    """Godzina (czas polski) z aware datetime, np. `13:47`."""
+    return moment.astimezone(_tz()).strftime("%H:%M")
 
 
 @dataclass(frozen=True)
@@ -209,8 +214,24 @@ async def fetch(api: Any) -> FetchResult:
     return result
 
 
+def _carry_revealed(history: History, slug: str, rows: list[Saving]) -> list[Saving]:
+    """Znacznik „odsłonięty dziś” przeżywa odświeżenie migawki (API nie mówi, który kafelek odsłonięto)."""
+    marks = {
+        r.ext_id: r.extra["revealed_on"]
+        for r in history.savings_list()
+        if r.slug == slug and r.kind == "shakeomat" and r.extra.get("revealed_on")
+    }
+    return [
+        replace(r, extra={**r.extra, "revealed_on": marks[r.ext_id]})
+        if r.kind == "shakeomat" and r.ext_id in marks
+        else r
+        for r in rows
+    ]
+
+
 async def refresh(history: History, slug: str, api: Any) -> FetchResult:
     result = await fetch(api)
+    result.rows = _carry_revealed(history, slug, result.rows)
     kinds = {"voucher", "offer", "shakeomat"} - result.failed_kinds
     history.savings_replace(slug, kinds, result.rows)
     for error in result.errors:
@@ -231,37 +252,104 @@ class ShakeResult:
     slug: str
     done: int = 0
     failed: list[str] = field(default_factory=list)
+    skipped: int = 0  # HTTP 409: kafelek jeszcze/już niedostępny — nie jest błędem
+    new_offers: list[str] = field(default_factory=list)  # oferty, które po odsłonięciu doszły do migawki
 
 
-async def shake(history: History, slug: str, api: Any, today: date) -> ShakeResult:
-    """Odsłania bieżące oferty Shakeomatu z migawki konta (zapis na koncie: przycisk albo opcja auto).
+def _utc(iso: str | None) -> datetime | None:
+    if not iso:
+        return None
+    try:
+        moment = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
-    Błąd jednej oferty nie przerywa pozostałych; błędy trafiają do dziennika (Status), bez treści odpowiedzi.
-    Po udanym odsłonięciu migawka jest odświeżana, żeby panel pokazał nowe oferty."""
+
+def _current_tiles(rows: list[Any], today: date) -> list[Any]:
+    return [r for r in rows if r.kind == "shakeomat" and is_current(r.valid_to, today)]
+
+
+def _open_tiles(rows: list[Any], today: date) -> list[Any]:
+    """Kafelki Shakeomatu ważne dziś i jeszcze nieodsłonięte dziś."""
+    return [r for r in _current_tiles(rows, today) if r.extra.get("revealed_on") != today.isoformat()]
+
+
+def _is_ready(row: Any, now: datetime) -> bool:
+    start = _utc(row.valid_from)
+    return start is None or start <= now
+
+
+def shake_state(rows: list[Any], today: date, now: datetime) -> tuple[str, datetime | None]:
+    """Stan przycisku: `none` (brak kafelka), `ready`, `wait` (+ kiedy dostępny), `done` (odsłonięte)."""
+    if not _current_tiles(rows, today):
+        return "none", None
+    open_ = _open_tiles(rows, today)
+    if not open_:
+        return "done", None
+    if any(_is_ready(r, now) for r in open_):
+        return "ready", None
+    return "wait", min(t for t in (_utc(r.valid_from) for r in open_) if t is not None)
+
+
+async def shake(
+    history: History, slug: str, api: Any, today: date, now: datetime | None = None
+) -> ShakeResult:
+    """Odsłania gotowe oferty Shakeomatu z migawki konta (zapis na koncie: przycisk albo opcja auto).
+
+    Pomija kafelki z `available_from` w przyszłości i odsłonięte dziś. Błąd jednej oferty nie przerywa
+    pozostałych. 409 to „jeszcze/już niedostępny”, nie błąd; kafelek bez dat po 409 uznajemy za odsłonięty
+    dziś (na żywo zostaje w karuzeli po odsłonięciu), kafelek z datą nie. Błędy trafiają do dziennika
+    (Status), bez treści odpowiedzi. Po odsłonięciu migawka jest odświeżana; nowe oferty z różnicy migawek
+    to wynik."""
+    now = now or datetime.now(UTC)
     result = ShakeResult(slug)
-    ids = [
-        r.ext_id
-        for r in history.savings_list()
-        if r.slug == slug and r.kind == "shakeomat" and is_current(r.valid_to, today)
-    ]
-    for offer_id in ids:
+    rows = [r for r in history.savings_list() if r.slug == slug]
+    tiles = [r for r in _open_tiles(rows, today) if _is_ready(r, now)]
+    offers_before = {r.ext_id for r in rows if r.kind == "offer"}
+    reply_keys: list[str] = []
+    for tile in tiles:
         try:
-            await api.reveal_and_activate(offer_id)
+            reply = await api.reveal_and_activate(tile.ext_id)
             result.done += 1
+            history.savings_mark_revealed(slug, tile.ext_id, today)
+            if isinstance(reply, dict) and not reply_keys:
+                reply_keys = sorted(
+                    str(k) for k in reply
+                )  # kształt odpowiedzi PATCH (same klucze, bez wartości)
         except Exception as err:
-            result.failed.append(f"{type(err).__name__}: {err}")
+            if getattr(err, "status", None) == 409:
+                result.skipped += 1
+                if tile.valid_from is None:
+                    history.savings_mark_revealed(slug, tile.ext_id, today)
+            else:
+                result.failed.append(f"{type(err).__name__}: {err}")
     if result.done:
         try:
             await refresh(history, slug, api)
+            result.new_offers = [
+                r.name
+                for r in history.savings_list()
+                if r.slug == slug and r.kind == "offer" and r.ext_id not in offers_before
+            ]
         except Exception:
             log.exception("Oszczędzanie Biedronki: odświeżenie po Shakeomacie nieudane")
-    if ids:
+    if tiles:
         history.log_event(
             "daily",
             "error" if result.failed else "ok",
-            f"Shakeomat Biedronki: odsłonięto {result.done} z {len(ids)}"
+            f"Shakeomat Biedronki: odsłonięto {result.done} z {len(tiles)}"
+            + (f", pominięto {result.skipped} (jeszcze niedostępne)" if result.skipped else "")
+            + (f"; nowe oferty: {', '.join(result.new_offers)}" if result.new_offers else "")
             + (f" ({'; '.join(result.failed)})" if result.failed else ""),
-            {"run": "shakeomat", "account": slug, "done": result.done, "failed": len(result.failed)},
+            {
+                "run": "shakeomat",
+                "account": slug,
+                "done": result.done,
+                "skipped": result.skipped,
+                "failed": len(result.failed),
+                "reply_keys": reply_keys,
+            },
         )
     return result
 
@@ -293,5 +381,5 @@ async def shake_accounts(history: History, service: Any, today: date) -> list[Sh
             history.log_event(
                 "daily", "error", f"Shakeomat Biedronki: {err}", {"run": "shakeomat", "account": slug}
             )
-            results.append(ShakeResult(slug, 0, [f"{type(err).__name__}: {err}"]))
+            results.append(ShakeResult(slug, failed=[f"{type(err).__name__}: {err}"]))
     return results

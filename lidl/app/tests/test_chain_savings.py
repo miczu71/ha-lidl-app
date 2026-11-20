@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -158,14 +159,15 @@ def test_schema_v10_makes_backup(tmp_path: Path) -> None:
 
 
 class ShakeApi(FakeApi):
-    def __init__(self, fail_ids: set[str] | None = None) -> None:
+    def __init__(self, fail_ids: set[str] | None = None, status: int = 409) -> None:
         super().__init__()
         self.revealed: list[str] = []
         self.fail_ids = fail_ids or set()
+        self.status = status
 
     async def reveal_and_activate(self, offer_id: str) -> Any:
         if offer_id in self.fail_ids:
-            raise LidlPlusError("http_409", status=409)
+            raise LidlPlusError(f"http_{self.status}", status=self.status)
         self.revealed.append(offer_id)
         return {"ok": True}
 
@@ -199,9 +201,9 @@ async def test_shake_reports_failures_and_logs_event(tmp_path: Path) -> None:
 
     h = History(tmp_path / "h.db")
     _shake_rows(h)
-    api = ShakeApi(fail_ids={"sh-1"})
+    api = ShakeApi(fail_ids={"sh-1"}, status=500)
     result = await chain_savings.shake(h, "a", api, date(2026, 11, 19))  # type: ignore[arg-type]
-    assert result.done == 1 and len(result.failed) == 1 and "http_409" in result.failed[0]
+    assert result.done == 1 and len(result.failed) == 1 and "http_500" in result.failed[0]
     from datetime import datetime
 
     [event] = h.events(datetime(2000, 1, 1), area="daily")
@@ -289,3 +291,77 @@ async def test_shake_accounts_filters_and_isolates_errors(tmp_path: Path) -> Non
     results = await chain_savings.shake_accounts(h, service, date(2026, 11, 19))
     assert [(r.slug, r.done, bool(r.failed)) for r in results] == [("bad", 0, True), ("ok", 1, False)]
     assert set(service.apis) == {"ok"}
+
+
+NOW = datetime(2026, 11, 19, 12, 0, tzinfo=UTC)
+
+
+def _timed_rows(h: History) -> None:
+    h.savings_replace(
+        "a",
+        {"shakeomat"},
+        [
+            Saving("shakeomat", "sh-now", "Shakeomat", None, None, None, None, {}),
+            Saving(
+                "shakeomat",
+                "sh-later",
+                "Shakeomat",
+                None,
+                None,
+                "2026-11-19T12:01:00Z",
+                "2026-11-19T22:59:59Z",
+                {},
+            ),
+        ],
+    )
+
+
+async def test_shake_skips_tile_not_yet_available(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _timed_rows(h)
+    api = ShakeApi()
+    result = await chain_savings.shake(h, "a", api, date(2026, 11, 19), NOW)  # type: ignore[arg-type]
+    assert api.revealed == ["sh-now"] and (result.done, result.failed) == (1, [])
+
+
+async def test_shake_409_is_skipped_not_an_error(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _shake_rows(h)
+    api = ShakeApi(fail_ids={"sh-1", "sh-2"})
+    result = await chain_savings.shake(h, "a", api, date(2026, 11, 19), NOW)  # type: ignore[arg-type]
+    assert (result.done, result.failed, result.skipped) == (0, [], 2)
+    [event] = h.events(datetime(2000, 1, 1), area="daily")
+    assert event.level == "ok" and event.detail["skipped"] == 2
+
+
+async def test_shake_marks_revealed_and_does_not_repeat(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a", {"shakeomat"}, [Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, None, {})]
+    )
+    api = ShakeApi()
+    await chain_savings.shake(h, "a", api, date(2026, 11, 19), NOW)  # type: ignore[arg-type]
+    again = await chain_savings.shake(h, "a", api, date(2026, 11, 19), NOW)  # type: ignore[arg-type]
+    assert api.revealed == ["sh-1"] and (again.done, again.skipped) == (0, 0)  # znacznik przeżył refresh()
+
+
+async def test_shake_reports_new_offers_from_snapshot_diff(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a", {"shakeomat"}, [Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, None, {})]
+    )
+    result = await chain_savings.shake(h, "a", ShakeApi(), date(2026, 11, 19), NOW)  # type: ignore[arg-type]
+    assert result.new_offers == ["Mleko 1l"]
+
+
+def test_shake_state_ready_wait_done(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    today = date(2026, 11, 19)
+    assert chain_savings.shake_state([], today, NOW) == ("none", None)
+    _timed_rows(h)
+    assert chain_savings.shake_state(h.savings_list(), today, NOW)[0] == "ready"
+    h.savings_mark_revealed("a", "sh-now", today)
+    state, at = chain_savings.shake_state(h.savings_list(), today, NOW)
+    assert (state, at) == ("wait", datetime(2026, 11, 19, 12, 1, tzinfo=UTC))
+    h.savings_mark_revealed("a", "sh-later", today)
+    assert chain_savings.shake_state(h.savings_list(), today, NOW) == ("done", None)
