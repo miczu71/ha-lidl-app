@@ -298,11 +298,12 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
 
 - **E28.6 Domknięcie uwag E28.4/E28.5** (**wywiad ✅ 2026-11-20, plan `docs/PLAN_E28_6.md`**: podetap A poprawki
   — haiku-worker, B mapa Biedronki przez Nominatim — ja; jedno wydanie 1.5.1; `KeyRejected` już jest Problemem, więc
-  odpada; błędy Shakeomatu = warn bez pusha; bez bramki weryfikacji E28.5 — punkty zależne od niej → E28.6b): błędy Shakeomatu i `KeyRejected` jako Problem/alert
-  w Statusie; `auth` w błędach migawki; wiek migawki w zakładce Oszczędzanie; `?kat=` gubiony po htmx w Sieci; „Cofnij”
-  dla odrzuconej pary EAN; komunikat przy złej akcji w `/sieci/para`; `hx-trigger … from:find input` w
-  `_countries_body.html:59` (Kraje); sklepy Biedronki na mapie Rytmu (lokalizator sklepów — do rozpoznania).
-  Warunek wstępny: weryfikacja na żywo E28.5 (migawka vs aplikacja Moja Biedronka) — jej wynik może dopisać punkty.
+  odpada; błędy Shakeomatu = warn bez pusha; bez bramki weryfikacji E28.5 — punkty zależne od niej → E28.6b).
+  **E28.6.1 podetap A ✅ 2026-11-20 (ed3090d):** haiku-worker + dokończenie punktu 6 przeze mnie; wiek migawki bez migracji — `chain_savings.refresh`
+  loguje zdarzenie `savings/ok`, panel czyta ostatnie (`_savings_fetched`); zestaw 650 OK (bez `test_leaflet.py`), ruff czyste, mypy 59 = baza `main`;
+  claimcheck 0/7, verifier APPROVE (poprawka: zdublowany fakt Shakeomat w Statusie). NIEBLOKUJĄCE: złe `lidl_art_id` przy approve nadal po cichu 200.
+  **Następny: E28.6.2 podetap B** (geokodowanie adresów sklepów Biedronki w Nominatim, mapa Rytmu; plan `docs/PLAN_E28_6.md`),
+  potem **E28.6.3 wydanie 1.5.1**. E28.6b (punkty zależne od weryfikacji E28.5 na żywo) — po porównaniu migawki z aplikacją Moja Biedronka.
 - **P2 Cena na półce Biedronki:** `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) dla produktów z gwiazdką E15
   kupowanych w Biedronce → push `lidl-obserwowane` przy promocji. Najpierw spike GET (kształt odpowiedzi, wybór sklepu).
 - **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
