@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.5.1
+
+- **Mapa sklepów Biedronki:** adresy sklepów z paragonów są geokodowane w Nominatim (OpenStreetMap; wychodzi tylko
+  ulica, kod pocztowy i miasto, ≤1 zapytanie/s) i pojawiają się na mapie Rytmu jako punkty w osobnym kolorze.
+  Brak trafienia = sklep bez punktu; błąd sieci albo zła odpowiedź → ponowienie następnego dnia.
+- **Shakeomat:** błąd odsłonięcia to ostrzeżenie w Statusie (bez powiadomienia push), znika po 12 h.
+- **Sieci:** „Przywróć” odrzuconą parę EAN, filtr kategorii `?kat=` zachowany po decyzji, wiek migawki Oszczędzania
+  („Dane z …”, „nieaktualne” po 36 h).
+- Migracja bazy do wersji 11: kasuje puste punkty sklepów Biedronki zapisane przez 1.5.0, które blokowały geokodowanie.
+
 ## 1.5.0
 
 - **Zakładka „Oszczędzanie” (przy koncie Biedronki):** vouchery z datą końca, oferty „Tylko dla Ciebie” (cena, cena zwykła, rabat %,
