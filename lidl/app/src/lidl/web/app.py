@@ -124,6 +124,12 @@ MESSAGES = {
 }
 
 
+def _savings_fetched(history: History) -> datetime | None:
+    """Czas ostatniego udanego odświeżenia migawki Oszczędzania (dziennik, 30 dni)."""
+    latest = history.events(datetime.now() - timedelta(days=30), area="savings", limit=1)
+    return latest[0].ts if latest else None
+
+
 def _login_error(err: Exception) -> str:
     if isinstance(err, LidlPlusCannotConnect):
         return "Brak połączenia z Lidl. Zaloguj się od nowa, gdy sieć wróci."
@@ -1002,6 +1008,7 @@ def create_app(settings: Settings) -> FastAPI:
             chains.decided_rows(history, "rejected", all_pairs),
         )
         return {
+            "kat": kat or "",  # htmx-owe formularze par niosą filtr dalej (E28.6)
             "proposals": proposals,
             "approved": approved,
             "rejected": rejected,
@@ -1038,7 +1045,7 @@ def create_app(settings: Settings) -> FastAPI:
             request,
             "bdr_savings.html",
             section="biedronka",
-            view=bdr_savings.build(history.savings_list(), date.today()),
+            view=bdr_savings.build(history.savings_list(), date.today(), _savings_fetched(history)),
             message=bdr_savings.MESSAGES.get(m or ""),
             auto_shakeomat=settings.biedronka_auto_shakeomat,
         )
@@ -1074,10 +1081,13 @@ def create_app(settings: Settings) -> FastAPI:
         b_art_id: str = Form(...),
         action: str = Form(...),
         lidl_art_id: str = Form(""),
+        kat: str = Form(""),
     ) -> Response:
         history = chains_history(request)
         if history is None:
             return Response("Brak paragonów z drugiej sieci.", status_code=404)
+        if action not in ("approve", "reject", "undo", "restore"):
+            return Response("Nieznana akcja pary.", status_code=400)
         if action in ("approve", "reject") and not chains.is_known_product(history, b_art_id):
             action = ""  # tylko produkty z paragonów Biedronki, bez śmieciowych wierszy
         if action == "approve":
@@ -1089,9 +1099,11 @@ def create_app(settings: Settings) -> FastAPI:
             history.chain_pair_decide(b_art_id, "reject")
         elif action == "undo":
             history.chain_pair_decide(b_art_id, "undo")
+        elif action == "restore":
+            history.chain_pair_decide(b_art_id, "restore")
         if not request.headers.get("hx-request"):
             return go(request, "/sieci")
-        return render(request, "_chains_body.html", **chains_ctx(history))
+        return render(request, "_chains_body.html", **chains_ctx(history, kat))
 
     @app.post("/accounts/{slug}/history")
     async def start_history(request: Request, slug: str) -> Response:

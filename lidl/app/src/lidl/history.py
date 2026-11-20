@@ -2173,8 +2173,11 @@ class History:
 
     def chain_pair_decide(self, b_id: str, action: str, lidl_id: str | None = None) -> bool:
         """approve (→ `manual`, wymaga `lidl_id`) / reject / undo (→ proposed; para `ean` → rejected,
-        żeby auto-parowanie jej nie przywróciło). False, gdy pary nie ma albo akcja jest zła."""
-        row = self._db.execute("SELECT source FROM chain_pairs WHERE b_art_id = ?", (b_id,)).fetchone()
+        żeby auto-parowanie jej nie przywróciło) / restore (para `ean` odrzucona → znów zatwierdzona,
+        gdy EAN nadal pasuje; inaczej proposed). False, gdy pary nie ma albo akcja jest zła."""
+        row = self._db.execute(
+            "SELECT source, status FROM chain_pairs WHERE b_art_id = ?", (b_id,)
+        ).fetchone()
         if row is None:
             return False
         now = datetime.now(UTC).isoformat(timespec="seconds")
@@ -2191,6 +2194,18 @@ class History:
             sql, args = "SET status = 'rejected', lidl_art_id = NULL, decided_at = ?", (now,)
         elif action == "undo":
             sql, args = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL", ()
+        elif action == "restore" and row[0] == "ean" and row[1] == "rejected":
+            lidl = self.ean_matches([b_id]).get(b_id)
+            if lidl:
+                sql, args = (
+                    "SET status = 'approved', lidl_art_id = ?, source = 'ean', decided_at = ?",
+                    (lidl, now),
+                )
+            else:
+                sql, args = (
+                    "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL",
+                    (),
+                )
         else:
             return False
         with self._db:
@@ -2499,7 +2514,9 @@ class History:
 
     def stores_without_geo(self) -> set[str]:
         """Kody sklepów z paragonów jeszcze nie sprawdzone na liście Lidla (do pobrania w `geo.py`)."""
-        rows = self._db.execute(f"SELECT DISTINCT {_STORE_KEY} FROM tickets t WHERE t.country = 'PL'")
+        rows = self._db.execute(
+            f"SELECT DISTINCT {_STORE_KEY} FROM tickets t WHERE t.country = 'PL' AND t.chain = 'lidl'"
+        )
         return {code for (code,) in rows if code} - self._store_geo().keys()
 
     def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:

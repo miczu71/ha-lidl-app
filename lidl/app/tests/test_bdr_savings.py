@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from fastapi.testclient import TestClient
 
@@ -144,3 +144,12 @@ def test_shakeomat_route_result_codes(client: TestClient, monkeypatch) -> None: 
 
         monkeypatch.setattr(chain_savings, "shake_accounts", fake)
         assert client.post("/biedronka/shakeomat").headers["location"].endswith(f"?m={code}")
+
+
+def test_build_labels_snapshot_age() -> None:
+    now = datetime(2026, 11, 20, 12, 0)
+    fresh = build([], TODAY, datetime(2026, 11, 20, 7, 2), now)
+    assert fresh.fetched_label == "Dane z 20.11, 07:02" and not fresh.stale
+    old = build([], TODAY, datetime(2026, 11, 18, 7, 0), now)
+    assert old.stale
+    assert build([], TODAY).fetched_label == "Jeszcze bez danych"

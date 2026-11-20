@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from lidl.chain_savings import URGENT_DAYS, SavedSaving, local_date
@@ -17,12 +17,17 @@ MESSAGES = {
 }
 
 
+STALE_AFTER = timedelta(hours=36)
+
+
 @dataclass
 class SavingsView:
     vouchers: list[dict[str, Any]] = field(default_factory=list)
     offers: list[dict[str, Any]] = field(default_factory=list)
     shakeomat: bool = False
     urgent_count: int = 0
+    fetched_label: str = ""  # „Dane z 20.11, 07:02” albo „Jeszcze bez danych”
+    stale: bool = False  # migawka starsza niż STALE_AFTER (pominięty poranny przebieg)
 
 
 def _entry(row: SavedSaving, today: date) -> dict[str, Any] | None:
@@ -49,8 +54,15 @@ def _entry(row: SavedSaving, today: date) -> dict[str, Any] | None:
     }
 
 
-def build(rows: list[SavedSaving], today: date) -> SavingsView:
+def build(
+    rows: list[SavedSaving], today: date, fetched: datetime | None = None, now: datetime | None = None
+) -> SavingsView:
     view = SavingsView()
+    if fetched is None:
+        view.fetched_label = "Jeszcze bez danych"
+    else:
+        view.fetched_label = f"Dane z {fetched:%d.%m, %H:%M}"
+        view.stale = (now or datetime.now()) - fetched > STALE_AFTER
     for row in rows:
         entry = _entry(row, today)
         if entry is None:

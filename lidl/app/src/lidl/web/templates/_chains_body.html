@@ -4,6 +4,7 @@
   <input type="hidden" name="b_art_id" value="{{ b_art_id }}">
   <input type="hidden" name="action" value="{{ action }}">
   {% if lidl_art_id %}<input type="hidden" name="lidl_art_id" value="{{ lidl_art_id }}">{% endif %}
+  {% if kat %}<input type="hidden" name="kat" value="{{ kat }}">{% endif %}
   <button class="{{ cls }}" type="submit">{{ label }}</button>
 </form>
 {% endmacro %}
@@ -77,8 +78,7 @@
     <h2 class="s" id="si-r">Bez odpowiednika</h2>
     {% if not rejected %}<p class="meta">Brak odrzuconych.</p>{% endif %}
     {% for r in rejected %}
-    {# para EAN po cofnięciu zostaje odrzucona na stałe (auto-parowanie jej nie przywraca) #}
-    <div class="row2"><span><strong>{{ r.name }}</strong>{% if r.is_ean %} <span class="tag">EAN odrzucony</span>{% endif %}</span>{% if not r.is_ean %}{{ pair_form(r.b_art_id, "undo", "Cofnij", cls="ds-btn ds-btn--link") }}{% endif %}</div>
+    <div class="row2"><span><strong>{{ r.name }}</strong>{% if r.is_ean %} <span class="tag">EAN odrzucony</span>{% endif %}</span>{% if r.is_ean %}{{ pair_form(r.b_art_id, "restore", "Przywróć", cls="ds-btn ds-btn--link") }}{% else %}{{ pair_form(r.b_art_id, "undo", "Cofnij", cls="ds-btn ds-btn--link") }}{% endif %}</div>
     {% endfor %}
   </section>
 </div>

@@ -216,6 +216,8 @@ async def refresh(history: History, slug: str, api: Any) -> FetchResult:
     for error in result.errors:
         log.warning("Oszczędzanie Biedronki (%s): %s", slug, error)
         history.log_event("sync", "error", f"Oszczędzanie Biedronki: {error}", {"account": slug})
+    if not result.errors:  # czas migawki dla podpisu w panelu (area „savings”, nie miesza się z importem)
+        history.log_event("savings", "ok", "Oszczędzanie Biedronki: migawka odświeżona", {"account": slug})
     return result
 
 

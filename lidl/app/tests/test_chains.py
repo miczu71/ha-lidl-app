@@ -313,3 +313,30 @@ def test_compare_one_sided_pack_size_is_incomparable() -> None:
     ]
     c = compare([_pair()], rows, {}, TODAY)
     assert c.rows == [] and len(c.no_price) == 1 and c.savings_total == 0.0
+
+
+def test_unknown_pair_action_is_400(client: TestClient) -> None:
+    _both(client)
+    assert _post(client, "b:111", "bogus") == 400
+
+
+def test_restore_offered_and_works_for_rejected_ean_pair(client: TestClient) -> None:
+    _both(client)
+    h = _hist(client)
+    lidl = next(c.art_id for c in h.chain_catalog("lidl") if c.name == "Jogurt 150g")
+    h.chain_pair_approve(f"b:{EAN}", lidl, "ean")
+    assert _post(client, f"b:{EAN}", "undo") == 303
+    assert "Przywróć" in client.get("/sieci").text
+    assert _post(client, f"b:{EAN}", "restore") == 303
+    assert _pairs(client)[f"b:{EAN}"][0:2] == ("approved", lidl)
+
+
+def test_pair_action_keeps_category_filter(client: TestClient) -> None:
+    mleko = _both(client)
+    r = client.post(
+        "/sieci/para",
+        data={"b_art_id": "b:111", "action": "approve", "lidl_art_id": mleko, "kat": "food"},
+        headers=HX,
+    )
+    assert r.status_code == 200
+    assert 'name="kat" value="food"' in r.text

@@ -127,3 +127,19 @@ def test_next_runs_include_todays_monthly_summary_on_the_first() -> None:
     first = datetime(2026, 11, 1, 8, 0)
     daily = _area(build(_snap(now=first, events=[replace(MORNING, ts=datetime(2026, 11, 1, 7, 1))])), "daily")
     assert daily.next.startswith("dziś 10:00 podsumowanie miesiąca")  # type: ignore[attr-defined]
+
+
+def test_shakeomat_error_is_a_warning_not_a_problem() -> None:
+    shake = _ev(9, "daily", "error", "Shakeomat: błąd", run="shakeomat")
+    view = build(_snap(events=[shake, MORNING]))
+    assert view.problems == []
+    area = _area(view, "daily")
+    assert area.level == "warn"  # type: ignore[attr-defined]
+    assert [t for _, t in area.facts].count("Shakeomat: błąd") == 1  # type: ignore[attr-defined]
+
+
+def test_morning_ok_without_shakeomat_error_stays_ok() -> None:
+    view = build(_snap(events=[MORNING]))
+    assert _area(view, "daily").level == "ok"  # type: ignore[attr-defined]
+    old = _ev(1, "daily", "error", "Shakeomat: błąd", day=11, run="shakeomat")  # sprzed ponad 12 h
+    assert _area(build(_snap(events=[old, MORNING])), "daily").level == "ok"  # type: ignore[attr-defined]

@@ -56,7 +56,7 @@
       {% else %}
       <p class="meta" style="margin: 0">Brak propozycji. Wyszukaj produkt poniżej.</p>
       {% endif %}
-      <form method="get" action="{{ base }}/kraje/szukaj" role="search" hx-get="{{ base }}/kraje/szukaj" hx-trigger="input changed delay:200ms from:find input, submit" hx-target="next .kraje-wyniki" hx-swap="innerHTML">
+      <form method="get" action="{{ base }}/kraje/szukaj" role="search" hx-get="{{ base }}/kraje/szukaj" hx-trigger="input changed delay:200ms from:find input[type=search], submit" hx-target="next .kraje-wyniki" hx-swap="innerHTML">
         <input type="hidden" name="country" value="{{ c.country }}">
         <input type="hidden" name="name" value="{{ c.foreign_name }}">
         <label class="search">Szukaj w polskich produktach<input class="field" type="search" name="q" placeholder="np. mleko" autocomplete="off" spellcheck="false"></label>

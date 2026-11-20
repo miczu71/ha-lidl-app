@@ -3,7 +3,8 @@
 {% block main %}
 <div>
   <h1 class="t">Oszczędzanie</h1>
-  <p class="lead">Vouchery i oferty „Tylko dla Ciebie” z konta Biedronki, stan z ostatniego importu.</p>
+  <p class="lead">Vouchery i oferty „Tylko dla Ciebie” z konta Biedronki, stan z ostatniego importu.
+    <span class="meta{% if view.stale %} lv--warn{% endif %}">{{ view.fetched_label }}{% if view.stale %} — nieaktualne, sprawdź Status{% endif %}</span></p>
 </div>
 
 {% if message %}

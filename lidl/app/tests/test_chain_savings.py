@@ -236,6 +236,15 @@ async def test_refresh_keeps_old_rows_of_failed_part_and_logs(tmp_path: Path) ->
     assert result.failed_kinds == {"voucher"}
     assert [r.name for r in h.savings_list() if r.kind == "voucher"] == ["Stary"]
     assert [e.level for e in h.events(datetime(2000, 1, 1), area="sync")] == ["error"]
+    assert h.events(datetime(2000, 1, 1), area="savings") == []  # częściowy błąd = bez znacznika świeżości
+
+
+async def test_refresh_logs_snapshot_time_on_success(tmp_path: Path) -> None:
+    from datetime import datetime
+
+    h = History(tmp_path / "h.db")
+    await chain_savings.refresh(h, "a", FakeApi())
+    assert [e.level for e in h.events(datetime(2000, 1, 1), area="savings")] == ["ok"]
 
 
 class _Acc:

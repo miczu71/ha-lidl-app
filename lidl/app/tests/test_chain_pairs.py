@@ -166,3 +166,33 @@ async def test_products_missing_from_reply_are_not_resent(
         await chain_pairs.propose(h, session, _settings(tmp_path))
     assert len(calls) == 1  # drugi import: nic do wysłania
     assert _pairs(h)["b:222"].status == "proposed" and _pairs(h)["b:222"].candidates == []
+
+
+async def test_restore_brings_back_rejected_ean_pair_as_approved(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    async with aiohttp.ClientSession() as session:
+        await chain_pairs.propose(h, session, _settings(tmp_path, key=""))
+        h.chain_pair_decide(f"b:{EAN}", "undo")
+        assert h.chain_pair_decide(f"b:{EAN}", "restore") is True
+    p = _pairs(h)[f"b:{EAN}"]
+    assert (p.status, p.source, p.lidl_art_id) == ("approved", "ean", f"n:{EAN}")
+
+
+def test_restore_without_ean_match_goes_back_to_proposed(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    with h._db:  # odrzucona para EAN, której Lidl już nie ma w katalogu
+        h._db.execute(
+            "INSERT INTO chain_pairs (b_art_id, status, source) VALUES ('b:333', 'rejected', 'ean')"
+        )
+    assert h.chain_pair_decide("b:333", "restore") is True
+    p = _pairs(h)["b:333"]
+    assert (p.status, p.source, p.lidl_art_id) == ("proposed", "ai", None)
+
+
+def test_restore_is_false_for_manually_rejected_or_open_pairs(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.chain_pair_propose("b:111", ["0001"])
+    assert h.chain_pair_decide("b:111", "restore") is False  # proposed
+    assert h.chain_pair_decide("b:111", "reject") is True
+    assert h.chain_pair_decide("b:111", "restore") is False  # odrzucona ręcznie, nie przez EAN
+    assert _pairs(h)["b:111"].status == "rejected"

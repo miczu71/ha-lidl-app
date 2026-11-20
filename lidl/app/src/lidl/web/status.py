@@ -260,8 +260,18 @@ def _daily(s: Snapshot, problems: list[Problem]) -> Area:
             ("Nagrody", count_text(int(d.get("rewards", 0)), "konto", "konta", "kont")),
             ("Powiadomienie", "wysłane" if d.get("notified") else "brak"),
         ]
-    others = [e for e in s.events if e.area == "daily" and e.detail.get("run") != "morning"][:2]
+    # błąd Shakeomatu: „Uwaga” w obszarze, bez Problemu i kropki-alarmu (E28.6 decyzja 2)
+    since = s.now - timedelta(hours=12)
+    shake = _latest(
+        s.events, {"daily"},
+        lambda e: e.detail.get("run") == "shakeomat" and e.level == "error" and e.ts >= since,
+    )  # fmt: skip
+    others = [
+        e for e in s.events if e.area == "daily" and e.detail.get("run") != "morning" and e is not shake
+    ][:2]
     facts = [(_when(e.ts, s.now).capitalize(), e.summary) for e in others]
+    if shake is not None:
+        facts.append((_when(shake.ts, s.now).capitalize(), shake.summary))
     if s.daily_running:
         level, say = "busy", "Poranny przebieg w toku"
     elif morning is not None and morning.level == "error" and morning.ts >= due - timedelta(hours=12):
@@ -279,6 +289,8 @@ def _daily(s: Snapshot, problems: list[Problem]) -> Area:
     else:
         took = f" w {fmt_duration(morning.duration_ms)}" if morning.duration_ms else ""
         level, say = "ok", f"{_when(morning.ts, s.now).capitalize()} gotowe{took}"
+    if shake is not None and level == "ok":
+        level = "warn"
     return Area("daily", "Przebiegi zaplanowane", level, say, _next_label(s), steps=steps, facts=facts)
 
 

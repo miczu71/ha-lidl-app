@@ -77,3 +77,16 @@ async def test_network_error_keeps_stores_without_coordinates(tmp_path: Path) ->
     h = _history(tmp_path)
     assert await refresh_store_geo(FakeSession(aiohttp.ClientError("brak sieci")), h) == 0  # type: ignore[arg-type]
     assert [s.location for s in h.stores()] == [None, None]
+
+
+async def test_biedronka_store_is_not_sent_to_the_lidl_list_and_gets_no_null_row(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.upsert_tickets(
+        "a",
+        [{"id": "b1", "date": "2026-01-02T10:00:00+00:00", "totalAmount": 3.0, "storeCode": "7777"}],
+        chain="biedronka",
+    )
+    assert h.stores_without_geo() == {"PL0001", "PL0002"}  # kod Biedronki nie trafia do listy Lidla
+    assert await refresh_store_geo(FakeSession(STORES), h) == 1  # type: ignore[arg-type]
+    codes = {row[0] for row in h._db.execute("SELECT code FROM store_geo")}
+    assert codes == {"PL0001", "PL0002"}  # brak wiersza NULL dla kodu Biedronki
