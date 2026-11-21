@@ -53,16 +53,21 @@ NOMINATIM_PAUSE = 1.1  # s między zapytaniami (limit publicznej instancji: 1/s)
 NOMINATIM_TIMEOUT = aiohttp.ClientTimeout(total=15)
 
 
+MAX_BAD_ANSWERS = 3  # tyle złych odpowiedzi z rzędu = problem systemowy, nie pojedynczy sklep
+
+
 async def refresh_store_geo_biedronka(
     session: aiohttp.ClientSession, history: History, pause: float = NOMINATIM_PAUSE
 ) -> int:
     """Geokoduje adresy sklepów Biedronki w Nominatim (tylko publiczny adres sklepu: ulica, kod, miasto).
 
     Brak trafienia albo adresu = zapis bez współrzędnych (nie pytamy ponownie); zła odpowiedź dla jednego
-    sklepu pomija go bez zapisu (ponowi jutro), błąd sieci przerywa przebieg.
+    sklepu pomija go bez zapisu (ponowi jutro); błąd sieci albo 3 złe odpowiedzi z rzędu
+    (proxy, captcha, limit) przerywają przebieg.
     Zwraca liczbę sklepów z nowym punktem."""
     missing = history.biedronka_stores_without_geo()
     located = 0
+    bad_in_a_row = 0
     first = True
     for code, (street, postal, city) in sorted(missing.items()):
         if not street or not city:
@@ -89,7 +94,14 @@ async def refresh_store_geo_biedronka(
         except (ValueError, KeyError, TypeError) as err:
             # zły kształt (HTML z proxy, captcha, dict po 429) jest przejściowy — jak błąd sieci, bez zapisu
             log.warning("Sklepy Biedronki: zła odpowiedź Nominatim dla %s (%s) — ponowię jutro", code, err)
+            bad_in_a_row += 1
+            if bad_in_a_row >= MAX_BAD_ANSWERS:
+                log.warning(
+                    "Sklepy Biedronki: %d złe odpowiedzi z rzędu — przerywam, ponowię jutro", bad_in_a_row
+                )
+                return located
             continue  # jeden zły sklep nie przerywa reszty
+        bad_in_a_row = 0
         history.save_store_geo([(code, *point)], chain="biedronka")
         located += point[0] is not None
     if missing:

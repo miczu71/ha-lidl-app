@@ -238,3 +238,13 @@ async def test_biedronka_malformed_answer_for_one_store_skips_it_and_geocodes_th
     assert await refresh_store_geo_biedronka(session, h, pause=0) == 2  # type: ignore[arg-type]
     assert len(session.requests) == 3
     assert h.biedronka_stores_without_geo().keys() == {"2222"}  # zły sklep wróci jutro, reszta zapisana
+
+
+async def test_biedronka_repeated_malformed_answers_abort_the_run(tmp_path: Path) -> None:
+    h = _bdr_history(
+        tmp_path,
+        *[(f"{n}{n}{n}{n}", f"ul. X {n}", "50-001", "Miasto") for n in range(1, 6)],
+    )
+    session = NominatimSession(*[{"error": "x"}] * 5)
+    assert await refresh_store_geo_biedronka(session, h, pause=0) == 0  # type: ignore[arg-type]
+    assert len(session.requests) == 3  # po 3 złych z rzędu koniec, bez dobijania serwera

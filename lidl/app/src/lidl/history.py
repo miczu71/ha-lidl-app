@@ -2728,7 +2728,7 @@ class History:
             (
                 StoreStats(
                     c, s["name"], s["address"], round(s["paid"], 2), round(s["savings"], 2),
-                    s["last_day"], dict(s["accounts"]), geo[s["chain"] or "lidl"].get(c),
+                    s["last_day"], dict(s["accounts"]), geo.get(s["chain"] or "lidl", {}).get(c),
                     s["chain"] or "lidl",
                 )
                 for c, s in found.items()

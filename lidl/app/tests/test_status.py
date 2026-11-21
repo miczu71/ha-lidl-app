@@ -150,3 +150,12 @@ def test_later_shakeomat_success_clears_the_warning() -> None:
     fixed = _ev(10, "daily", "ok", "Shakeomat: odsłonięto 1 z 1", run="shakeomat")
     view = build(_snap(events=[fixed, failed, MORNING]))  # zdarzenia od najnowszego
     assert _area(view, "daily").level == "ok"  # type: ignore[attr-defined]
+
+
+def test_shakeomat_success_of_another_account_does_not_hide_an_error() -> None:
+    failed = _ev(8, "daily", "error", "Shakeomat: błąd A", run="shakeomat", account="a")
+    other_ok = _ev(10, "daily", "ok", "Shakeomat: odsłonięto 1 z 1", run="shakeomat", account="b")
+    view = build(_snap(events=[other_ok, failed, MORNING]))
+    assert _area(view, "daily").level == "warn"  # type: ignore[attr-defined]
+    fixed_a = _ev(11, "daily", "ok", "Shakeomat: odsłonięto 1 z 1", run="shakeomat", account="a")
+    assert _area(build(_snap(events=[fixed_a, other_ok, failed, MORNING])), "daily").level == "ok"  # type: ignore[attr-defined]
