@@ -906,6 +906,12 @@ def _norm(name: str) -> str:
     return " ".join(name.lower().split())
 
 
+def _clean_addr(value: str | None) -> str:
+    """Pole adresu sklepu z paragonu; API Biedronki oddaje `---` zamiast braku."""
+    value = (value or "").strip()
+    return "" if value == "---" else value
+
+
 class History:
     def __init__(self, path: Path) -> None:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -2679,12 +2685,8 @@ class History:
         )
         known = self._store_geo().keys()
 
-        def clean(value: str | None) -> str:
-            value = (value or "").strip()
-            return "" if value == "---" else value
-
         return {
-            code: (clean(street), clean(postal), clean(locality))
+            code: (_clean_addr(street), _clean_addr(postal), _clean_addr(locality))
             for code, street, postal, locality in rows
             if code not in known
         }
@@ -2698,12 +2700,8 @@ class History:
             " ORDER BY t.day"
         )
 
-        def clean(value: str | None) -> str:
-            value = (value or "").strip()
-            return "" if value == "---" else value
-
         return {
-            code: ", ".join(part for part in (clean(street), clean(city)) if part)
+            code: ", ".join(part for part in (_clean_addr(street), _clean_addr(city)) if part)
             for code, street, city in rows
         }
 

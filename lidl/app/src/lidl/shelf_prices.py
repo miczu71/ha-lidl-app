@@ -33,13 +33,19 @@ class RefreshResult:
     errors: list[str] = field(default_factory=list)
 
 
-def targets(history: History) -> list[str]:
-    """EAN-y do odczytu: obserwowane kody `b:`/`n:` z samym EAN-em i strona Biedronki zatwierdzonych par."""
+def watched_eans(history: History) -> set[str]:
+    """EAN-y obserwowanych kodów `b:`/`n:` (kody z wagą w kluczu nie są EAN-em i odpadają)."""
     found: set[str] = set()
     for code in history.watched_codes():
         prefix, _, rest = code.partition(":")
         if prefix in ("b", "n") and _EAN_RE.fullmatch(rest):
             found.add(rest)
+    return found
+
+
+def targets(history: History) -> list[str]:
+    """EAN-y do odczytu: obserwowane kody `b:`/`n:` z samym EAN-em i strona Biedronki zatwierdzonych par."""
+    found = watched_eans(history)
     for pair in history.chain_pair_list():
         if pair.status == "approved" and _EAN_RE.fullmatch(pair.b_art_id):
             found.add(pair.b_art_id)
@@ -161,11 +167,7 @@ class ShelfOffer:
 
 def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
     """Promocje półkowe obserwowanych EAN-ów w sklepie `store`: cena niższa niż Omnibus (albo zwykła)."""
-    watched = {
-        rest
-        for prefix, _, rest in (code.partition(":") for code in history.watched_codes())
-        if prefix in ("b", "n")
-    }
+    watched = watched_eans(history)
     offers: list[ShelfOffer] = []
     for row in history.shelf_list(store):
         if not row.is_promotion or row.price is None or row.ean not in watched:

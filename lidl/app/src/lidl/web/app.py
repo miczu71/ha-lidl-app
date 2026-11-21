@@ -367,7 +367,7 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     def shelf_view(history: History) -> dict[str, Any]:
-        """Sekcja „Ceny półkowe Biedronki” w Kontach (E29.4): sklepy z paragonów, wybrany, wiek odczytu."""
+        """Zakładka „Ceny półkowe” (E29.4): sklepy z paragonów, wybrany, wiek odczytu."""
         last = history.events(datetime.now() - EVENTS_KEEP, area="shelf", limit=1)
         return {
             "stores": history.biedronka_stores(),
