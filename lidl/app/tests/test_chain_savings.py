@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
@@ -438,3 +439,33 @@ def test_load_drawn_survives_a_broken_setting(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     h.set_setting(chain_savings.SHAKE_DRAWN_KEY, "{not json")
     assert chain_savings.load_drawn(h, date(2026, 11, 21)) == []
+
+
+def test_load_drawn_drops_items_of_wrong_type(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    good = {"name": "Mleko", "price": 3.5, "regular_price": None, "end": None}
+    bad = {"name": "Chleb", "price": "tanio", "end": 5}
+    h.set_setting(
+        chain_savings.SHAKE_DRAWN_KEY, json.dumps({"day": "2026-11-21", "items": [good, bad, "x", {}]})
+    )
+    assert chain_savings.load_drawn(h, date(2026, 11, 21)) == [good]
+
+
+async def test_shake_survives_a_failing_drawn_save(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a", {"shakeomat"}, [Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, None, {})]
+    )
+
+    def boom(*_a: Any) -> None:
+        raise RuntimeError("dysk pełny")
+
+    monkeypatch.setattr(chain_savings, "_save_drawn", boom)
+    result = await chain_savings.shake(h, "a", DrawApi(), date(2026, 11, 21))  # type: ignore[arg-type]
+    assert (result.done, result.failed) == (1, [])  # odsłonięcie się udało mimo błędu zapisu wyniku
+    [event] = [e for e in h.events(datetime(2000, 1, 1), area="daily") if e.detail.get("run") == "shakeomat"]
+    assert event.level == "ok" and event.detail["drawn_save_failed"] is True

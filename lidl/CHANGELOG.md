@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.2
+
+- Shakeomat: po kliknięciu „Odsłoń teraz” ta sama karta pokazuje wynik („Wylosowano: nazwa — cena, do daty”).
+  Wynik dnia jest zapisany, więc zostaje po przeładowaniu strony; poranne powiadomienie też nazywa ofertę.
+- Komunikat po ponownym kliknięciu (błąd 409) mówi, że Shakeomat jest już odsłonięty albo jeszcze niedostępny.
+- Błąd zapisu wyniku nie zamienia udanego odsłonięcia w porażkę; nieznany kształt odpowiedzi trafia do logu.
+- Bez zmiany schematu bazy.
+
 ## 1.9.1
 
 - Naprawione testy gazetek (zależały od dzisiejszej daty) — CI znów zielone.

@@ -312,14 +312,24 @@ def drawn_from_reply(reply: Any) -> dict[str, Any] | None:
     }
 
 
+def _valid_drawn(item: Any) -> bool:
+    return (
+        isinstance(item, dict)
+        and isinstance(item.get("name"), str)
+        and all(item.get(k) is None or isinstance(item[k], int | float) for k in ("price", "regular_price"))
+        and (item.get("end") is None or isinstance(item["end"], str))
+    )
+
+
 def load_drawn(history: History, today: date) -> list[dict[str, Any]]:
-    """Dzisiejszy wynik Shakeomatu (puste, gdy brak albo z innego dnia)."""
+    """Dzisiejszy wynik Shakeomatu (puste, gdy brak, z innego dnia albo uszkodzone)."""
     try:
         data = json.loads(history.get_setting(SHAKE_DRAWN_KEY) or "{}")
     except ValueError:
+        log.warning("Shakeomat: uszkodzony zapis wyniku dnia (%s) — pomijam", SHAKE_DRAWN_KEY)
         return []
     items = data.get("items") if isinstance(data, dict) and data.get("day") == today.isoformat() else None
-    return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+    return [i for i in items if _valid_drawn(i)] if isinstance(items, list) else []
 
 
 def _save_drawn(history: History, today: date, items: list[dict[str, Any]]) -> None:
@@ -360,10 +370,23 @@ async def shake(
         history.savings_mark_revealed(slug, tile.ext_id, today)
         if (drawn := drawn_from_reply(reply)) is not None:
             result.drawn.append(drawn)
+        else:
+            log.warning(
+                "Shakeomat Biedronki (%s): odpowiedź odsłonięcia bez nazwy oferty (klucze: %s)",
+                slug,
+                sorted(reply) if isinstance(reply, dict) else type(reply).__name__,
+            )
         if isinstance(reply, dict) and not reply_keys:
             reply_keys = sorted(str(k) for k in reply)  # kształt odpowiedzi PATCH (same klucze, bez wartości)
+    drawn_save_failed = False
     if result.drawn:
-        _save_drawn(history, today, result.drawn)
+        try:
+            _save_drawn(history, today, result.drawn)
+        except (
+            Exception
+        ):  # zapis wyniku jest poboczny: odsłonięcie się udało i reszta przebiegu ma się dokończyć
+            drawn_save_failed = True
+            log.exception("Shakeomat Biedronki: zapis wyniku dnia nieudany")
     refresh_failed = False
     if result.done:
         try:
@@ -393,6 +416,8 @@ async def shake(
                 "failed": len(result.failed),
                 "reply_keys": reply_keys,
                 "refresh_failed": refresh_failed,
+                "drawn": len(result.drawn),
+                "drawn_save_failed": drawn_save_failed,
             },
         )
     return result
