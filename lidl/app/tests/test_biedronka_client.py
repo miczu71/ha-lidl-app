@@ -212,3 +212,17 @@ async def test_product_price_non_dict_is_bad_shape() -> None:
     s = FakeSession([Resp(200, ["nie", "slownik"])])
     with pytest.raises(LidlPlusError, match="bad_shape"):
         await _api(s).product_price("0001", "5900000000001")
+
+
+async def test_product_stock_path_is_url_encoded_and_returns_dict() -> None:
+    body = {"distance": None, "code": "6715", "coverage": 3, "city": "X", "street": "Y"}
+    s = FakeSession([Resp(200, body)])
+    assert await _api(s).product_stock("6715", "5900000000001") == body
+    assert s.get_calls[0]["url"].split("/api/v7/")[-1] == "products/stock/6715/5900000000001/"
+    assert s.get_calls[0]["method"] == "GET"
+
+
+async def test_product_stock_non_dict_is_bad_shape() -> None:
+    s = FakeSession([Resp(200, ["nie", "slownik"])])
+    with pytest.raises(LidlPlusError, match="bad_shape"):
+        await _api(s).product_stock("6715", "5900000000001")

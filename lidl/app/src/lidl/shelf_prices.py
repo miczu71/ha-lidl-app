@@ -8,7 +8,7 @@ import asyncio
 import logging
 import re
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any
 
@@ -31,6 +31,8 @@ class RefreshResult:
     skipped: int = 0  # HTTP 404: nieznany EAN albo zły sklep — nie jest błędem
     failed: int = 0
     errors: list[str] = field(default_factory=list)
+    stock_failed: int = 0  # E30.2: błędy odczytu stanu (poprzedni stan zostaje)
+    back_in_stock: list[str] = field(default_factory=list)  # obserwowane: brak → jest/mało w tym odczycie
 
 
 def watched_eans(history: History) -> set[str]:
@@ -82,6 +84,24 @@ def parse_price(store: str, ean: str, data: Any, now: datetime) -> ShelfPrice | 
     )
 
 
+def parse_stock(data: Any) -> str | None:
+    """Stan półki z `products/stock` (E30.1): `coverage` 0 → 'no', 1–2 → 'low', ≥3 → 'yes'.
+    To jedyne miejsce mapowania (założenie do potwierdzenia w aplikacji, E30.5).
+    Brak `coverage`, zły typ (także `bool`) albo wartość ujemna → ValueError."""
+    coverage = data.get("coverage") if isinstance(data, dict) else None
+    if type(coverage) is not int or coverage < 0:
+        raise ValueError("nieznany kształt odpowiedzi")
+    if coverage == 0:
+        return "no"
+    return "low" if coverage <= 2 else "yes"
+
+
+def _stock_only(store: str, ean: str, stock: str | None, now: datetime) -> ShelfPrice:
+    """Wiersz bez ceny, gdy znany jest tylko stan półki (E30.2)."""
+    fetched = now.isoformat(timespec="seconds")
+    return ShelfPrice(store, ean, None, None, None, None, None, False, False, fetched, stock)
+
+
 async def refresh(
     history: History,
     api: Any,
@@ -89,35 +109,61 @@ async def refresh(
     *,
     sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
 ) -> RefreshResult:
-    """Odczytuje ceny półkowe dla `targets` w sklepie `store`; zapisuje tylko udane odczyty.
+    """Odczytuje ceny i stan półki dla `targets` w sklepie `store`; zapisuje tylko udane odczyty.
     Błąd sesji albo sieci przerywa pętlę (odczyty sprzed błędu zostają zapisane) i idzie w górę."""
     result = RefreshResult()
     rows: list[ShelfPrice] = []
     cleared: list[str] = []
     now = datetime.now()
+    previous = {r.ean: r.stock for r in history.shelf_list(store)}
+    watched = watched_eans(history)
     try:
         for index, ean in enumerate(targets(history)):
             if index:
                 await sleep(REQUEST_PAUSE_S)
+            price_404 = False
             try:
                 row = parse_price(store, ean, await api.product_price(store, ean), now)
             except (LidlPlusAuthError, LidlPlusCannotConnect):
                 raise  # dalsze zapytania nic nie dadzą
             except LidlPlusError as err:
-                if err.status == 404:
-                    result.skipped += 1
-                else:
+                if err.status != 404:
                     result.failed += 1
                     result.errors.append(f"{ean}: {err}")
-                continue
+                    continue
+                row, price_404 = None, True
             except (TypeError, ValueError):
                 result.failed += 1
                 result.errors.append(f"{ean}: nieznany kształt odpowiedzi")
                 continue
-            result.ok += 1
+            await sleep(REQUEST_PAUSE_S)
+            stock: str | None
+            try:
+                stock = parse_stock(await api.product_stock(store, ean))
+            except (LidlPlusAuthError, LidlPlusCannotConnect):
+                raise
+            except LidlPlusError as err:
+                stock = None
+                if err.status != 404:
+                    stock = previous.get(ean)
+                    result.stock_failed += 1
+                    result.errors.append(f"{ean} (stan): {err}")
+            except (TypeError, ValueError) as err:
+                stock = previous.get(ean)
+                result.stock_failed += 1
+                result.errors.append(f"{ean} (stan): {err}")
+            if stock in ("yes", "low") and previous.get(ean) == "no" and ean in watched:
+                result.back_in_stock.append(ean)
             if row is not None:
-                rows.append(row)
+                rows.append(replace(row, stock=stock))
+                result.ok += 1
+            elif stock is not None:
+                rows.append(_stock_only(store, ean, stock, now))
+                result.ok += 1
+            elif price_404:
+                result.skipped += 1
             else:
+                result.ok += 1
                 cleared.append(ean)
     finally:
         if rows or cleared:
@@ -125,11 +171,12 @@ async def refresh(
     for error in result.errors:
         log.warning("Ceny półkowe Biedronki (%s): %s", store, error)
     if result.errors:
+        failed = result.failed + result.stock_failed
         history.log_event(
             "shelf",
             "error",
-            f"Ceny półkowe Biedronki: błędy odczytu ({result.failed})",
-            {"store": store, "count": result.ok, "failed": result.failed},
+            f"Ceny półkowe Biedronki: błędy odczytu ({failed})",
+            {"store": store, "count": result.ok, "failed": failed},
         )
     elif result.ok == 0 and result.skipped:  # same 404: zły kod sklepu, nic nie odczytano
         history.log_event(

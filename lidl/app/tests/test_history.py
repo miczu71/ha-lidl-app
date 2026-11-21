@@ -1109,7 +1109,7 @@ def test_migrate_v5_adds_columns_and_keeps_a_backup(tmp_path: Path) -> None:
     assert (tmp_path / "h.db.pre-countries").exists()
     row = h._db.execute("SELECT total, country, currency, total_orig, fx_rate FROM tickets").fetchone()
     assert row == (12.5, "PL", "PLN", None, 1.0)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 14
     old = sqlite3.connect(tmp_path / "h.db.pre-countries")
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
     old.close()
@@ -1129,7 +1129,7 @@ def test_migrate_v6_adds_country_pairs_and_keeps_a_backup(tmp_path: Path) -> Non
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 14
     assert h._db.execute("SELECT COUNT(*) FROM country_pairs").fetchone()[0] == 0
     old = sqlite3.connect(tmp_path / "h.db.pre-countries-pairs")
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
@@ -1356,7 +1356,7 @@ def test_v2_database_migrates_to_current_schema_keeping_data(tmp_path: Path) -> 
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 13
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 14
     assert (tmp_path / "h.db.pre-countries").exists()
     cols = {r[1] for r in h._db.execute("PRAGMA table_info(tickets)")}
     assert {"country", "currency", "total_orig", "fx_rate"} <= cols
@@ -1429,7 +1429,7 @@ def test_migrate_v7_adds_chain_and_keeps_a_backup(tmp_path: Path) -> None:
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 14
     assert h._db.execute("SELECT total, chain FROM tickets").fetchall() == [(12.5, "lidl")]
     old = sqlite3.connect(path.with_name("h.db.pre-biedronka"))
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
@@ -1530,7 +1530,7 @@ def test_migrate_v8_to_v9_adds_chain_pairs_with_backup(tmp_path: Path) -> None:
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 14
     assert h._db.execute("SELECT COUNT(*) FROM chain_pairs").fetchone()[0] == 0
     old = sqlite3.connect(path.with_name("h.db.pre-chain-pairs"))
     assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
@@ -1590,7 +1590,7 @@ def test_migrate_v12_to_v13_adds_shelf_prices_and_settings_with_backup(tmp_path:
     db.close()
 
     h = History(path)
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 13
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 14
     assert h._db.execute("SELECT COUNT(*) FROM shelf_prices").fetchone()[0] == 0
     assert h._db.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 0
     old = sqlite3.connect(path.with_name("h.db.pre-shelf"))
@@ -1621,3 +1621,43 @@ def test_shelf_replace_upserts_and_lists_per_store(tmp_path: Path) -> None:
     assert rows[0].price == 6.99 and rows[0].fetched_at == "t2" and rows[0].is_promotion is True
     assert rows[0].card_only is False and rows[0].omnibus == 9.99
     assert {r.store for r in h.shelf_list()} == {"0001", "1111"}
+
+
+def test_migrate_v13_to_v14_adds_stock_column_with_backup(tmp_path: Path) -> None:
+    import sqlite3
+
+    from lidl.history import ShelfPrice
+
+    path = tmp_path / "h.db"
+    h = History(path)
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01", total=12.5)])
+    row = ShelfPrice("0001", "5900000000001", 7.49, None, None, None, None, False, False, "t1")
+    h.shelf_replace("0001", [row])
+    del h
+    db = sqlite3.connect(path)
+    db.execute("ALTER TABLE shelf_prices DROP COLUMN stock")
+    db.execute("PRAGMA user_version = 13")
+    db.commit()
+    db.close()
+
+    h = History(path)
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 14
+    assert "stock" in {r[1] for r in h._db.execute("PRAGMA table_info(shelf_prices)")}
+    rows = h.shelf_list("0001")
+    assert [(r.ean, r.price, r.stock) for r in rows] == [("5900000000001", 7.49, None)]
+    old = sqlite3.connect(path.with_name("h.db.pre-stock"))
+    assert old.execute("SELECT total FROM tickets").fetchall() == [(12.5,)]
+    old.close()
+
+
+def test_shelf_replace_round_trips_stock(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    from lidl.history import ShelfPrice
+
+    h = History(tmp_path / "h.db")
+    row = ShelfPrice("0001", "5900000000001", None, None, None, None, None, False, False, "t1", "no")
+    h.shelf_replace("0001", [row])
+    assert h.shelf_list("0001")[0].stock == "no"
+    h.shelf_replace("0001", [replace(row, stock="low", fetched_at="t2")])
+    assert h.shelf_list("0001")[0].stock == "low"

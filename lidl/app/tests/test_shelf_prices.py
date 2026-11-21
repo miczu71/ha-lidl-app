@@ -15,6 +15,7 @@ from lidl.shelf_prices import (
     ShelfOffer,
     parse_price,
     parse_promo_end,
+    parse_stock,
     refresh,
     refresh_morning,
     shelf_offers,
@@ -61,17 +62,30 @@ async def _no_sleep(_: float) -> None:
 
 class FakeApi:
     def __init__(
-        self, prices: dict[str, Any] | None = None, errors: dict[str, Exception] | None = None
+        self,
+        prices: dict[str, Any] | None = None,
+        errors: dict[str, Exception] | None = None,
+        stock: dict[str, Any] | None = None,
+        stock_errors: dict[str, Exception] | None = None,
     ) -> None:
         self.prices = prices or {}
         self.errors = errors or {}
+        self.stock = stock or {}
+        self.stock_errors = stock_errors or {}
         self.calls: list[tuple[str, str]] = []
+        self.stock_calls: list[tuple[str, str]] = []
 
     async def product_price(self, store: str, ean: str) -> Any:
         self.calls.append((store, ean))
         if ean in self.errors:
             raise self.errors[ean]
         return self.prices[ean]
+
+    async def product_stock(self, store: str, ean: str) -> Any:
+        self.stock_calls.append((store, ean))
+        if ean in self.stock_errors:
+            raise self.stock_errors[ean]
+        return self.stock.get(ean, {"coverage": 3})
 
 
 def _history(tmp_path: Path) -> History:
@@ -135,7 +149,10 @@ async def test_refresh_saves_reads_and_logs_ok(tmp_path: Path) -> None:
     h = _history(tmp_path)
     h.set_watched(f"b:{EAN_A}", True)
     h.set_watched(f"b:{EAN_B}", True)
-    api = FakeApi({EAN_A: PROMO, EAN_B: {**PROMO, "price": ""}})
+    api = FakeApi(
+        {EAN_A: PROMO, EAN_B: {**PROMO, "price": ""}},
+        stock_errors={EAN_B: LidlPlusError("http_404", status=404)},
+    )
     sleeps: list[float] = []
 
     async def sleep(seconds: float) -> None:
@@ -143,7 +160,7 @@ async def test_refresh_saves_reads_and_logs_ok(tmp_path: Path) -> None:
 
     result = await refresh(h, api, "0001", sleep=sleep)  # type: ignore[arg-type]
     assert api.calls == [("0001", EAN_A), ("0001", EAN_B)]
-    assert sleeps == [1.0]  # między zapytaniami, nie przed pierwszym
+    assert sleeps == [1.0, 1.0, 1.0]  # przed każdym zapytaniem poza pierwszym (cena, stan, cena)
     assert result.ok == 2 and result.failed == 0 and result.skipped == 0
     assert [r.ean for r in h.shelf_list("0001")] == [EAN_A]
     events = h._db.execute("SELECT area, level FROM events WHERE area = 'shelf'").fetchall()
@@ -157,6 +174,7 @@ async def test_refresh_404_is_skipped_and_503_failed_others_continue(tmp_path: P
     api = FakeApi(
         {EAN_C: PLAIN},
         {EAN_A: LidlPlusError("http_404", status=404), EAN_B: LidlPlusError("http_503", status=503)},
+        stock_errors={EAN_A: LidlPlusError("http_404", status=404)},
     )
     result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
     assert api.calls == [("0001", EAN_A), ("0001", EAN_B), ("0001", EAN_C)]
@@ -198,7 +216,9 @@ async def test_refresh_empty_price_clears_old_row(tmp_path: Path) -> None:
     row = parse_price("0001", EAN_A, PROMO, NOW)
     assert row is not None
     h.shelf_replace("0001", [row])
-    result = await refresh(h, FakeApi({EAN_A: {**PROMO, "price": ""}}), "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    stock_404 = {EAN_A: LidlPlusError("http_404", status=404)}
+    api = FakeApi({EAN_A: {**PROMO, "price": ""}}, stock_errors=stock_404)
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
     assert result.ok == 1 and result.failed == 0
     assert h.shelf_list("0001") == []
 
@@ -342,7 +362,11 @@ async def test_refresh_network_failure_stops_and_keeps_earlier_reads(tmp_path: P
 async def test_refresh_all_404_logs_warn_not_ok(tmp_path: Path) -> None:
     h = _history(tmp_path)
     h.set_watched(f"b:{EAN_A}", True)
-    api = FakeApi({}, {EAN_A: LidlPlusError("http_404", status=404)})
+    api = FakeApi(
+        {},
+        {EAN_A: LidlPlusError("http_404", status=404)},
+        stock_errors={EAN_A: LidlPlusError("http_404", status=404)},
+    )
     result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
     assert result.ok == 0 and result.skipped == 1
     assert h._db.execute("SELECT level FROM events WHERE area = 'shelf'").fetchall() == [("warn",)]
@@ -355,3 +379,127 @@ def test_shelf_offers_skips_ended_promotion(tmp_path: Path) -> None:
     assert row is not None
     h.shelf_replace("0001", [row])
     assert shelf_offers(h, "0001", TODAY) == []  # koniec 8.11 < 21.11
+
+
+@pytest.mark.parametrize(
+    ("coverage", "expected"), [(0, "no"), (1, "low"), (2, "low"), (3, "yes"), (7, "yes")]
+)
+def test_parse_stock_maps_coverage_levels(coverage: int, expected: str) -> None:
+    assert parse_stock({"coverage": coverage, "code": "6715"}) == expected
+
+
+@pytest.mark.parametrize(
+    "data", [{"coverage": True}, {"coverage": "3"}, {"coverage": -1}, {"code": "6715"}, None, ["x"]]
+)
+def test_parse_stock_unknown_shape_raises(data: Any) -> None:
+    with pytest.raises(ValueError, match="nieznany kształt"):
+        parse_stock(data)
+
+
+def _stock_only(store: str, ean: str, stock: str | None) -> ShelfPrice:
+    return ShelfPrice(store, ean, None, None, None, None, None, False, False, "t0", stock)
+
+
+async def test_refresh_saves_stock_next_to_price(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({EAN_A: PROMO}, stock={EAN_A: {"coverage": 0}})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.ok == 1 and result.stock_failed == 0 and result.back_in_stock == []
+    assert api.stock_calls == [("0001", EAN_A)]
+    assert [(r.price, r.stock) for r in h.shelf_list("0001")] == [(7.49, "no")]
+
+
+async def test_refresh_stock_404_is_unknown_not_error(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({EAN_A: PROMO}, stock_errors={EAN_A: LidlPlusError("http_404", status=404)})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.stock_failed == 0 and result.errors == [] and result.failed == 0
+    assert [(r.price, r.stock) for r in h.shelf_list("0001")] == [(7.49, None)]
+
+
+async def test_refresh_stock_error_keeps_previous_stock_and_counts(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.shelf_replace("0001", [_stock_only("0001", EAN_A, "low")])
+    api = FakeApi({EAN_A: PROMO}, stock_errors={EAN_A: LidlPlusError("http_503", status=503)})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.ok == 1 and result.failed == 0 and result.stock_failed == 1
+    assert len(result.errors) == 1 and "(stan)" in result.errors[0] and EAN_A in result.errors[0]
+    assert [(r.price, r.stock) for r in h.shelf_list("0001")] == [(7.49, "low")]
+    assert h._db.execute("SELECT level FROM events WHERE area = 'shelf'").fetchall() == [("error",)]
+
+
+async def test_refresh_stock_bad_shape_counts_as_stock_failure(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({EAN_A: PROMO}, stock={EAN_A: {"zupelnie": "inny"}})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.ok == 1 and result.stock_failed == 1 and result.failed == 0
+    assert [(r.price, r.stock) for r in h.shelf_list("0001")] == [(7.49, None)]
+
+
+async def test_refresh_stock_auth_error_propagates(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({EAN_A: PROMO}, stock_errors={EAN_A: LidlPlusAuthError("unauthorized", status=401)})
+    with pytest.raises(LidlPlusAuthError):
+        await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+
+
+async def test_refresh_empty_price_with_known_stock_saves_stock_only_row(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.shelf_replace("0001", [parse_price("0001", EAN_A, PROMO, NOW)])  # type: ignore[list-item]
+    api = FakeApi({EAN_A: {**PROMO, "price": ""}}, stock={EAN_A: {"coverage": 0}})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.ok == 1 and result.skipped == 0
+    assert [(r.price, r.stock) for r in h.shelf_list("0001")] == [(None, "no")]
+
+
+async def test_refresh_price_404_with_known_stock_is_ok_not_skipped(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({}, {EAN_A: LidlPlusError("http_404", status=404)}, stock={EAN_A: {"coverage": 3}})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.ok == 1 and result.skipped == 0 and result.failed == 0
+    assert [(r.price, r.stock) for r in h.shelf_list("0001")] == [(None, "yes")]
+
+
+async def test_refresh_price_failure_skips_stock_query(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({}, {EAN_A: LidlPlusError("http_503", status=503)})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.failed == 1 and api.stock_calls == []
+
+
+async def test_back_in_stock_on_no_to_yes_or_low_for_watched(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.set_watched(f"b:{EAN_B}", True)
+    h.shelf_replace("0001", [_stock_only("0001", EAN_A, "no"), _stock_only("0001", EAN_B, "no")])
+    api = FakeApi({EAN_A: PROMO, EAN_B: PROMO}, stock={EAN_A: {"coverage": 3}, EAN_B: {"coverage": 1}})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.back_in_stock == [EAN_A, EAN_B]
+
+
+async def test_back_in_stock_not_for_first_read_yes_to_yes_or_unwatched(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)  # pierwszy odczyt, brak poprzedniego wiersza
+    h.set_watched(f"b:{EAN_B}", True)  # poprzednio „yes”
+    h._db.execute(
+        "INSERT INTO chain_pairs (b_art_id, status, lidl_art_id, source, candidates)"
+        " VALUES (?, 'approved', '1', 'ean', '[]')",
+        (EAN_C,),
+    )
+    h._db.commit()
+    h.shelf_replace("0001", [_stock_only("0001", EAN_B, "yes"), _stock_only("0001", EAN_C, "no")])
+    api = FakeApi(
+        {EAN_A: PROMO, EAN_B: PROMO, EAN_C: PROMO},
+        stock={EAN_A: {"coverage": 3}, EAN_B: {"coverage": 3}, EAN_C: {"coverage": 3}},
+    )
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.back_in_stock == []  # EAN_C nieobserwowany, więc bez powiadomienia
+    assert [r.stock for r in h.shelf_list("0001") if r.ean == EAN_C] == ["yes"]

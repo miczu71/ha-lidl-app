@@ -274,6 +274,13 @@ class BiedronkaApi:
             raise LidlPlusError("bad_shape")
         return data
 
+    async def product_stock(self, store: str, ean: str) -> dict[str, Any]:
+        """Stan na półce produktu w sklepie (`coverage`, E30.1)."""
+        data = await self.request(f"products/stock/{quote(store, safe='')}/{quote(ean, safe='')}/")
+        if not isinstance(data, dict):
+            raise LidlPlusError("bad_shape")
+        return data
+
     async def reveal_and_activate(self, offer_id: str) -> Any:
         """Odsłania i aktywuje ofertę Shakeomatu/Shakeomarki (zapis na koncie, PATCH)."""
         return await self.request(f"offers/{quote(offer_id, safe='')}/reveal-and-activate/", method="PATCH")

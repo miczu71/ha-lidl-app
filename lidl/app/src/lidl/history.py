@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 _PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
@@ -177,6 +177,7 @@ CREATE TABLE IF NOT EXISTS shelf_prices (
     card_only INTEGER NOT NULL DEFAULT 0,
     is_promotion INTEGER NOT NULL DEFAULT 0,
     fetched_at TEXT NOT NULL,
+    stock TEXT,
     PRIMARY KEY (store, ean)
 );
 -- E29.2: ustawienia aplikacji (klucz → wartość), np. `biedronka_store`
@@ -305,6 +306,7 @@ class ShelfPrice:
     card_only: bool
     is_promotion: bool
     fetched_at: str
+    stock: str | None = None  # E30.2: 'yes' | 'low' | 'no' | None (nieznany)
 
 
 @dataclass(frozen=True)
@@ -944,6 +946,8 @@ class History:
             self._migrate_v11(path)
         if has_tables and version < 13:
             self._migrate_v12(path)
+        if has_tables and version < 14:
+            self._migrate_v13(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1081,6 +1085,19 @@ class History:
                 "UPDATE items SET discount = -ABS(discount) WHERE ticket_id IN"
                 " (SELECT id FROM tickets WHERE chain = 'biedronka')"
             )
+
+    def _migrate_v13(self, path: Path) -> None:
+        """v13 → v14: kolumna `shelf_prices.stock` (E30.2); wcześniej kopia `.pre-stock`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-stock"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
+        if "stock" not in {r[1] for r in self._db.execute("PRAGMA table_info(shelf_prices)")}:
+            with self._db:
+                self._db.execute("ALTER TABLE shelf_prices ADD COLUMN stock TEXT")
 
     def _migrate_v12(self, path: Path) -> None:
         """v12 → v13: tabele `shelf_prices` i `settings` (z _SCHEMA); kopia `.pre-shelf`."""
@@ -2339,7 +2356,8 @@ class History:
             )
             self._db.executemany(
                 "INSERT OR REPLACE INTO shelf_prices (store, ean, price, regular, omnibus, promo_from,"
-                " promo_to, card_only, is_promotion, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " promo_to, card_only, is_promotion, fetched_at, stock)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 [
                     (
                         store,
@@ -2352,6 +2370,7 @@ class History:
                         int(r.card_only),
                         int(r.is_promotion),
                         r.fetched_at,
+                        r.stock,
                     )
                     for r in rows
                 ],
@@ -2360,15 +2379,15 @@ class History:
     def shelf_list(self, store: str | None = None) -> list[ShelfPrice]:
         sql = (
             "SELECT store, ean, price, regular, omnibus, promo_from, promo_to, card_only, is_promotion,"
-            " fetched_at FROM shelf_prices"
+            " fetched_at, stock FROM shelf_prices"
         )
         params: tuple[str, ...] = ()
         if store is not None:
             sql += " WHERE store = ?"
             params = (store,)
         return [
-            ShelfPrice(s, e, p, reg, om, pf, pt, bool(co), bool(ip), fa)
-            for s, e, p, reg, om, pf, pt, co, ip, fa in self._db.execute(
+            ShelfPrice(s, e, p, reg, om, pf, pt, bool(co), bool(ip), fa, st)
+            for s, e, p, reg, om, pf, pt, co, ip, fa, st in self._db.execute(
                 sql + " ORDER BY store, ean", params
             )
         ]
