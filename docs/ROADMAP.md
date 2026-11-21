@@ -314,8 +314,12 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   NIEBLOKUJĄCE z review (poza 1.5.1): klucz `store_geo` tylko po `code` (konwencja formatów, nie schemat), wiek migawki z dziennika (`fetched_at` w migawce), Shakeomat warn nie znika po późniejszym sukcesie, `chain_pair_decide` ignoruje wynik (cichy no-op), brak testu trasy `_savings_fetched`, jeden zły sklep przerywa przebieg geokodowania.
   **1.5.2 ✅ WYDANE 2026-11-20 (poprawka znaku rabatu Biedronki, commity `e95905c`/release):** `receipt_biedronka` zapisywał `items.discount` dodatni, reszta kodu zakłada ujemny jak Lidl → oszczędności miesiąca −495 zł i zawyżona cena po rabacie. Parser `-abs(...)`, migracja v12 negująca pozycje `chain='biedronka'` (kopia `.pre-bdr-discount`); 658 passed (bez `test_leaflet.py`), ruff/mypy czyste, pubguard 0 flag. Pułapka: `code-review low` zwrócił pusty wynik po 6 s — diff przejrzany ręcznie. Na żywo: v12, Biedronka suma rabatów −495,62 (126 pozycji), Lidl bez zmian (−11182,34), `/miesiace?siec=biedronka` „Zaoszczędziliśmy 13,57 zł”, konsola czysta. NIEBLOKUJĄCE: `tickets.savings` Biedronki nadal 0 (API listy go nie podaje).
   E28.6b (punkty zależne od weryfikacji E28.5 na żywo) — po porównaniu migawki z aplikacją Moja Biedronka.
-- **P2 Cena na półce Biedronki:** `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) dla produktów z gwiazdką E15
-  kupowanych w Biedronce → push `lidl-obserwowane` przy promocji. Najpierw spike GET (kształt odpowiedzi, wybór sklepu).
+- **E29 Ceny półkowe Biedronki** (dawne P2; **wywiad ✅ 2026-11-21, plan `docs/PLAN_E29_ceny_polkowe.md`**, wydanie 1.7.0):
+  `products/price/{sklep}/{ean}` (cena, regularna, Omnibus) → push `lidl-obserwowane` o promocji obserwowanych (cena < Omnibus)
+  + kolumna „dziś na półce” w `/sieci`; EAN = gwiazdka E15 ∪ zatwierdzone pary; jeden sklep wybierany z listy w panelu;
+  odczyt raz dziennie w porannym przebiegu. Podetapy: E29.0 docs → E29.1 spike GET (bramka) → E29.2 backend (schemat v13,
+  `shelf_prices.py`) → E29.3 poranny przebieg + push → E29.4 panel (Konta, `/sieci`) → E29.5 wydanie 1.7.0.
+  Stan: E29.0 ✅ (docs), dalej E29.1.
 - **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
   kosztu limitów freellmapi (skill `pomiar`); bez tego odpada.
 
