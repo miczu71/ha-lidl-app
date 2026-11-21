@@ -137,6 +137,19 @@ Skille: `addon-conventions`, `tdd`. Zmiana względem szkicu: „wróciło na pó
 - `refresh_morning` → `None` (brak sklepu/konta) loguje zdarzenie `shelf/info` z powodem zamiast cicho.
 - Testy do każdego punktu. Rollback: revert.
 
+**Wykonawca E30.4 (paczka W1, `haiku-worker`; repo `/config/addons/ha-lidl-app`, katalog `lidl/app`):**
+Skille: `addon-conventions`, `tdd`. Pliki: `src/lidl/shelf_prices.py`, `history.py`, `daily.py`, `web/app.py`, `web/templates/polka.html` (tylko jeśli komunikaty tam, nie w `web/app.py:127`), `web/templates/_chains_body.html`; testy w istniejących `tests/test_*.py`.
+1. `web/app.py`: w tworzeniu aplikacji `app.state.shelf_lock = asyncio.Lock()`. `check_shelf`: `if lock.locked(): return go(request, "/polka?m=shelf_busy")`, reszta pod `async with lock:`. Do słownika komunikatów (`:127`) dodaj `"shelf_busy": ("err", "Odczyt cen już trwa. Spróbuj za chwilę.")`.
+   Poranny krok (`app.py:202`, lambda `shelf=`) ma brać ten sam zamek: opakuj w `async def` z `async with app.state.shelf_lock`.
+2. `history.py`: nowe `product_names(codes: Iterable[str]) -> dict[str, str]` — jedno zapytanie (jak `product_name`: `items JOIN tickets ORDER BY t.day DESC`, `resolve(code, name)`; pierwsza = najnowsza nazwa wygrywa dla kodu ∈ `codes`). `daily.py` `_shelf_fresh` i `_watched` (nazwy `back`): policz kody raz, jedno `product_names(...)`, potem słownik zamiast `product_name` w pętli (fallback `ean`).
+3. `shelf_prices.parse_price`: `promo_to=parse_promo_end(period, now.date())` jako `.isoformat()` albo `None`. `shelf_offers`: `end = date.fromisoformat(row.promo_to)` gdy `row.promo_to` (zły format → fallback), w przeciwnym razie `parse_promo_end(row.promo_from, today)` jak dziś.
+4. `refresh_morning`: gdy zwraca `None` (brak sklepu albo konta) → `history.log_event("shelf", "info", "Ceny półkowe Biedronki: pominięto — brak sklepu" / "— brak połączonego konta", {})` (sprawdź sygnaturę `log_event`, `history.py:1791`).
+5. `daily.py` `_watched`: gdy `pending` niepuste, a `back` puste i nie `dry_run` → `clear_back(self._history, pending)` PRZED wczesnym `return` przy `not message` (nieobserwowane EAN-y nie leżą w nieskończoność).
+6. `_chains_body.html`: komórka „Dziś na półce” dla `stock == "yes"` bez ceny → tekst `jest` (zamiast samego odczytu); z ceną bez zmian.
+7. Testy: lock (drugie wywołanie w trakcie → `shelf_busy`, nie wołaj odczytu drugi raz), `product_names` (najnowsza nazwa, brak → pominięty), `parse_price` promo_to ISO + brak okresu, `shelf_offers` czyta `promo_to` i fallback na `promo_from`, `refresh_morning` None → zdarzenie `shelf/info`, pending nieobserwowanego czyści się bez wiadomości (nie w dry_run), `/sieci` `jest` bez ceny.
+`DONE:` pytest zmienionych plików zielony (pełny uruchamiam sam), `ruff check src tests` + `mypy src` czyste, `git status --short` tylko pliki z listy.
+`NIE RÓB:` zmian w `client/`, schemacie, `config.yaml`/wersji, `docs/`, `test_leaflet.py`; commitów; nowego CSS.
+
 ### E30.5 Wydanie (ostatni etap: bez pytania)
 `simplify` → `code-review` (+ równolegle `silent-failure-hunter`, `pr-test-analyzer`, security `general-purpose` na
 `git -C /config/addons/ha-lidl-app diff <baza E30.0>..HEAD`) → `release` 1.8.0 (B: 1.7.1) → na żywo: `/polka/sprawdz`,
