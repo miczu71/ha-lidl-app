@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.1
+
+- Naprawione testy gazetek (zależały od dzisiejszej daty) — CI znów zielone.
+- Para Biedronka↔Lidl: nieudana decyzja pokazuje komunikat zamiast cichego „OK”.
+- Geokodowanie sklepów Biedronki: zła odpowiedź dla jednego sklepu pomija tylko ten sklep; po 3 złych z rzędu
+  przebieg się kończy (ponowienie następnego dnia).
+- Status: ostrzeżenie Shakeomatu znika po późniejszym sukcesie tego samego konta (sukces innego konta go nie zdejmuje).
+- Wiek migawki oszczędności z zapisanego znacznika, nie z dziennika zdarzeń (dziennik trzyma 30 dni).
+- Schemat bazy v15: punkty sklepów mają klucz (sieć, kod), więc ten sam kod w Lidlu i Biedronce się nie zderza;
+  migracja robi kopię `history.db.pre-geo-chain`.
+
 ## 1.9.0
 
 - Wspólna wyszukiwarka: pole w pasku na każdej stronie i widok `/szukaj`. Szuka w paragonach, ofertach i promocjach,
