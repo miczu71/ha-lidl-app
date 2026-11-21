@@ -114,3 +114,37 @@ Supervisor.
 **Decyzje usera po spike'u (2026-11-21):** Biedronka = nazwy z `products/search` na żywo + cena/stan po kliknięciu tylko gdy EAN znany lokalnie
 (paragony `b:`, karuzela `product_main_ean_code`+SAP, pary), reszta sama nazwa; Lidl = tylko oferty, gazetka, paragony (bez zdalnego lidl.pl);
 logo = własne neutralne znaczki (`.chain-tag`), bez oficjalnych SVG. Open Food Facts odrzucone. Następny: E31.2 backend `search.py`.
+
+## E31.2 — Wykonawca (kontrakt dla `haiku-worker`; bramka B, decyzje usera po spike'u)
+Repo: `/config/addons/ha-lidl-app`, kod `lidl/app/src/lidl`, testy `lidl/app/tests`; python: `lidl/app/.venv/bin/python -m pytest`.
+Wzory: `product_price` w `client/biedronka.py`, `_history` w `tests/test_chain_pairs.py`, `FakeSession`/`Resp` w `tests/test_biedronka_client.py`.
+
+**Pliki i zmiany**
+1. `client/biedronka.py`: `async def product_search(self, query: str) -> list[dict[str, Any]]` — `GET products/search/{quote(query, safe='')}/`;
+   wynik nie-lista → `LidlPlusError("bad_shape")`; zwraca tylko elementy-słowniki z niepustym `name`.
+2. `tests/test_biedronka_client.py`: ścieżka zakodowana (`products/search/mas%C5%82o%20extra/`), lista pozycji, `[]`, nie-lista → `bad_shape`.
+3. `history.py`: `def coupons_active(self, today: date) -> list[tuple[str, str, str]]` — `(title, discount, valid_to)` z `coupons`
+   gdzie `gone_at IS NULL AND valid_to >= today`, DISTINCT, `ORDER BY title`; test w `tests/test_history.py`.
+4. nowy `search.py`:
+   - `@dataclass(frozen=True) SearchHit(kind: str, chain: str, name: str, key: str|None, ean: str|None, price: float|None, purchases: int, last_date: str|None, until: str|None)`;
+     `kind` ∈ `bought|offer|promo|coupon|catalog` (catalog = nazwa z `products/search`, bez ceny).
+   - `search_all(history, query, *, today, promos: Iterable[Promotion]=(), remote: Iterable[dict]=(), limit=30) -> list[SearchHit]`:
+     a) `bought`: `history.ranking(query=query)`; `chain` = `biedronka` gdy `art_id` zaczyna się od `b:`, inaczej `lidl`; `ean` = część po `b:`/`n:` gdy 8–14 cyfr;
+        `price` = `last_price`; `purchases`/`last_date` z `RankedProduct`.
+     b) `offer`: `history.savings_list()` (`kind == "offer"`, `matches(name, query)`, ważne dziś wg `valid_from/valid_to` ISO, puste = ważne); `chain="biedronka"`,
+        `ean = extra["ean"] or None`, `price`, `until = valid_to`. Jeśli jest `bought` o tym samym `ean` → nie dubluj, tylko uzupełnij `until` i `price` oferty (nowy `SearchHit` przez `dataclasses.replace`).
+     c) `promo`: z `promos` + `history.leaflet_matches_active(today)` (krotki jak `Promotion`), `matches(title, query)`, `chain="lidl"`, `key=art_id`, `until=end`;
+        jeśli `bought` ma ten `art_id` → dopisz `until`, bez drugiego wpisu.
+     d) `coupon`: `history.coupons_active(today)`, `matches(title, query)`, `chain="lidl"`, `name=title`, `until=valid_to`.
+     e) `catalog`: elementy `remote` (`{"name","sap_product_number","unit"}`) z `matches(name, query)`; pomiń, gdy znana jest już pozycja o tej samej
+        nazwie po `_fold` (zwinięte spacje); `chain="biedronka"`, `ean=None`, `price=None`.
+     Kolejność: `bought` (malejąco `purchases`), `offer`, `promo`, `coupon`, `catalog`; obcięcie do `limit`.
+   - `class BiedronkaSearchCache`: `__init__(self, ttl: float = 600, now: Callable[[], float] = time.monotonic)`;
+     `async def names(self, api, query) -> list[dict]` — klucz = `_fold(query).strip()`; trafienie w cache bez zapytania; wyjątek z `api.product_search`
+     nie jest cache'owany i leci dalej; fraza krótsza niż 3 znaki → `[]` bez zapytania.
+5. `tests/test_search.py`: `bought` Lidl i Biedronka (chain, ean, purchases), oferta łączy się z `bought` po EAN, oferta bez `bought`, promo bez/z `bought`,
+   kupon, `catalog` pomija nazwę już znaną, kolejność i `limit`, pusta fraza → `[]`, cache (drugi raz bez zapytania, po TTL znów pyta, wyjątek nie jest cache'owany, krótka fraza).
+**Test:** `lidl/app/.venv/bin/python -m pytest lidl/app/tests/test_search.py lidl/app/tests/test_biedronka_client.py lidl/app/tests/test_history.py -q` + `ruff check` + `mypy` (jak w CI repo).
+**DONE:** wszystkie trzy pliki testów zielone, ruff i mypy czyste, `search_all` czysta funkcja (bez sieci i bez zapisów).
+**NIE RÓB:** zmian w `web/`, szablonach, `static/`, schemacie bazy, `chain_savings.py`, `promotions.py`; nie commituj; nie dodawaj zdalnego Lidla ani Open Food Facts.
+Seamy testów: `History` na `tmp_path`, `savings_replace`/`upsert_tickets`+`save_detail` do danych; zdalne wyniki podawane jako lista słowników; zegar cache wstrzykiwany.
