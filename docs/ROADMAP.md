@@ -323,7 +323,7 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   schemat v13 `shelf_prices`+`settings`, `shelf_prices.py` targets/parse_price/refresh; pytest 702 passed, ruff+mypy zielone,
   verifier APPROVE), E29.3 ✅ (commit `3fb5c28`: krok „ceny” w porannym przebiegu przed kuponami, `parse_promo_end`/`shelf_offers`/`refresh_morning`,
   linia Biedronki w `compose_watched`, klucz `bs:<ean>:<koniec|cena>`, `LidlPlusAuthError` → event `shelf/error`; pytest 723 passed, ruff+mypy zielone,
-  verifier APPROVE; NIEBLOKUJĄCE: brak testu nieudanego pushu z linią Biedronki), dalej E29.4 (panel: wybór sklepu w Konta + kolumna „dziś na półce” w `/sieci`).
+  verifier APPROVE; NIEBLOKUJĄCE: brak testu nieudanego pushu z linią Biedronki), E29.4 ✅ (panel: sekcja „Ceny półkowe Biedronki” w Konta — wybór sklepu z paragonów, status, „Sprawdź teraz”; kolumna „Dziś na półce” w `/sieci`; pytest 730 passed, ruff+mypy zielone, Playwright 390/1280 bez błędów konsoli), dalej E29.5 (wydanie 1.7.0; przed pushem pubguard: starsze commity docs E29.1 zawierają prawdziwy kod sklepu).
 - **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
   kosztu limitów freellmapi (skill `pomiar`); bez tego odpada.
 
