@@ -14,7 +14,7 @@ from typing import Any
 
 import aiohttp
 
-from . import notify
+from . import notify, shelf_prices
 from .accounts import AccountStore
 from .chain_savings import ShakeResult
 from .client.exceptions import LidlPlusAuthError
@@ -290,14 +290,26 @@ class DailyJob:
         }
         found = _unsent("p", [p for p in promos if p.art_id in watched], sent)
         shelf = self._shelf_fresh(watched, today, sent)
+        # E30.3: „wróciło na półkę” czeka trwale w ustawieniu; w pushu tylko obserwowane EAN-y
+        pending = shelf_prices.pending_back(self._history)
+        back: list[str] = []
+        for ean in pending:
+            code = next((c for c in (f"b:{ean}", f"n:{ean}") if c in watched), None)
+            if code is not None:
+                back.append(self._history.product_name(code) or ean)
         message = notify.compose_watched(
-            list(coupons.values()), list(found.values()), today, [(name, offer) for _, name, offer in shelf]
+            list(coupons.values()),
+            list(found.values()),
+            today,
+            [(name, offer) for _, name, offer in shelf],
+            back=back,
         )
         if not message:
             return
         if await notify.send(self._session, message, tag=notify.TAG_WATCHED) and not self.dry_run:
             keys = [*coupons, *found, *(key for key, _, _ in shelf)]
             self._history.mark_watched_sent(keys, datetime.now().isoformat())
+            shelf_prices.clear_back(self._history, pending)  # także EAN-y już nieobserwowane
 
     def _shelf_fresh(
         self, watched: set[str], today: date, sent: set[str]

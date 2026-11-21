@@ -5,9 +5,10 @@ błąd jednego EAN nie zatrzymuje reszty, a stare wiersze zostają."""
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any
@@ -23,6 +24,7 @@ REQUEST_PAUSE_S = 1.0
 _EAN_RE = re.compile(r"\d{8,13}")
 _PROMO_END_RE = re.compile(r"do\s+(\d{1,2})\.(\d{1,2})")
 _PROMO_YEAR_BACK = 180  # data końca więcej niż tyle dni przed dziś = przełom roku
+BACK_KEY = "shelf_back_pending"  # E30.3: JSON-lista EAN-ów, które wróciły na półkę, a nie są jeszcze w pushu
 
 
 @dataclass
@@ -168,6 +170,8 @@ async def refresh(
     finally:
         if rows or cleared:
             history.shelf_replace(store, rows, cleared)
+        if result.back_in_stock:
+            _store_back(history, result.back_in_stock)
     for error in result.errors:
         log.warning("Ceny półkowe Biedronki (%s): %s", store, error)
     if result.errors:
@@ -190,6 +194,35 @@ async def refresh(
             "shelf", "ok", "Ceny półkowe Biedronki: odczytane", {"store": store, "count": result.ok}
         )
     return result
+
+
+def pending_back(history: History) -> list[str]:
+    """EAN-y, które wróciły na półkę i czekają na push (E30.3); zły JSON albo brak ustawienia → `[]`."""
+    raw = history.get_setting(BACK_KEY)
+    if not raw:
+        return []
+    try:
+        value = json.loads(raw)
+    except ValueError:
+        return []
+    if not isinstance(value, list):
+        return []
+    return [ean for ean in value if isinstance(ean, str)]
+
+
+def _store_back(history: History, eans: list[str]) -> None:
+    """Dopisuje EAN-y do oczekujących (bez duplikatów); trwałe, bo przeżywa nieudaną wysyłkę."""
+    merged = sorted({*pending_back(history), *eans})
+    history.set_setting(BACK_KEY, json.dumps(merged))
+
+
+def clear_back(history: History, eans: Iterable[str]) -> None:
+    """Usuwa podane EAN-y z oczekujących; wołane po udanym pushu."""
+    drop = set(eans)
+    current = pending_back(history)
+    remaining = sorted(ean for ean in current if ean not in drop)
+    if len(remaining) != len(current):
+        history.set_setting(BACK_KEY, json.dumps(remaining))
 
 
 def parse_promo_end(text: str | None, today: date) -> date | None:
@@ -217,6 +250,7 @@ class ShelfOffer:
     was: float
     end: date | None
     card_only: bool
+    stock: str | None = None  # E30.3: 'yes'|'low'|'no'|None (nieznany)
 
 
 def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
@@ -232,7 +266,7 @@ def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
         end = parse_promo_end(row.promo_from, today)
         if end is not None and end < today:  # stary wiersz po nieudanych odczytach: promocja minęła
             continue
-        offers.append(ShelfOffer(row.ean, row.price, was, end, row.card_only))
+        offers.append(ShelfOffer(row.ean, row.price, was, end, row.card_only, row.stock))
     return offers
 
 

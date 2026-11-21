@@ -371,3 +371,40 @@ def test_page_comparison_shelf_dash_for_unread_product(client: TestClient) -> No
     h.shelf_replace("0001", [_shelf("999", 1.0)])
     text = client.get("/sieci").text
     assert "Dziś na półce" in text and "2,79" not in text and "—" in text
+
+
+def _shelf_stock(ean: str, price: float | None, stock: str | None, promo: bool = False) -> ShelfPrice:
+    return ShelfPrice(
+        "0001", ean, price, 5.0, 4.5, "od 16.11 do 22.11" if promo else None, None, False, promo,
+        "2026-11-21T07:00:00", stock,
+    )  # fmt: skip
+
+
+def test_page_comparison_shelf_stock_no_tag_next_to_promo(client: TestClient) -> None:
+    mleko = _both(client)
+    h = _hist(client)
+    h.chain_pair_approve("b:111", mleko, "manual")
+    h.set_setting("biedronka_store", "0001")
+    h.shelf_replace("0001", [_shelf_stock("111", 2.79, "no", promo=True)])
+    text = client.get("/sieci").text
+    assert "brak na półce" in text and "promocja" in text and "2,79" in text
+
+
+def test_page_comparison_shelf_stock_low_alone_without_price(client: TestClient) -> None:
+    mleko = _both(client)
+    h = _hist(client)
+    h.chain_pair_approve("b:111", mleko, "manual")
+    h.set_setting("biedronka_store", "0001")
+    h.shelf_replace("0001", [_shelf_stock("111", None, "low")])  # stan znany, cena nie
+    text = client.get("/sieci").text
+    assert "mało" in text and "21 lis" in text and "2,79" not in text
+
+
+def test_page_comparison_shelf_stock_yes_has_no_tag(client: TestClient) -> None:
+    mleko = _both(client)
+    h = _hist(client)
+    h.chain_pair_approve("b:111", mleko, "manual")
+    h.set_setting("biedronka_store", "0001")
+    h.shelf_replace("0001", [_shelf_stock("111", 2.79, "yes")])
+    text = client.get("/sieci").text
+    assert "2,79" in text and "brak na półce" not in text and "mało" not in text

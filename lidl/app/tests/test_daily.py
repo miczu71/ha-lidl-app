@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from lidl import notify
+from lidl import notify, shelf_prices
 from lidl.accounts import Account
 from lidl.client.exceptions import LidlPlusAuthError
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
@@ -116,6 +117,9 @@ class FakeHistory:
 
     def get_setting(self, key: str) -> str | None:
         return self.settings.get(key)
+
+    def set_setting(self, key: str, value: str) -> None:
+        self.settings[key] = value
 
     def shelf_list(self, store: str | None = None) -> list[ShelfPrice]:
         return [r for r in self.shelf_rows if store is None or r.store == store]
@@ -600,3 +604,49 @@ async def test_shelf_offer_not_marked_when_push_fails(monkeypatch: pytest.Monkey
     await job()  # nieudany push nie zapisuje klucza, więc następny przebieg ponawia
     assert len(sent) == 2
     assert not {k for k in history.sent if k.startswith("bs:")}
+
+
+def _back_history(settings_back: list[str]) -> FakeHistory:
+    history = FakeHistory({f"b:{SHELF_EAN}"})
+    history.settings["biedronka_store"] = "0001"
+    history.names[f"b:{SHELF_EAN}"] = "Produkt X"
+    history.settings[shelf_prices.BACK_KEY] = json.dumps(settings_back)
+    return history
+
+
+@pytest.mark.parametrize(
+    ("ok", "dry_run", "pending_after"),
+    [(True, False, []), (False, False, [SHELF_EAN]), (True, True, [SHELF_EAN])],
+)
+async def test_back_in_stock_is_pushed_and_pending_cleared_only_after_real_success(
+    monkeypatch: pytest.MonkeyPatch, ok: bool, dry_run: bool, pending_after: list[str]
+) -> None:
+    sent: list[tuple[str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        if tag == notify.TAG_WATCHED:
+            sent.append(message)
+        return ok
+
+    monkeypatch.setattr(notify, "send", send)
+    history = _back_history([SHELF_EAN])
+    await _job([], history=history, dry_run=dry_run)()
+    assert sent == [
+        ("Lidl: Produkt X — wróciło na półkę w Biedronce", "Produkt X wróciło na półkę · Biedronka")
+    ]
+    assert shelf_prices.pending_back(history) == pending_after  # type: ignore[arg-type]
+
+
+async def test_back_in_stock_unwatched_ean_not_pushed_but_cleared(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        if tag == notify.TAG_WATCHED:
+            sent.append(message)
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    history = _back_history([SHELF_EAN, "5900000000009"])  # drugi EAN nie jest obserwowany
+    await _job([], history=history, dry_run=False)()
+    assert [title for title, _ in sent] == ["Lidl: Produkt X — wróciło na półkę w Biedronce"]
+    assert shelf_prices.pending_back(history) == []  # type: ignore[arg-type]

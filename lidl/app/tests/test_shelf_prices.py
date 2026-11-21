@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -503,3 +505,57 @@ async def test_back_in_stock_not_for_first_read_yes_to_yes_or_unwatched(tmp_path
     result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
     assert result.back_in_stock == []  # EAN_C nieobserwowany, więc bez powiadomienia
     assert [r.stock for r in h.shelf_list("0001") if r.ean == EAN_C] == ["yes"]
+
+
+def test_shelf_offer_carries_stock_from_row(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    row = parse_price("0001", EAN_A, PROMO, NOW)
+    assert row is not None
+    h.shelf_replace("0001", [replace(row, stock="no")])
+    offers = shelf_offers(h, "0001", TODAY)
+    assert [(o.ean, o.stock) for o in offers] == [(EAN_A, "no")]
+
+
+async def test_refresh_persists_pending_back_in_finally_even_on_auth_error(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.set_watched(f"b:{EAN_B}", True)
+    h.shelf_replace("0001", [_stock_only("0001", EAN_A, "no"), _stock_only("0001", EAN_B, "no")])
+    api = FakeApi(
+        {EAN_A: PROMO},
+        stock={EAN_A: {"coverage": 3}},
+        errors={EAN_B: LidlPlusAuthError("unauthorized", status=401)},
+    )
+    with pytest.raises(LidlPlusAuthError):
+        await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert shelf_prices.pending_back(h) == [EAN_A]
+
+
+async def test_refresh_pending_back_merges_without_duplicates(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.set_setting(shelf_prices.BACK_KEY, json.dumps([EAN_B]))
+    h.shelf_replace("0001", [_stock_only("0001", EAN_A, "no")])
+    api = FakeApi({EAN_A: PROMO}, stock={EAN_A: {"coverage": 2}})
+    await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert shelf_prices.pending_back(h) == sorted([EAN_A, EAN_B])
+    assert h.get_setting(shelf_prices.BACK_KEY) == json.dumps(sorted([EAN_A, EAN_B]))
+
+
+def test_pending_back_empty_or_bad_json_is_empty_list(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    assert shelf_prices.pending_back(h) == []
+    h.set_setting(shelf_prices.BACK_KEY, "{nie json")
+    assert shelf_prices.pending_back(h) == []
+    h.set_setting(shelf_prices.BACK_KEY, json.dumps({"a": 1}))
+    assert shelf_prices.pending_back(h) == []
+
+
+def test_clear_back_removes_only_given_eans(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_setting(shelf_prices.BACK_KEY, json.dumps([EAN_A, EAN_B]))
+    shelf_prices.clear_back(h, [EAN_A])
+    assert shelf_prices.pending_back(h) == [EAN_B]
+    shelf_prices.clear_back(h, [EAN_B])
+    assert shelf_prices.pending_back(h) == []

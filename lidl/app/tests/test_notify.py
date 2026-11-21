@@ -227,6 +227,45 @@ def test_watched_shelf_offer_with_end_and_coupon_is_counted_in_title() -> None:
     ]
 
 
+def test_watched_shelf_offer_without_stock_has_no_stock_note() -> None:
+    offer = ShelfOffer("5900000000001", 7.49, 9.99, None, False, "yes")
+    message = compose_watched([], [], TODAY, shelf=[("Produkt X", offer)])
+    assert message is not None and "brak na półce" not in message[1]
+
+
+def test_watched_shelf_offer_with_stock_no_says_so_in_line() -> None:
+    offer = ShelfOffer("5900000000001", 7.49, 9.99, None, False, "no")
+    message = compose_watched([], [], TODAY, shelf=[("Produkt X", offer)])
+    assert message == (
+        "Lidl: Produkt X — Biedronka 7,49 zł",
+        "Produkt X 7,49 zł (było 9,99 zł) · Biedronka · brak na półce",
+    )
+
+
+def test_watched_back_alone_is_one_line_named_in_title() -> None:
+    message = compose_watched([], [], TODAY, back=["Produkt X"])
+    assert message == (
+        "Lidl: Produkt X — wróciło na półkę w Biedronce",
+        "Produkt X wróciło na półkę · Biedronka",
+    )
+
+
+def test_watched_back_with_other_items_counts_and_says_changes() -> None:
+    offer = ShelfOffer("5900000000001", 7.49, 9.99, None, False)
+    message = compose_watched([], [], TODAY, shelf=[("Produkt X", offer)], back=["Produkt Y"])
+    assert message is not None
+    title, body = message
+    assert title == "Lidl: 2 obserwowane produkty — zmiany"
+    assert body.splitlines() == [
+        "Produkt X 7,49 zł (było 9,99 zł) · Biedronka",
+        "Produkt Y wróciło na półkę · Biedronka",
+    ]
+
+
+def test_watched_nothing_at_all_with_empty_back_is_none() -> None:
+    assert compose_watched([], [], TODAY, back=[]) is None
+
+
 def test_month_summary_message_first_place_and_no_previous_month(tmp_path: Any) -> None:
     from lidl.history import History
     from lidl.notify import compose_month

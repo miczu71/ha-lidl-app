@@ -254,21 +254,24 @@ def _pct(v: float) -> str:
 
 
 def _shelf_by_ean(history: History) -> dict[str, ShelfPrice]:
-    """Ceny półkowe wybranego sklepu Biedronki (E29.4); bez sklepu w ustawieniach albo bez odczytów → pusto,
-    a kolumna „Dziś na półce” się nie pokazuje."""
+    """Ceny i stan półki wybranego sklepu Biedronki (E29.4, E30.3); bez sklepu w ustawieniach albo bez
+    odczytów → pusto, a kolumna „Dziś na półce” się nie pokazuje."""
     store = history.get_setting("biedronka_store")
     if not store:
         return {}
-    return {row.ean: row for row in history.shelf_list(store) if row.price is not None}
+    rows = history.shelf_list(store)
+    return {row.ean: row for row in rows if row.price is not None or row.stock is not None}
 
 
 def _shelf_cell(row: ShelfPrice | None) -> dict[str, Any] | None:
-    """Komórka kolumny; `None` → „—” (nie odczytano albo produkt ważony bez EAN-u w kluczu odczytu)."""
-    if row is None or row.price is None:
+    """Komórka kolumny; `None` → „—” (nie odczytano albo produkt ważony bez EAN-u w kluczu odczytu).
+    Stan `stock` ('yes'|'low'|'no') bez ceny też daje komórkę (sam znacznik + odczyt)."""
+    if row is None or (row.price is None and row.stock is None):
         return None
     return {
-        "price": fmt_pln(row.price, 2),
+        "price": fmt_pln(row.price, 2) if row.price is not None else None,
         "promo": row.is_promotion,
+        "stock": row.stock,
         "read": fmt_day_month(datetime.fromisoformat(row.fetched_at).date()),
     }
 
