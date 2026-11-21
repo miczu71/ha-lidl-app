@@ -10,7 +10,7 @@ configuration:
   biedronka_auto_shakeomat:
     name: Automatyczny Shakeomat Biedronki
     description: >-
-      Każdego ranka odsłania Shakeomat i Shakeomarkę na kontach Biedronki (zapis na koncie, nieoficjalne API) i wysyła wynik na notify.family. Wyłączone = tylko przycisk „Odsłoń teraz” w zakładce Oszczędzanie.
+      Każdego ranka odsłania Shakeomat i Shakeomarkę na kontach Biedronki (zapis na koncie, nieoficjalne API) i wysyła wynik na notify.family. Wyłączone = tylko przycisk „Odsłoń teraz” w zakładce Kupony → Biedronka.
   run_time:
     name: Godzina dziennego przebiegu
     description: >-

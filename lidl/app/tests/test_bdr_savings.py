@@ -1,4 +1,4 @@
-"""Zakładka „Oszczędzanie” Biedronki (E28.5.2): widok vouchery/oferty z migawki `chain_savings`."""
+"""Zakładka „Kupony Biedronki” (E28.5.2): widok vouchery/oferty z migawki `chain_savings`."""
 
 from __future__ import annotations
 
@@ -87,9 +87,10 @@ def _with_biedronka(client: TestClient) -> History:
 
 def test_route_shows_tab_and_empty_state(client: TestClient) -> None:
     _with_biedronka(client)
-    assert 'href="/biedronka"' in client.get("/oszczednosci").text
+    assert 'href="/biedronka"' in client.get("/kupony").text
+    assert 'href="/biedronka"' not in client.get("/oszczednosci").text
     r = client.get("/biedronka")
-    assert r.status_code == 200 and "Oszczędzanie" in r.text and "Brak voucherów" in r.text
+    assert r.status_code == 200 and "Kupony Biedronki" in r.text and "Brak voucherów" in r.text
 
 
 def test_route_lists_vouchers_and_offers(client: TestClient) -> None:
@@ -269,3 +270,16 @@ def test_shake_already_revealed_message_is_not_about_waiting_only() -> None:
     from lidl.web.bdr_savings import MESSAGES
 
     assert "już odsłonięty" in MESSAGES["shake_wait"][1]
+
+
+def test_shakeomat_offer_gets_badge() -> None:
+    from datetime import date
+
+    from lidl.chain_savings import SavedSaving
+    from lidl.web.bdr_savings import build
+
+    row = SavedSaving(
+        "b", "offer", "o1", "Lody", 2.49, 3.49, None, "2026-11-21T22:59:59Z", {"from_shakeomat": True}
+    )
+    view = build([row], date(2026, 11, 21))
+    assert view.offers[0]["shake"] is True and view.shake_offers == ["Lody"]

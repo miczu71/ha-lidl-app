@@ -1,4 +1,4 @@
-"""Widok zakładki „Oszczędzanie” (E28.5.2): vouchery, oferty i Shakeomat Biedronki z migawki."""
+"""Widok zakładki „Kupony Biedronki” (E28.5.2): vouchery, oferty i Shakeomat Biedronki z migawki."""
 
 from __future__ import annotations
 
@@ -60,6 +60,7 @@ def _entry(row: SavedSaving, today: date) -> dict[str, Any] | None:
         "urgent": days is not None and days <= URGENT_DAYS,
         "card_only": bool(row.extra.get("card_only")),
         "limit": row.extra.get("limit") or "",
+        "shake": bool(row.extra.get("from_shakeomat")),
         "_end": end or date.max,
     }
 

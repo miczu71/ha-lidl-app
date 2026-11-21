@@ -298,7 +298,7 @@ def create_app(settings: Settings) -> FastAPI:
                 "version": __version__,
                 "alert": alert,
                 "multi_chain": multi_chain,
-                "bdr_tab": "biedronka" in chains_present,  # chip „Oszczędzanie” (E28.5.2)
+                "bdr_tab": "biedronka" in chains_present,  # chip „Biedronka” w Kuponach (E28.5.2)
                 **ctx,
             },
             status_code=status_code,

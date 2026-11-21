@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta, timezone
 from functools import cache
@@ -87,7 +88,16 @@ class FetchResult:
 
 
 def _as_float(value: Any) -> float | None:
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+    """Liczba z JSON-a albo z tekstu („2.49”, „2,49”); puste i śmieci to None (ceny Biedronki są tekstem)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        value = value.replace("zł", "").replace("\xa0", "").replace(" ", "").replace(",", ".")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _text(item: dict[str, Any], *keys: str) -> str | None:
@@ -130,7 +140,9 @@ def parse_offers(carousel: Any) -> list[Saving]:
         if not isinstance(item, dict):
             continue
         offer_type = item.get("offer_type")
-        if item.get("type") in SHAKEOMAT_TYPES or offer_type in SHAKEOMAT_TYPES:
+        # Odsłonięty Shakeomat zostaje w karuzeli z offer_type SHAKEOMAT*, ale jako zwykła oferta produktu.
+        is_product_offer = item.get("type") == "SINGLE_PRODUCT_PROMOTION"
+        if item.get("type") in SHAKEOMAT_TYPES or (offer_type in SHAKEOMAT_TYPES and not is_product_offer):
             ext_id = _text(item, "offer_id", "id")
             if ext_id:
                 out.append(
@@ -164,7 +176,8 @@ def parse_offers(carousel: Any) -> list[Saving]:
                             "ean": _text(item, "product_main_ean_code"),
                             "card_only": bool(item.get("only_with_moja_biedronka_card")),
                             "limit": _text(item, "limit_message_short", "limit_message"),
-                            "from_shakeomat": bool(item.get("from_shakeomat")),
+                            "from_shakeomat": bool(item.get("from_shakeomat"))
+                            or offer_type in SHAKEOMAT_TYPES,
                         },
                     )
                 )

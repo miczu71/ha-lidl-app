@@ -25,14 +25,14 @@
   <header class="bar">{% block bar %}<a class="brand" href="{{ base }}/"><img src="{{ base }}/static/mark.svg?v={{ version }}" width="28" height="28" alt="">Zakupy (Lidl + Biedronka)</a><form class="searchbar" action="{{ base }}/szukaj" method="get" role="search"><input id="szukaj" type="search" name="q" value="{{ q or '' }}" placeholder="Szukaj produktu" aria-label="Szukaj produktu" autocomplete="off" {% if section == 'szukaj' %}hx-get="{{ base }}/szukaj" hx-trigger="input changed delay:400ms, search" hx-target="#szukaj-wyniki"{% endif %}></form>{% endblock %}</header>
   <main class="body"><div class="wrap">
     {% if section %}
-    {# Menu: 5 działów + podzakładki. Trasy bez zmian; Sieci i Oszczędzanie tylko gdy są dane (multi_chain / bdr_tab). #}
+    {# Menu: 5 działów + podzakładki. Trasy bez zmian; Sieci i Biedronka (w Kuponach) tylko gdy są dane (multi_chain / bdr_tab). #}
     {% set menu_depts = [
       ("Paragony", "M6 3h12v18l-3-2-3 2-3-2-3 2z M9 8h6 M9 12h6",
         [("paragony", "Paragony", true), ("produkty", "Produkty", true)]),
       ("Kupony", "M3 12V4h8l10 10-8 8z M7.5 8.5h.01",
-        [("kupony", "Kupony", true)]),
+        [("kupony", "Lidl", true), ("biedronka", "Biedronka", bdr_tab)]),
       ("Oszczędności", "M19 5L5 19 M7 9a2 2 0 100-4 2 2 0 000 4z M17 19a2 2 0 100-4 2 2 0 000 4z",
-        [("oszczednosci", "Oszczędności", true), ("biedronka", "Oszczędzanie", bdr_tab)]),
+        [("oszczednosci", "Oszczędności", true)]),
       ("Analiza", "M4 20h17 M7 20v-7 M12 20V5 M17 20v-10",
         [("ceny", "Ceny", true), ("miesiace", "Miesiące", true), ("rytm", "Rytm", true), ("kraje", "Kraje", true), ("sieci", "Sieci", multi_chain)]),
       ("Ustawienia", "M4 7h10 M18 7h2 M4 17h2 M10 17h10 M16 5v4 M8 15v4",

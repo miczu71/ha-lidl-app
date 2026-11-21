@@ -10,7 +10,7 @@ configuration:
   biedronka_auto_shakeomat:
     name: Automatic Biedronka Shakeomat
     description: >-
-      Every morning reveals the Shakeomat and Shakeomarka on Biedronka accounts (a write to the account, unofficial API) and sends the result to notify.family. Off = only the Reveal now button in the Oszczędzanie tab.
+      Every morning reveals the Shakeomat and Shakeomarka on Biedronka accounts (a write to the account, unofficial API) and sends the result to notify.family. Off = only the Reveal now button in the Coupons → Biedronka tab.
   run_time:
     name: Daily run time
     description: >-

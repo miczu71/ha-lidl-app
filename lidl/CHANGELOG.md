@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.3
+
+- Shakeomat: wylosowana oferta trafia na listę ofert. Odsłonięty Shakeomat zostaje w karuzeli Biedronki z typem
+  Shakeomatu, więc parser brał go za nieodsłonięty kafelek; teraz rozpoznaje go jako zwykłą ofertę.
+- Ceny podawane przez Biedronkę jako tekst („2.49”, „2,49 zł”) są czytane; wynik Shakeomatu i oferty mają cenę.
+- Oferty z Shakeomatu mają odznakę „Shakeomat”.
+- Zakładka Biedronki przeniesiona z Oszczędności do działu Kupony (sekcje Lidl i Biedronka); tytuł „Kupony Biedronki”.
+  Oszczędności zostają historią oszczędności. Adres zakładki bez zmiany.
+- Bez zmiany schematu bazy.
+
 ## 1.9.2
 
 - Shakeomat: po kliknięciu „Odsłoń teraz” ta sama karta pokazuje wynik („Wylosowano: nazwa — cena, do daty”).

@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Oszczędzanie — Zakupy{% endblock %}
+{% block title %}Kupony Biedronki — Zakupy{% endblock %}
 {% block main %}
 <div>
-  <h1 class="t">Oszczędzanie</h1>
+  <h1 class="t">Kupony Biedronki</h1>
   <p class="lead">Vouchery i oferty „Tylko dla Ciebie” z konta Biedronki, stan z ostatniego importu.
     <span class="meta{% if view.stale %} lv--warn{% endif %}">{{ view.fetched_label }}{% if view.stale %} — nieaktualne, sprawdź Status{% endif %}</span></p>
 </div>
@@ -37,7 +37,7 @@
     <table class="mt tnum">
       <caption class="vh">Oferty Biedronki</caption>
       <thead><tr><th scope="col">Produkt</th><th scope="col" class="r">Cena</th><th scope="col" class="r">Zwykle</th><th scope="col">Ważna</th></tr></thead>
-      <tbody>{% for o in view.offers %}<tr><td>{{ o.name }}{% if o.card_only %} <span class="meta">z kartą</span>{% endif %}{% if o.limit %} <span class="meta">{{ o.limit }}</span>{% endif %}</td><td class="r">{{ o.price }}{% if o.pct %} <span class="meta">−{{ o.pct }}%</span>{% endif %}</td><td class="r">{{ o.regular }}</td><td>{{ o.until }}</td></tr>{% endfor %}</tbody>
+      <tbody>{% for o in view.offers %}<tr><td>{{ o.name }}{% if o.shake %} <span class="meta">Shakeomat</span>{% endif %}{% if o.card_only %} <span class="meta">z kartą</span>{% endif %}{% if o.limit %} <span class="meta">{{ o.limit }}</span>{% endif %}</td><td class="r">{{ o.price }}{% if o.pct %} <span class="meta">−{{ o.pct }}%</span>{% endif %}</td><td class="r">{{ o.regular }}</td><td>{{ o.until }}</td></tr>{% endfor %}</tbody>
     </table>
     {% endif %}
   </section>

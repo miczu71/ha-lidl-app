@@ -96,6 +96,47 @@ def test_parse_offers_skips_banners_and_keeps_shakeomat() -> None:
     assert rows[0].valid_to == "2026-11-19T22:59:59Z"
 
 
+def test_parse_offers_revealed_shakeomat_is_an_offer_with_string_price() -> None:
+    """Odsłonięty Shakeomat to w karuzeli SINGLE_PRODUCT_PROMOTION z offer_type SHAKEOMAT*, ceny to tekst."""
+    carousel = {
+        "items": [
+            {
+                "type": "SINGLE_PRODUCT_PROMOTION",
+                "offer_type": "SHAKEOMAT_2",
+                "id": "lody-1",
+                "name": "Lody Marletto",
+                "price": "2.49",
+                "regular_price": "3.49",
+                "from_shakeomat": True,
+                "start": "2026-11-20T23:00:00Z",
+                "end": "2026-11-21T22:59:59Z",
+            },
+            {"type": "SHAKEOMAT", "offer_type": "SHAKEOMAT", "offer_id": "sh-2", "available_from": None},
+        ]
+    }
+    rows = chain_savings.parse_offers(carousel)
+    by_kind = {r.kind: r for r in rows}
+    assert set(by_kind) == {"offer", "shakeomat"}
+    assert by_kind["offer"].name == "Lody Marletto"
+    assert (by_kind["offer"].price, by_kind["offer"].regular_price) == (2.49, 3.49)
+    assert by_kind["offer"].extra["from_shakeomat"] is True
+    assert by_kind["shakeomat"].ext_id == "sh-2"
+    del carousel["items"][0]["from_shakeomat"]  # znacznik wynika też z offer_type
+    assert chain_savings.parse_offers(carousel)[0].extra["from_shakeomat"] is True
+
+
+def test_drawn_from_reply_reads_string_prices() -> None:
+    drawn = chain_savings.drawn_from_reply({"name": "Lody", "price": "2.49", "regular_price": "", "end": "x"})
+    assert drawn is not None
+    assert (drawn["price"], drawn["regular_price"]) == (2.49, None)
+
+
+def test_as_float_rejects_non_finite_and_garbage() -> None:
+    assert chain_savings._as_float("2,49") == 2.49
+    assert chain_savings._as_float("2,49 zł") == 2.49
+    assert all(chain_savings._as_float(v) is None for v in ("nan", "inf", "1e999", "", "abc", True, None, []))
+
+
 def test_parse_offers_garbage() -> None:
     assert chain_savings.parse_offers(None) == []
     assert chain_savings.parse_offers({"items": "x"}) == []
