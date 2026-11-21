@@ -104,6 +104,27 @@ Skille: `addon-conventions`, `tdd` (test przed kodem). Upraszczamy plan: **jedna
 - Testy: compose z dopiskiem, push „wrócił” raz, `/sieci` render (test_web).
 - Rollback: revert.
 
+**Wykonawca E30.3 (paczka W1, `haiku-worker`; repo `/config/addons/ha-lidl-app`, katalog `lidl/app`):**
+Skille: `addon-conventions`, `tdd`. Zmiana względem szkicu: „wróciło na półkę” **nie** jest przekazywane w pamięci, tylko trwale w `settings`
+(klucz `shelf_back_pending`, JSON-lista EAN-ów) — przeżywa ręczne „Sprawdź teraz” i nieudaną wysyłkę; czyszczone dopiero po udanym pushu (dedup = to samo).
+1. `src/lidl/shelf_prices.py`:
+   - `ShelfOffer` dostaje `stock: str | None = None` NA KOŃCU; `shelf_offers` wypełnia je z `row.stock`.
+   - `refresh`: w bloku `finally` (obok `history.shelf_replace`) gdy `result.back_in_stock` niepuste → dopisz do `shelf_back_pending` (suma z istniejącą, bez duplikatów, `json.dumps(sorted(...))`).
+   - Nowe: `pending_back(history) -> list[str]` (parsuje ustawienie; zły JSON/brak → `[]`) i `clear_back(history, eans)` (usuwa podane EAN-y z ustawienia).
+2. `src/lidl/notify.py`: `_shelf_line` dopisuje ` · brak na półce` gdy `offer.stock == 'no'`. `compose_watched(..., back: Sequence[str] = ())` — `back` = nazwy produktów, które wróciły na półkę
+   w Biedronce. `None` tylko gdy brak wierszy, `shelf` i `back`. Linia ciała: `"<nazwa> wróciło na półkę · Biedronka"`. Tytuł: sam jeden `back` i nic więcej →
+   `"<nazwa> — wróciło na półkę w Biedronce"`; w pozostałych przypadkach zachowaj dotychczasowe reguły, liczba produktów w tytule liczy też `back`, a gdy `back` niepuste sufiks `" z rabatem"` zastąp `" — zmiany"`.
+3. `src/lidl/daily.py`: w `_watched` po `shelf = self._shelf_fresh(...)`: `back_eans = shelf_prices.pending_back(self._history)` ograniczone do obserwowanych (`watched_eans`-owy EAN z `watched`: kod `b:<ean>` lub `n:<ean>` ∈ `watched`);
+   nazwy jak w `_shelf_fresh` (`self._history.product_name(code) or ean`); przekaż `back=` do `compose_watched`. Po UDANEJ wysyłce (i nie w `dry_run`): `shelf_prices.clear_back(self._history, back_eans)`.
+   EAN-y pending, które już nie są obserwowane, też czyść razem (`clear_back` na wszystkich z `pending_back`). Warunek wczesnego `return` przy braku `watched` zostaje.
+4. `src/lidl/web/chains.py`: `_shelf_by_ean` bierze wiersze z `price is not None` LUB `stock is not None`; `_shelf_cell` zwraca `{"price": fmt_pln(...) albo None, "promo": bool, "read": ..., "stock": "yes"|"low"|"no"|None}`
+   (dla wiersza bez ceny i bez stanu nadal `None`). `_chains_body.html` (komórka „Dziś na półce”): cena + `promocja` jak dziś (gdy jest cena), a gdy `stock`: znacznik `<span class="tag">` z tekstem `brak na półce` (no) / `mało` (low) / bez znacznika dla `yes`;
+   gdy brak ceny, a jest stan — sam znacznik + odczyt (zamiast „—”). Bez nowego CSS: użyj istniejącej klasy `tag` (jak `promocja`).
+5. Testy: `tests/test_notify.py` (dopisek `brak na półce`, `back` jedyny/z innymi, `None` bez niczego), `tests/test_shelf_prices.py` (`ShelfOffer.stock`, `refresh` dopisuje `shelf_back_pending` także przy `AuthError` w połowie, `pending_back`/`clear_back`, zły JSON),
+   `tests/test_daily.py` (push „wróciło” raz: po udanym wysłaniu pending czyści się; przy nieudanym zostaje; `dry_run` nie czyści; nieobserwowany nie trafia do pusha), `tests/test_web.py`/`test_chains.py` (komórka: promocja + `brak na półce`; sam stan bez ceny; `yes` bez znacznika) wg istniejących wzorców.
+`DONE:` pełny pytest `lidl/app` — poza 13 znanymi czerwonymi w `tests/test_leaflet.py` (stan sprzed E30) wszystko zielone; ruff i mypy czyste; `git status --short` tylko pliki z listy.
+`NIE RÓB:` zmian w `history.py` (schemat v14 jest gotowy), `client/`, `config.yaml`/wersji, `docs/`, `test_leaflet.py`; commitów; nowego CSS.
+
 ### E30.2B Opis 404 (tylko ścieżka B, zamiast E30.2–E30.3)
 - `refresh` zapisuje EAN z 404 jako wiersz bez ceny ze znacznikiem `not_listed` (v14: kolumna `not_listed INTEGER`,
   kopia `.pre-stock`); `/sieci` pokazuje „sklep nie zna produktu (404)” zamiast pustej komórki. Testy jak wyżej. Wydanie 1.7.1.
