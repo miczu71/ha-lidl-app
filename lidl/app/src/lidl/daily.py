@@ -103,6 +103,11 @@ def _unsent(prefix: str, promos: list[Promotion], sent: set[str]) -> dict[str, P
     return {k: p for p in promos if (k := f"{prefix}:{p.art_id}:{p.start.isoformat()}") not in sent}
 
 
+def _watched_code(watched: set[str], ean: str) -> str | None:
+    """Kod obserwowanego produktu dla EAN-u (`b:` albo `n:`); `None`, gdy nieobserwowany."""
+    return next((c for c in (f"b:{ean}", f"n:{ean}") if c in watched), None)
+
+
 class DailyJob:
     """Nowe paragony i promocje, potem kupony i nagrody wszystkich połączonych kont i jedno powiadomienie."""
 
@@ -296,8 +301,7 @@ class DailyJob:
         pending = shelf_prices.pending_back(self._history)
         back_codes: dict[str, str] = {}
         for ean in pending:
-            code = next((c for c in (f"b:{ean}", f"n:{ean}") if c in watched), None)
-            if code is not None:
+            if (code := _watched_code(watched, ean)) is not None:
                 back_codes[ean] = code
         names = self._history.product_names(back_codes.values())
         back = [names.get(code) or ean for ean, code in back_codes.items()]
@@ -325,9 +329,7 @@ class DailyJob:
         if not store:
             return []
         offers = shelf_offers(self._history, store, today)
-        codes = {
-            o.ean: next((c for c in (f"b:{o.ean}", f"n:{o.ean}") if c in watched), o.ean) for o in offers
-        }
+        codes = {o.ean: _watched_code(watched, o.ean) or o.ean for o in offers}
         names = self._history.product_names(codes.values())  # jedno zapytanie zamiast nazwy na ofertę
         fresh: list[tuple[str, str, ShelfOffer]] = []
         for offer in offers:

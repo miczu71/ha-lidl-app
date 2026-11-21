@@ -202,16 +202,11 @@ async def refresh(
 
 def pending_back(history: History) -> list[str]:
     """EAN-y, które wróciły na półkę i czekają na push (E30.3); zły JSON albo brak ustawienia → `[]`."""
-    raw = history.get_setting(BACK_KEY)
-    if not raw:
-        return []
     try:
-        value = json.loads(raw)
+        value = json.loads(history.get_setting(BACK_KEY) or "[]")
     except ValueError:
         return []
-    if not isinstance(value, list):
-        return []
-    return [ean for ean in value if isinstance(ean, str)]
+    return [ean for ean in value if isinstance(ean, str)] if isinstance(value, list) else []
 
 
 def _store_back(history: History, eans: list[str]) -> None:

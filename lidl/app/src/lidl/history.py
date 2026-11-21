@@ -1631,13 +1631,7 @@ class History:
 
     def product_name(self, art_id: str) -> str | None:
         """Ostatnia nazwa produktu z paragonów (kod po moście nazw albo `n:<EAN>`)."""
-        resolve = self._resolver()
-        for code, name in self._db.execute(
-            "SELECT i.art_id, i.name FROM items i JOIN tickets t ON t.id = i.ticket_id ORDER BY t.day DESC"
-        ):
-            if resolve(code, name) == art_id:
-                return str(name)
-        return None
+        return self.product_names([art_id]).get(art_id)
 
     def product_names(self, codes: Iterable[str]) -> dict[str, str]:
         """Jak `product_name`, ale dla wielu kodów naraz (jedno zapytanie); kody bez nazwy są pominięte."""
@@ -1652,6 +1646,8 @@ class History:
             art_id = resolve(code, name)
             if art_id in wanted and art_id not in found:
                 found[art_id] = str(name)
+                if len(found) == len(wanted):
+                    break
         return found
 
     def ranking(
