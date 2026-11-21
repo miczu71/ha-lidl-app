@@ -2700,10 +2700,12 @@ class History:
             " ORDER BY t.day"
         )
 
-        return {
-            code: ", ".join(part for part in (_clean_addr(street), _clean_addr(city)) if part)
-            for code, street, city in rows
-        }
+        stores: dict[str, str] = {}
+        for code, street, city in rows:
+            label = ", ".join(part for part in (_clean_addr(street), _clean_addr(city)) if part)
+            if label or code not in stores:  # nowszy paragon bez adresu nie kasuje znanego
+                stores[code] = label
+        return stores
 
     def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:
         with self._db:

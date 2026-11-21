@@ -214,3 +214,10 @@ def test_biedronka_stores_lists_known_codes_with_newest_address(tmp_path: Path) 
         tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"), ("7003", "---", "---", "---")
     )
     assert h.biedronka_stores() == {"7001": "ul. Przykładowa 1, Miasto A", "7003": ""}
+
+
+def test_biedronka_stores_newer_receipt_without_address_keeps_known_one(tmp_path: Path) -> None:
+    h = _bdr_history(
+        tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"), ("7001", "---", "---", "---")
+    )
+    assert h.biedronka_stores() == {"7001": "ul. Przykładowa 1, Miasto A"}

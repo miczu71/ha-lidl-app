@@ -393,10 +393,13 @@ def create_app(settings: Settings) -> FastAPI:
             )
             return go(request, "/konta?m=expired")
         except LidlPlusCannotConnect:
-            return go(request, "/konta?m=offline")
+            return go(request, "/polka?m=offline")
+        except LidlPlusError:
+            return go(request, "/polka?m=shelf_err")
         if result is None:
             return go(request, "/polka?m=shelf_none")
-        return go(request, "/polka?m=shelf_err" if result.failed else "/polka?m=shelf_ok")
+        bad = result.failed or (result.skipped and not result.ok)
+        return go(request, "/polka?m=shelf_err" if bad else "/polka?m=shelf_ok")
 
     @app.post("/accounts")
     async def add_account(request: Request, label: str = Form(...), chain: str = Form("lidl")) -> Response:

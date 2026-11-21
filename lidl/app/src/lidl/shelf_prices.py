@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import Any
 
 from .chain_savings import _bdr_slugs
-from .client.exceptions import LidlPlusAuthError, LidlPlusError
+from .client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from .history import History, ShelfPrice
 
 log = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ async def refresh(
     sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
 ) -> RefreshResult:
     """Odczytuje ceny półkowe dla `targets` w sklepie `store`; zapisuje tylko udane odczyty.
-    `LidlPlusAuthError` przerywa pętlę (odczyty z przed błędu zostają zapisane) i idzie dalej w górę."""
+    Błąd sesji albo sieci przerywa pętlę (odczyty sprzed błędu zostają zapisane) i idzie w górę."""
     result = RefreshResult()
     rows: list[ShelfPrice] = []
     cleared: list[str] = []
@@ -101,8 +101,8 @@ async def refresh(
                 await sleep(REQUEST_PAUSE_S)
             try:
                 row = parse_price(store, ean, await api.product_price(store, ean), now)
-            except LidlPlusAuthError:
-                raise
+            except (LidlPlusAuthError, LidlPlusCannotConnect):
+                raise  # dalsze zapytania nic nie dadzą
             except LidlPlusError as err:
                 if err.status == 404:
                     result.skipped += 1
@@ -130,6 +130,13 @@ async def refresh(
             "error",
             f"Ceny półkowe Biedronki: błędy odczytu ({result.failed})",
             {"store": store, "count": result.ok, "failed": result.failed},
+        )
+    elif result.ok == 0 and result.skipped:  # same 404: zły kod sklepu, nic nie odczytano
+        history.log_event(
+            "shelf",
+            "warn",
+            "Ceny półkowe Biedronki: sklep nie zna żadnego produktu",
+            {"store": store, "skipped": result.skipped},
         )
     else:
         history.log_event(
@@ -175,9 +182,10 @@ def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
         was = row.omnibus if row.omnibus else row.regular
         if was is None or row.price >= was:
             continue
-        offers.append(
-            ShelfOffer(row.ean, row.price, was, parse_promo_end(row.promo_from, today), row.card_only)
-        )
+        end = parse_promo_end(row.promo_from, today)
+        if end is not None and end < today:  # stary wiersz po nieudanych odczytach: promocja minęła
+            continue
+        offers.append(ShelfOffer(row.ean, row.price, was, end, row.card_only))
     return offers
 
 

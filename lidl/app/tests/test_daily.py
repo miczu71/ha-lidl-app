@@ -583,3 +583,20 @@ async def test_shelf_offer_is_pushed_once_with_watched_and_marked_as_bs_key(
     assert sent[0] == ("Lidl: Produkt X — Biedronka 7,49 zł", "Produkt X 7,49 zł (było 9,99 zł) · Biedronka")
     bs_keys = {k for k in history.sent if k.startswith("bs:")}
     assert bs_keys == ({f"bs:{SHELF_EAN}:7.49"} if not dry_run else set())
+
+
+async def test_shelf_offer_not_marked_when_push_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[tuple[str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        if tag == notify.TAG_WATCHED:
+            sent.append(message)
+        return False
+
+    monkeypatch.setattr(notify, "send", send)
+    history = _shelf_history()
+    job = _job([], history=history)
+    await job()
+    await job()  # nieudany push nie zapisuje klucza, więc następny przebieg ponawia
+    assert len(sent) == 2
+    assert not {k for k in history.sent if k.startswith("bs:")}

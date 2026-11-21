@@ -8,7 +8,7 @@ import pytest
 
 from lidl import shelf_prices
 from lidl.accounts import Account
-from lidl.client.exceptions import LidlPlusAuthError, LidlPlusError
+from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.history import History, ShelfPrice
 from lidl.shelf_prices import (
     MAX_EANS,
@@ -326,3 +326,32 @@ async def test_refresh_morning_reads_store_with_first_connected_biedronka_accoun
     assert service.asked == ["bdr-1"]
     assert api.calls == [("0001", EAN_A)]
     assert [r.ean for r in h.shelf_list("0001")] == [EAN_A]
+
+
+async def test_refresh_network_failure_stops_and_keeps_earlier_reads(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    for ean in (EAN_A, EAN_B, EAN_C):
+        h.set_watched(f"b:{ean}", True)
+    api = FakeApi({EAN_A: PROMO}, {EAN_B: LidlPlusCannotConnect("timeout")})
+    with pytest.raises(LidlPlusCannotConnect):
+        await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert api.calls == [("0001", EAN_A), ("0001", EAN_B)]  # EAN_C już nie, bez czekania na martwym łączu
+    assert [r.ean for r in h.shelf_list("0001")] == [EAN_A]
+
+
+async def test_refresh_all_404_logs_warn_not_ok(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({}, {EAN_A: LidlPlusError("http_404", status=404)})
+    result = await refresh(h, api, "0001", sleep=_no_sleep)  # type: ignore[arg-type]
+    assert result.ok == 0 and result.skipped == 1
+    assert h._db.execute("SELECT level FROM events WHERE area = 'shelf'").fetchall() == [("warn",)]
+
+
+def test_shelf_offers_skips_ended_promotion(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    row = parse_price("0001", EAN_A, {**PROMO, "promotion_valid_period": "od 02.11 do 08.11"}, NOW)
+    assert row is not None
+    h.shelf_replace("0001", [row])
+    assert shelf_offers(h, "0001", TODAY) == []  # koniec 8.11 < 21.11

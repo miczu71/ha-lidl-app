@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from lidl import __version__, shelf_prices
-from lidl.client.exceptions import LidlPlusAuthError
+from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.history import CouponCandidate, PriceChange
 from lidl.receipt_html import ParsedReceipt, ReceiptCoupon, ReceiptItem
 from lidl.rewards import CouponPlus, Goal, Rewards, ScratchCard
@@ -1578,6 +1578,17 @@ def test_polka_check_runs_refresh_and_reports(client: TestClient, monkeypatch) -
 
     monkeypatch.setattr(shelf_prices, "refresh_morning", auth)
     assert client.post("/polka/sprawdz").headers["location"] == "/konta?m=expired"
+
+    async def offline(h: Any, service: Any) -> Any:
+        raise LidlPlusCannotConnect("timeout")
+
+    async def broken(h: Any, service: Any) -> Any:
+        raise LidlPlusError("http_503", status=503)
+
+    monkeypatch.setattr(shelf_prices, "refresh_morning", offline)
+    assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=offline"
+    monkeypatch.setattr(shelf_prices, "refresh_morning", broken)
+    assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_err"
 
 
 def test_polka_shelf_status_shows_last_read(client: TestClient) -> None:
