@@ -334,6 +334,10 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   Rollback: wersja poprzednia + backup add-onu.
   Do rozważenia razem z E30 (z review E29, niekrytyczne): blokada/zadanie w tle dla `/polka/sprawdz`, `_shelf_fresh` bez zapytania na ofertę,
   kolumna `promo_to` (parsować albo usunąć), cichy `None` z `refresh_morning`.
+- **E31 Wspólna wyszukiwarka (w toku, plan `docs/PLAN_E31_wyszukiwarka.md`; podetapy E31.0 docs → E31.1 spike (Biedronka `products/search`, Lidl `lidl.pl/q/api/search`, licencja logotypów; bramka A/B) → E31.2 backend `search.py` → E31.3 UI (pole w nagłówku, `/szukaj`, logo sieci, stan na żądanie) → E31.4 wydanie 1.9.0):**
+  Cel: jedno pole „Szukaj” w nagłówku; wyniki z paragonów, produktów, katalogu Biedronki i Lidla, kuponów i ofert, każdy z logo sieci i
+  znacznikiem „kupowane N× · ostatnio dd.mm · cena”; stan półki Biedronki i cena na żądanie po kliknięciu (2 zapytania, bez obserwowania).
+  Stan: E31.0 w toku. Rollback: `git revert` commitu etapu, brak migracji schematu; wydanie: poprzedni tag v1.8.0.
 - **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
   kosztu limitów freellmapi (skill `pomiar`); bez tego odpada.
 
