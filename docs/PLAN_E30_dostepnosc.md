@@ -41,6 +41,17 @@ Rollback: `git revert`.
 - **Bramka:** jest pole, które odróżnia „jest/brak” (albo poziom) dla EAN znanego sklepowi → ścieżka A (E30.2–E30.5).
   Brak takiego pola / wymaga geo/innych nagłówków → ścieżka B. Wynik podważający założenia → stop i pytanie.
 
+**Wynik E30.1 (2026-11-21, bramka ZALICZONA → ścieżka A):** 10 GET `products/stock/{sklep}/{ean}/` (sklep `6715`, 1 req/s, bez 429)
++ 2 POST `products/stock/` (okolica z `zone.home`; plik ze współrzędnymi usunięty, wyniki w `data/` bez współrzędnych).
+- GET: dict `{distance: null, code, coverage: int, city, street}`; `coverage` ∈ {2, 3} dla znanych EAN-ów (8× 3, 1× 2).
+  Nieistniejący EAN i zły sklep (`0000`) → `BiedronkaError` (404, jak w `price`). 429 nie zaobserwowano; trzymamy ≤1 req/s.
+- POST: lista 5 sklepów `{city, code, coverage, distance, latitude, longitude, store, street}`; widziane `coverage` 0 (3×) i 3 (2×) —
+  czyli skala co najmniej 0–3, **0 = brak w sklepie**.
+- **Założenie do potwierdzenia przez usera (E30.5, z aplikacją Moja Biedronka):** `coverage` = poziom zapasu; mapowanie
+  `0 → 'no'`, `1–2 → 'low'`, `3 → 'yes'`. Do sprawdzenia w aplikacji: EAN `5907439112128` w sklepie `6715` (coverage 2) vs
+  EAN o coverage 3. Mapowanie trzymamy w jednej funkcji `parse_stock`, więc korekta = 1 zmiana.
+- Zapytań: 1 stan / EAN / dzień obok ceny (≤60 EAN ⇒ ≤120 req/dzień łącznie); stan tylko dla `targets` (jak cena).
+
 ### E30.2 Backend stanu (ścieżka A; paczka W1, `haiku-worker`, `verifier`)
 Kontrakt **Wykonawca** dopisuję do `docs/PLAN_E30_dostepnosc.md` po spike'u (znane pola). Zakres:
 - `client/biedronka.py`: `product_stock(store, ean)` (wzór `product_price`, `biedronka.py:272`; nie-dict → `bad_shape`).
