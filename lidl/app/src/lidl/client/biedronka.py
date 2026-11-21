@@ -267,6 +267,13 @@ class BiedronkaApi:
     async def carousel(self, carousel_id: str) -> Any:
         return await self.request(f"promos/carousels/{quote(carousel_id, safe='')}/")
 
+    async def product_price(self, store: str, ean: str) -> dict[str, Any]:
+        """Cena półkowa produktu w sklepie („jak po zeskanowaniu kodu”, E29.1)."""
+        data = await self.request(f"products/price/{quote(store, safe='')}/{quote(ean, safe='')}/")
+        if not isinstance(data, dict):
+            raise LidlPlusError("bad_shape")
+        return data
+
     async def reveal_and_activate(self, offer_id: str) -> Any:
         """Odsłania i aktywuje ofertę Shakeomatu/Shakeomarki (zapis na koncie, PATCH)."""
         return await self.request(f"offers/{quote(offer_id, safe='')}/reveal-and-activate/", method="PATCH")

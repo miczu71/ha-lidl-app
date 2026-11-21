@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 _PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
@@ -165,6 +165,22 @@ CREATE TABLE IF NOT EXISTS chain_savings (
     extra TEXT NOT NULL DEFAULT '{}',
     PRIMARY KEY (slug, kind, ext_id)
 );
+-- E29.2: ostatni odczyt ceny półkowej Biedronki per sklep i EAN (nadpisywany; „dziś na półce”)
+CREATE TABLE IF NOT EXISTS shelf_prices (
+    store TEXT NOT NULL,
+    ean TEXT NOT NULL,
+    price REAL,
+    regular REAL,
+    omnibus REAL,
+    promo_from TEXT,
+    promo_to TEXT,
+    card_only INTEGER NOT NULL DEFAULT 0,
+    is_promotion INTEGER NOT NULL DEFAULT 0,
+    fetched_at TEXT NOT NULL,
+    PRIMARY KEY (store, ean)
+);
+-- E29.2: ustawienia aplikacji (klucz → wartość), np. `biedronka_store`
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ticket_coupons (
     ticket_id TEXT NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
     line INTEGER NOT NULL,
@@ -273,6 +289,22 @@ class ChainPair:
     lidl_name: str | None
     source: str | None
     candidates: list[str]
+
+
+@dataclass(frozen=True)
+class ShelfPrice:
+    """Cena półkowa Biedronki z odczytu aplikacji (E29.2); `promo_from` trzyma tekst okresu bez parsowania."""
+
+    store: str
+    ean: str
+    price: float | None
+    regular: float | None
+    omnibus: float | None
+    promo_from: str | None
+    promo_to: str | None
+    card_only: bool
+    is_promotion: bool
+    fetched_at: str
 
 
 @dataclass(frozen=True)
@@ -904,6 +936,8 @@ class History:
             self._migrate_v10()
         if has_tables and version < 12:
             self._migrate_v11(path)
+        if has_tables and version < 13:
+            self._migrate_v12(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1041,6 +1075,16 @@ class History:
                 "UPDATE items SET discount = -ABS(discount) WHERE ticket_id IN"
                 " (SELECT id FROM tickets WHERE chain = 'biedronka')"
             )
+
+    def _migrate_v12(self, path: Path) -> None:
+        """v12 → v13: tabele `shelf_prices` i `settings` (z _SCHEMA); kopia `.pre-shelf`."""
+        if not self._db.execute("SELECT 1 FROM sqlite_master WHERE name = 'tickets'").fetchone():
+            return
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-shelf"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
 
     def _migrate_v10(self) -> None:
         """v10 → v11: wersja 1.5.0 zapisała kodom Biedronki puste punkty (pytała o nie listę Lidla), co
@@ -2271,6 +2315,57 @@ class History:
             for b, st, lid, src, c in rows
         ]
         return sorted(out, key=lambda p: (p.b_name.lower(), p.b_art_id))
+
+    def get_setting(self, key: str) -> str | None:
+        row = self._db.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return str(row[0]) if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self._db:
+            self._db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+
+    def shelf_replace(self, store: str, rows: list[ShelfPrice], cleared: Iterable[str] = ()) -> None:
+        """Upsert odczytanych cen półkowych sklepu; `cleared` = EAN-y odczytane bez ceny (stary wiersz znika);
+        pozostałe wiersze zostają."""
+        with self._db:
+            self._db.executemany(
+                "DELETE FROM shelf_prices WHERE store = ? AND ean = ?", [(store, e) for e in cleared]
+            )
+            self._db.executemany(
+                "INSERT OR REPLACE INTO shelf_prices (store, ean, price, regular, omnibus, promo_from,"
+                " promo_to, card_only, is_promotion, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        store,
+                        r.ean,
+                        r.price,
+                        r.regular,
+                        r.omnibus,
+                        r.promo_from,
+                        r.promo_to,
+                        int(r.card_only),
+                        int(r.is_promotion),
+                        r.fetched_at,
+                    )
+                    for r in rows
+                ],
+            )
+
+    def shelf_list(self, store: str | None = None) -> list[ShelfPrice]:
+        sql = (
+            "SELECT store, ean, price, regular, omnibus, promo_from, promo_to, card_only, is_promotion,"
+            " fetched_at FROM shelf_prices"
+        )
+        params: tuple[str, ...] = ()
+        if store is not None:
+            sql += " WHERE store = ?"
+            params = (store,)
+        return [
+            ShelfPrice(s, e, p, reg, om, pf, pt, bool(co), bool(ip), fa)
+            for s, e, p, reg, om, pf, pt, co, ip, fa in self._db.execute(
+                sql + " ORDER BY store, ean", params
+            )
+        ]
 
     def pair_propose(self, country: str, foreign_name: str, candidates: list[str]) -> bool:
         """Propozycja pary; istniejący wiersz (też zatwierdzony) zostaje nietknięty. True = nowy wiersz."""

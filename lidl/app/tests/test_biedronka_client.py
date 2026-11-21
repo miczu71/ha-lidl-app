@@ -198,3 +198,17 @@ async def test_offer_id_is_url_encoded() -> None:
     s = FakeSession([Resp(200, {})], [])
     await _api(s).reveal_and_activate("../x?y")
     assert s.get_calls[0]["url"].endswith("offers/..%2Fx%3Fy/reveal-and-activate/")
+
+
+async def test_product_price_path_is_url_encoded_and_returns_dict() -> None:
+    body = {"price": "7.49", "regular_price": "12.99", "omnibus_price": "0.00"}
+    s = FakeSession([Resp(200, body)])
+    assert await _api(s).product_price("0001", "5900000000001") == body
+    assert s.get_calls[0]["url"].split("/api/v7/")[-1] == "products/price/0001/5900000000001/"
+    assert s.get_calls[0]["method"] == "GET"
+
+
+async def test_product_price_non_dict_is_bad_shape() -> None:
+    s = FakeSession([Resp(200, ["nie", "slownik"])])
+    with pytest.raises(LidlPlusError, match="bad_shape"):
+        await _api(s).product_price("0001", "5900000000001")
