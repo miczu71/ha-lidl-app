@@ -103,6 +103,33 @@ Rollback: `git revert`.
   `watched_sent`; `notify.compose_watched` dostaje linie Biedronki (nazwa, cena, „było X”, do kiedy), ten sam tag.
 - Testy: `compose_watched` z liniami Biedronki, brak duplikatu po drugim przebiegu, tryb próbny bez zapisu.
 
+**Wykonawca E29.3 (paczka W2, `haiku-worker`; repo `/config/addons/ha-lidl-app`, katalog `lidl/app`):**
+- Skille: `addon-conventions`, `tdd`. Wzory: `DailyJob._morning_shakeomat` (krok z własnym try/except), `notify.compose_watched`, `tests/test_daily.py::test_watched_products_get_a_separate_push_once` (FakeHistory, `_job`).
+- Pliki i zmiana:
+  1. `src/lidl/shelf_prices.py`: (a) `parse_promo_end(text: str | None, today: date) -> date | None` — z tekstu `od 16.11 do 22.11` bierze datę po „do” (`DD.MM`),
+     rok = rok `today`; gdy data wypada >180 dni przed `today` → rok+1; brak/zły tekst → `None`; (b) `async def refresh_morning(history, service) -> RefreshResult | None` —
+     `store = history.get_setting("biedronka_store")`; brak → `None`; slugi Biedronki przez `chain_savings._bdr_slugs(service)` (pierwszy; brak → `None`);
+     `api = await service.chain_api(slug)`; `return await refresh(history, api, store)`; (c) `@dataclass(frozen=True) ShelfOffer(ean, price, was, end: date | None, card_only)` i
+     `shelf_offers(history, store, today) -> list[ShelfOffer]` — wiersze `history.shelf_list(store)` z `is_promotion` i `price is not None`, gdzie `price < (omnibus if omnibus else regular)`
+     (brak obu → pomiń), tylko EAN-y z obserwowanych (`history.watched_codes()`: kody `b:<EAN>`/`n:<EAN>`), `was` = omnibus albo regular, `end = parse_promo_end(promo_from, today)`.
+  2. `src/lidl/notify.py`: `compose_watched(coupons, promos, today, shelf: list[tuple[str, ShelfOffer]] = [])` (para nazwa produktu, oferta) — linia
+     `f"{name} {fmt_pln(price, 2)} (było {fmt_pln(was, 2)}{', do ' + fmt_until(end, today) if end else ''}) · Biedronka{' · tylko z kartą' if card_only else ''}"`;
+     wlicza się do liczby produktów w tytule (`n` unikalnych nazw); przy jednej linii Biedronki tytuł `Lidl: {name} — Biedronka {fmt_pln(price, 2)}`; brak kuponów/promocji/shelf → `None` jak dotąd. Domyślny argument nie zmienia dotychczasowych wyników.
+  3. `src/lidl/daily.py`: parametr `shelf: Callable[[], Awaitable[RefreshResult | None]] | None = None` (po `shakeomat`); w `__call__` po kroku „promocje”, przed „kupony”: `step = "ceny"`;
+     `try: await self._shelf()` (gdy nie `None`); `LidlPlusAuthError` → `log_event("shelf", "error", "Ceny półkowe Biedronki: wymagane ponowne logowanie", {"run": "shelf"})`;
+     inny `Exception` → `log.exception` + `log_event("daily", "error", f"Ceny półkowe Biedronki: {type(err).__name__}: {err}", {"run": "shelf"})`; żaden nie przerywa przebiegu.
+     W `_watched` (po `found`): `offers = shelf_offers(history, store, today)` z `store = history.get_setting("biedronka_store")` (brak → `[]`); klucz `bs:<ean>:<end.isoformat() | price>` (price jako `f"{price:.2f}"`);
+     pomiń klucze w `sent`; nazwa = `history.product_name(code) or ean` (kod `b:<EAN>` albo `n:<EAN>`, który jest w `watched_codes`); do `compose_watched(..., shelf=...)`;
+     `mark_watched_sent([*coupons, *found, *shelf_keys])` jak dotąd (próbny bez zapisu, nieudany push bez zapisu). Zwrot wczesny `if not watched: return` zostaje.
+  4. `src/lidl/web/app.py` (~linia 192): `shelf=lambda: shelf_prices.refresh_morning(history, service)` w `DailyJob(...)` (import modułu `shelf_prices`).
+  5. Testy: `tests/test_shelf_prices.py` (`parse_promo_end`: zwykły, rok przełomu grudzień→styczeń, brak/zły tekst; `shelf_offers`: promocja < Omnibus, bez Omnibusa < regular, `is_promotion=False`, nieobserwowany EAN, `price is None`;
+     `refresh_morning`: brak sklepu → `None`, brak konta Biedronki → `None`, wołanie `refresh` ze sklepem), `tests/test_notify.py` (`compose_watched` z linią Biedronki: jedna, razem z kuponem, `card_only`, brak `end`),
+     `tests/test_daily.py` (krok „ceny” wołany raz przed kuponami; `LidlPlusAuthError` → event `shelf/error` i przebieg idzie dalej; push z linią Biedronki raz po dwóch przebiegach; tryb próbny bez zapisu `bs:`).
+     Fixtures neutralne („Produkt X”, EAN `5900000000001`, sklep `0001`).
+- Test: `cd /config/addons/ha-lidl-app/lidl/app && uv run pytest -q --ignore=tests/test_leaflet.py && uv run ruff check && uv run mypy src` (na pierwszym planie; ~10 min — `timeout` 600000, a przy limicie uruchom tylko `tests/test_shelf_prices.py tests/test_notify.py tests/test_daily.py` i podaj, że pełny zostawiasz rodzicowi).
+- `DONE:` nowe testy czerwone przed kodem, zielone po; ruff i mypy zielone; `git status --short` w worktree = tylko pliki z listy (shelf_prices.py, notify.py, daily.py, web/app.py, 3 pliki testów).
+- `NIE RÓB:` `history.py`, `client/*`, `web/*` poza jedną linią w `app.py`, szablony, `config.yaml`, `ROADMAP`; nie commitować; nie wołać prawdziwego API; jeśli istniejący test wymaga zmiany asercji z powodu nowego parametru — wolno, wypisz to w raporcie; bez nowych zależności.
+
 ### E29.4 Panel (ja — wymaga weryfikacji wizualnej)
 - Konta (sekcja Biedronki): lista sklepów z paragonów Biedronki (adres + kod), POST zapisuje `biedronka_store`
   (walidacja: kod musi być ze znanych sklepów). Status: wybrany sklep + wiek ostatniego odczytu.
