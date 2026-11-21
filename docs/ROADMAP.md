@@ -349,3 +349,6 @@ logowanie), jakość dopasowań nazw skróconych. Awaryjnie: analiza aplikacji (
 
 Tokeny sesji są w `/data/accounts/` i wchodzą do kopii zapasowych add-onu — kopie traktować jak dane poufne
 (unieważnienie: wylogowanie urządzeń / zmiana hasła w Lidl Plus).
+
+## Dług z review (2026-11-21)
+Plan i etapy D0–D5 (CI zielone, ciche porażki, testy, wydajność/migracja v15, wydanie 1.9.1): `docs/ROADMAP_dlug.md`.
