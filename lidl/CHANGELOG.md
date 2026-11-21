@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.0
+
+- Wspólna wyszukiwarka: pole w pasku na każdej stronie i widok `/szukaj`. Szuka w paragonach, ofertach i promocjach,
+  kuponach Lidla oraz (na żądanie) w katalogu Biedronki; wyniki mają znaczniki sieci i rodzaju.
+- Przy produktach Biedronki ze znanym EAN: „Stan w sklepie” (cena i stan półki w wybranym sklepie, bez zapisu)
+  oraz gwiazdka obserwowania (też dla starych kodów `n:<EAN>` Lidla).
+- Katalog Biedronki pobierany tylko z przycisku „Szukaj też w katalogu Biedronki” (cache 10 min); błąd sesji
+  pokazuje komunikat o ponownym logowaniu, a awarie trafiają do logu.
+- Bez zmiany schematu bazy.
+
 ## 1.8.0
 
 - Dostępność produktu na półce: obok ceny add-on odczytuje stan półki (jest / mało / brak) w wybranym sklepie.
