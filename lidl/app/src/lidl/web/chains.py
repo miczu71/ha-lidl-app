@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from lidl.history import CATEGORIES, CatalogItem, ChainPair, History, PlPrice
+from lidl.history import CATEGORIES, CatalogItem, ChainPair, History, PlPrice, ShelfPrice
 from lidl.packsize import pack_size
-from lidl.text import CHAIN_LABELS, fmt_pln, matches
+from lidl.text import CHAIN_LABELS, fmt_day_month, fmt_pln, matches
 
 CATALOG_LIMIT = 100000
 UNPAIRED_LIMIT = 50  # produkty bez propozycji AI (ręczne parowanie) pokazywane naraz
@@ -253,6 +253,26 @@ def _pct(v: float) -> str:
     return f"{round(v, 1):+.1f}".replace(".", ",").replace("-", "\u2212") + "%"
 
 
+def _shelf_by_ean(history: History) -> dict[str, ShelfPrice]:
+    """Ceny półkowe wybranego sklepu Biedronki (E29.4); bez sklepu w ustawieniach albo bez odczytów → pusto,
+    a kolumna „Dziś na półce” się nie pokazuje."""
+    store = history.get_setting("biedronka_store")
+    if not store:
+        return {}
+    return {row.ean: row for row in history.shelf_list(store) if row.price is not None}
+
+
+def _shelf_cell(row: ShelfPrice | None) -> dict[str, Any] | None:
+    """Komórka kolumny; `None` → „—” (nie odczytano albo produkt ważony bez EAN-u w kluczu odczytu)."""
+    if row is None or row.price is None:
+        return None
+    return {
+        "price": fmt_pln(row.price, 2),
+        "promo": row.is_promotion,
+        "read": fmt_day_month(datetime.fromisoformat(row.fetched_at).date()),
+    }
+
+
 def comparison_view(
     history: History, category: str | None, today: date, all_pairs: list[ChainPair] | None = None
 ) -> dict[str, Any]:
@@ -273,6 +293,7 @@ def comparison_view(
             cat, source = history.category_of(p.b_art_id)
         categories[p.b_art_id] = cat
     c = compare(pairs, rows, categories, today, category)
+    shelf = _shelf_by_ean(history)
     pct_spend = c.covered_spend / c.total_spend * 100 if c.total_spend else 0.0
     return {
         "rows": [
@@ -288,6 +309,7 @@ def comparison_view(
                 "cheaper": r.cheaper,
                 "cheaper_label": CHAIN_LABELS.get(r.cheaper, "Tak samo"),
                 "wide": r.wide,
+                "shelf": _shelf_cell(shelf.get(r.b_art_id.partition(":")[2] or r.b_art_id)),
             }
             for r in c.rows
         ],
@@ -300,4 +322,5 @@ def comparison_view(
         "spend_pct": f"{pct_spend:.0f}".replace(".", ",") + "%",
         "category": category or "",
         "has_pairs": bool(pairs),
+        "has_shelf": bool(shelf),
     }

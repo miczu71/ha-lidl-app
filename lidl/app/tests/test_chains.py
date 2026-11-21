@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 from fastapi.testclient import TestClient
 
-from lidl.history import ChainPair, History, PlPrice
+from lidl.history import ChainPair, History, PlPrice, ShelfPrice
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.web.chains import compare
 
@@ -340,3 +340,34 @@ def test_pair_action_keeps_category_filter(client: TestClient) -> None:
     )
     assert r.status_code == 200
     assert 'name="kat" value="food"' in r.text
+
+
+def _shelf(ean: str, price: float, promo: bool = False, store: str = "0001") -> ShelfPrice:
+    return ShelfPrice(
+        store, ean, price, 5.0, 4.5, "od 16.11 do 22.11" if promo else None, None, False, promo,
+        "2026-11-21T07:00:00",
+    )  # fmt: skip
+
+
+def test_page_comparison_shelf_column(client: TestClient) -> None:
+    mleko = _both(client)
+    h = _hist(client)
+    h.chain_pair_approve("b:111", mleko, "manual")
+    assert "Dziś na półce" not in client.get("/sieci").text  # bez sklepu w ustawieniach kolumny nie ma
+    h.set_setting("biedronka_store", "0001")
+    assert "Dziś na półce" not in client.get("/sieci").text  # sklep jest, odczytów jeszcze nie
+    h.shelf_replace("0001", [_shelf("111", 2.79, promo=True), _shelf("999", 1.0, store="0001")])
+    h.shelf_replace("0002", [_shelf("111", 9.99)])  # inny sklep nie wchodzi
+    text = client.get("/sieci").text
+    assert "Dziś na półce" in text and "2,79" in text and "promocja" in text and "9,99" not in text
+    assert "21 lis" in text  # data odczytu
+
+
+def test_page_comparison_shelf_dash_for_unread_product(client: TestClient) -> None:
+    mleko = _both(client)
+    h = _hist(client)
+    h.chain_pair_approve("b:111", mleko, "manual")
+    h.set_setting("biedronka_store", "0001")
+    h.shelf_replace("0001", [_shelf("999", 1.0)])
+    text = client.get("/sieci").text
+    assert "Dziś na półce" in text and "2,79" not in text and "—" in text

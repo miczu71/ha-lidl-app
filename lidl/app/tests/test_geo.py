@@ -207,3 +207,10 @@ async def test_biedronka_street_prefix_is_stripped_and_empty_postal_omitted(tmp_
     await refresh_store_geo_biedronka(session, h, pause=0)  # type: ignore[arg-type]
     params = session.requests[0]["params"]
     assert params["street"] == "Przykładowa 1" and "postalcode" not in params
+
+
+def test_biedronka_stores_lists_known_codes_with_newest_address(tmp_path: Path) -> None:
+    h = _bdr_history(
+        tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"), ("7003", "---", "---", "---")
+    )
+    assert h.biedronka_stores() == {"7001": "ul. Przykładowa 1, Miasto A", "7003": ""}

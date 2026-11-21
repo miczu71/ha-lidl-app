@@ -542,6 +542,8 @@ a.st:hover .st__name { color: var(--blue); text-decoration: underline; text-unde
 .mt th { text-align: left; color: var(--ink-muted); font-weight: 600; padding: 0 var(--space-2) var(--space-2) 0; }
 .mt td { padding: var(--space-2) var(--space-2) var(--space-2) 0; border-top: 1.5px solid var(--line); overflow-wrap: anywhere; }
 .mt .r { text-align: right; }
+.mt-scroll { overflow-x: auto; }
+.mt-scroll .mt { min-width: 36rem; }
 .nav--small .ds-chip { min-height: 36px; padding: 0 var(--space-3); }
 .tl { list-style: none; margin: 0; padding: 0; }
 .tl__day { margin: var(--space-4) 0 var(--space-1); color: var(--ink-muted); font: 700 13px/18px var(--font-sans); }

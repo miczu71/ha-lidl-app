@@ -22,11 +22,13 @@
       {% endfor %}
     </form>
     {% if comparison.rows %}
+    <div class="mt-scroll" tabindex="0" role="region" aria-label="Porównanie cen">
     <table class="mt tnum">
       <caption class="vh">Ceny w Lidlu i w Biedronce</caption>
-      <thead><tr><th scope="col">Produkt</th><th scope="col" class="r">Lidl: ostatnia / mediana</th><th scope="col" class="r">Biedronka: ostatnia / mediana</th><th scope="col" class="r">Różnica</th><th scope="col">Tańsza</th></tr></thead>
-      <tbody>{% for r in comparison.rows %}<tr><td>{{ r.name }} <span class="meta">→ {{ r.lidl_name }}</span></td><td class="r">{{ r.lidl_last }} / {{ r.lidl_median }} za {{ r.unit }}</td><td class="r">{{ r.b_last }} / {{ r.b_median }} za {{ r.unit }}</td><td class="r">{{ r.diff }}{% if r.wide %} <span class="meta">(z 12 mies.)</span>{% endif %}</td><td>{% if r.cheaper %}<span class="chain-tag chain-tag--{{ r.cheaper }}">{{ r.cheaper_label }}</span>{% else %}{{ r.cheaper_label }}{% endif %}</td></tr>{% endfor %}</tbody>
+      <thead><tr><th scope="col">Produkt</th><th scope="col" class="r">Lidl: ostatnia / mediana</th><th scope="col" class="r">Biedronka: ostatnia / mediana</th><th scope="col" class="r">Różnica</th><th scope="col">Tańsza</th>{% if comparison.has_shelf %}<th scope="col" class="r">Dziś na półce</th>{% endif %}</tr></thead>
+      <tbody>{% for r in comparison.rows %}<tr><td>{{ r.name }} <span class="meta">→ {{ r.lidl_name }}</span></td><td class="r">{{ r.lidl_last }} / {{ r.lidl_median }} za {{ r.unit }}</td><td class="r">{{ r.b_last }} / {{ r.b_median }} za {{ r.unit }}</td><td class="r">{{ r.diff }}{% if r.wide %} <span class="meta">(z 12 mies.)</span>{% endif %}</td><td>{% if r.cheaper %}<span class="chain-tag chain-tag--{{ r.cheaper }}">{{ r.cheaper_label }}</span>{% else %}{{ r.cheaper_label }}{% endif %}</td>{% if comparison.has_shelf %}<td class="r">{% if r.shelf %}{{ r.shelf.price }}{% if r.shelf.promo %} <span class="tag">promocja</span>{% endif %} <span class="meta">odczyt {{ r.shelf.read }}</span>{% else %}—{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody>
     </table>
+    </div>
     {% endif %}
     {% if comparison.no_price %}
     <p class="meta"><strong>Bez ceny</strong></p>

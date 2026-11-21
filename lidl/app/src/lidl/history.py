@@ -2689,6 +2689,24 @@ class History:
             if code not in known
         }
 
+    def biedronka_stores(self) -> dict[str, str]:
+        """Sklepy z paragonów Biedronki: kod → „ulica, miejscowość” z najnowszego paragonu (puste = brak
+        adresu); lista wyboru sklepu dla cen półkowych (E29.4)."""
+        rows = self._db.execute(
+            "SELECT t.store_code, t.store_address, t.store_locality FROM tickets t"
+            " WHERE t.country = 'PL' AND t.chain = 'biedronka' AND COALESCE(t.store_code, '') <> ''"
+            " ORDER BY t.day"
+        )
+
+        def clean(value: str | None) -> str:
+            value = (value or "").strip()
+            return "" if value == "---" else value
+
+        return {
+            code: ", ".join(part for part in (clean(street), clean(city)) if part)
+            for code, street, city in rows
+        }
+
     def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:
         with self._db:
             self._db.executemany("INSERT OR REPLACE INTO store_geo (code, lat, lon) VALUES (?, ?, ?)", rows)

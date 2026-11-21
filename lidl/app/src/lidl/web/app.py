@@ -121,6 +121,11 @@ MESSAGES = {
     "deleted": ("ok", "Konto usunięte."),
     "expired": ("err", "Sesja wygasła. Zaloguj to konto ponownie."),
     "offline": ("err", "Brak połączenia z Lidl. Spróbuj za chwilę."),
+    "store": ("ok", "Sklep zapisany. Ceny odczytam rano albo od razu przyciskiem."),
+    "store_bad": ("err", "Nieznany sklep. Wybierz jeden z listy."),
+    "shelf_ok": ("ok", "Ceny półkowe odczytane."),
+    "shelf_none": ("err", "Najpierw wybierz sklep i połącz konto Biedronki."),
+    "shelf_err": ("err", "Część cen nie została odczytana. Szczegóły w zakładce Status."),
 }
 
 
@@ -339,13 +344,48 @@ def create_app(settings: Settings) -> FastAPI:
         if m in MESSAGES:
             kind, text = MESSAGES[m]
             msg = {"kind": kind, "text": text}
+        accounts = svc.store.list()
+        has_bdr = any(a.chain == "biedronka" for a in accounts)
         return render(
             request,
             "index.html",
             section="konta",
-            accounts=svc.store.list(),
+            accounts=accounts,
             msg=msg,
+            shelf=shelf_view(request.app.state.history) if has_bdr else None,
         )
+
+    def shelf_view(history: History) -> dict[str, Any]:
+        """Sekcja „Ceny półkowe Biedronki” w Kontach (E29.4): sklepy z paragonów, wybrany, wiek odczytu."""
+        last = history.events(datetime.now() - EVENTS_KEEP, area="shelf", limit=1)
+        return {
+            "stores": history.biedronka_stores(),
+            "current": history.get_setting("biedronka_store") or "",
+            "read": last[0] if last else None,
+        }
+
+    @app.post("/konta/sklep")
+    async def set_shelf_store(request: Request, store: str = Form("")) -> Response:
+        history: History = request.app.state.history
+        if store not in history.biedronka_stores():
+            return go(request, "/konta?m=store_bad")
+        history.set_setting("biedronka_store", store)
+        return go(request, "/konta?m=store")
+
+    @app.post("/konta/ceny/sprawdz")
+    async def check_shelf(request: Request) -> Response:
+        try:
+            result = await shelf_prices.refresh_morning(request.app.state.history, service(request))
+        except LidlPlusAuthError:
+            request.app.state.history.log_event(
+                "shelf", "error", "Ceny półkowe Biedronki: sesja wygasła", {"auth": True}
+            )
+            return go(request, "/konta?m=expired")
+        except LidlPlusCannotConnect:
+            return go(request, "/konta?m=offline")
+        if result is None:
+            return go(request, "/konta?m=shelf_none")
+        return go(request, "/konta?m=shelf_err" if result.failed else "/konta?m=shelf_ok")
 
     @app.post("/accounts")
     async def add_account(request: Request, label: str = Form(...), chain: str = Form("lidl")) -> Response:

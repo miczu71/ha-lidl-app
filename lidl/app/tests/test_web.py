@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, time, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
-from lidl import __version__
+from lidl import __version__, shelf_prices
 from lidl.client.exceptions import LidlPlusAuthError
 from lidl.history import CouponCandidate, PriceChange
 from lidl.receipt_html import ParsedReceipt, ReceiptCoupon, ReceiptItem
@@ -1517,3 +1518,68 @@ def test_months_jump_to_chain_month(client: TestClient) -> None:
     _two_chains(client)
     text = client.get("/miesiace?m=2020-01&siec=biedronka").text
     assert "w Biedronce" in text  # z miesiąca bez zakupów trafia do najnowszego z zakupami
+
+
+def _bdr_account_with_store(client: TestClient, code: str = "0001") -> Any:
+    client.post("/accounts", data={"label": "Osoba B", "chain": "biedronka"})
+    history = client.app.state.history  # type: ignore[attr-defined]
+    day = date.today() - timedelta(days=3)
+    history.upsert_tickets(
+        "osoba-b",
+        [{"id": "b:9", "date": f"{day}T11:00:00+00:00", "totalAmount": 5.0, "storeCode": code}],
+        chain="biedronka",
+    )
+    with history._db:
+        history._db.execute(
+            "UPDATE tickets SET store_code = ?, store_address = 'ul. Przykładowa 1',"
+            " store_locality = 'Miasto A'",
+            (code,),
+        )
+    return history
+
+
+def test_konta_shelf_section_only_with_biedronka_account(client: TestClient) -> None:
+    client.post("/accounts", data={"label": "Osoba 1"})
+    assert "Ceny półkowe" not in client.get("/konta").text
+    _bdr_account_with_store(client)
+    text = client.get("/konta").text
+    assert "Ceny półkowe" in text and "0001" in text and "ul. Przykładowa 1" in text
+
+
+def test_konta_store_post_saves_known_code_and_rejects_unknown(client: TestClient) -> None:
+    history = _bdr_account_with_store(client)
+    r = client.post("/konta/sklep", data={"store": "0001"})
+    assert (r.status_code, r.headers["location"]) == (303, "/konta?m=store")
+    assert history.get_setting("biedronka_store") == "0001"
+    r = client.post("/konta/sklep", data={"store": "9999"})
+    assert r.headers["location"] == "/konta?m=store_bad"
+    assert history.get_setting("biedronka_store") == "0001"  # bez zmiany
+
+
+def test_konta_shelf_check_runs_refresh_and_reports(client: TestClient, monkeypatch) -> None:
+    history = _bdr_account_with_store(client)
+    assert client.post("/konta/ceny/sprawdz").headers["location"] == "/konta?m=shelf_none"  # brak sklepu
+    history.set_setting("biedronka_store", "0001")
+    seen: list[str] = []
+
+    async def fake(h: Any, service: Any) -> Any:
+        seen.append("x")
+        return shelf_prices.RefreshResult(ok=2)
+
+    monkeypatch.setattr(shelf_prices, "refresh_morning", fake)
+    assert client.post("/konta/ceny/sprawdz").headers["location"] == "/konta?m=shelf_ok"
+    assert seen == ["x"]
+
+    async def auth(h: Any, service: Any) -> Any:
+        raise LidlPlusAuthError("expired")
+
+    monkeypatch.setattr(shelf_prices, "refresh_morning", auth)
+    assert client.post("/konta/ceny/sprawdz").headers["location"] == "/konta?m=expired"
+
+
+def test_konta_shelf_status_shows_last_read(client: TestClient) -> None:
+    history = _bdr_account_with_store(client)
+    history.set_setting("biedronka_store", "0001")
+    assert "jeszcze nie odczytano" in client.get("/konta").text
+    history.log_event("shelf", "ok", "Ceny półkowe Biedronki: odczytane", {"store": "0001", "count": 3})
+    assert "jeszcze nie odczytano" not in client.get("/konta").text
