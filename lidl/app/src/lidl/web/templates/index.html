@@ -42,31 +42,6 @@
   {% endfor %}
 </section>
 
-{% if shelf %}
-<section class="card" aria-labelledby="ceny">
-  <h2 class="s" id="ceny">Ceny półkowe Biedronki</h2>
-  <p class="lead">Raz dziennie sprawdzam, ile obserwowane produkty kosztują dziś w wybranym sklepie, i dopisuję to do powiadomienia o promocjach oraz do porównania w zakładce Sieci.</p>
-  {% if shelf.stores %}
-  <form class="add" method="post" action="{{ base }}/konta/sklep">
-    <div class="f">
-      <label for="store">Sklep</label>
-      <select class="field" id="store" name="store" required>
-        {% if not shelf.current %}<option value="" selected disabled>Wybierz sklep</option>{% endif %}
-        {% for code, address in shelf.stores.items() %}<option value="{{ code }}"{% if code == shelf.current %} selected{% endif %}>{{ address or "bez adresu" }} · {{ code }}</option>{% endfor %}
-      </select>
-    </div>
-    <button class="ds-btn" type="submit">Zapisz sklep</button>
-  </form>
-  {% else %}
-  <p class="meta">Lista sklepów pojawi się po pobraniu pierwszych paragonów Biedronki.</p>
-  {% endif %}
-  {% if shelf.current %}
-  <p class="meta">{% if shelf.read %}Ostatni odczyt: {{ shelf.read.ts.strftime("%d.%m %H:%M") }}{% if shelf.read.level == "error" %} (z błędami){% endif %}{% else %}Ceny jeszcze nie odczytano.{% endif %}</p>
-  <form method="post" action="{{ base }}/konta/ceny/sprawdz"><button class="ds-btn ds-btn--secondary" type="submit">Sprawdź teraz</button></form>
-  {% endif %}
-</section>
-{% endif %}
-
 <section class="card" aria-labelledby="dodaj">
   <h2 class="s" id="dodaj">Dodaj konto</h2>
   <form class="add" method="post" action="{{ base }}/accounts">

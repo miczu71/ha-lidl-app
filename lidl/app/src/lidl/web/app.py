@@ -344,15 +344,26 @@ def create_app(settings: Settings) -> FastAPI:
         if m in MESSAGES:
             kind, text = MESSAGES[m]
             msg = {"kind": kind, "text": text}
-        accounts = svc.store.list()
-        has_bdr = any(a.chain == "biedronka" for a in accounts)
         return render(
             request,
             "index.html",
             section="konta",
-            accounts=accounts,
+            accounts=svc.store.list(),
             msg=msg,
-            shelf=shelf_view(request.app.state.history) if has_bdr else None,
+        )
+
+    @app.get("/polka")
+    async def shelf_page(request: Request, m: str = "") -> Response:
+        history: History = request.app.state.history
+        if "biedronka" not in history.has_chains():
+            return Response("Brak paragonów Biedronki.", status_code=404)
+        kind, text = MESSAGES.get(m, ("", ""))
+        return render(
+            request,
+            "polka.html",
+            section="polka",
+            msg={"kind": kind, "text": text} if text else None,
+            shelf=shelf_view(history),
         )
 
     def shelf_view(history: History) -> dict[str, Any]:
@@ -364,15 +375,15 @@ def create_app(settings: Settings) -> FastAPI:
             "read": last[0] if last else None,
         }
 
-    @app.post("/konta/sklep")
+    @app.post("/polka/sklep")
     async def set_shelf_store(request: Request, store: str = Form("")) -> Response:
         history: History = request.app.state.history
         if store not in history.biedronka_stores():
-            return go(request, "/konta?m=store_bad")
+            return go(request, "/polka?m=store_bad")
         history.set_setting("biedronka_store", store)
-        return go(request, "/konta?m=store")
+        return go(request, "/polka?m=store")
 
-    @app.post("/konta/ceny/sprawdz")
+    @app.post("/polka/sprawdz")
     async def check_shelf(request: Request) -> Response:
         try:
             result = await shelf_prices.refresh_morning(request.app.state.history, service(request))
@@ -384,8 +395,8 @@ def create_app(settings: Settings) -> FastAPI:
         except LidlPlusCannotConnect:
             return go(request, "/konta?m=offline")
         if result is None:
-            return go(request, "/konta?m=shelf_none")
-        return go(request, "/konta?m=shelf_err" if result.failed else "/konta?m=shelf_ok")
+            return go(request, "/polka?m=shelf_none")
+        return go(request, "/polka?m=shelf_err" if result.failed else "/polka?m=shelf_ok")
 
     @app.post("/accounts")
     async def add_account(request: Request, label: str = Form(...), chain: str = Form("lidl")) -> Response:

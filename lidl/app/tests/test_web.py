@@ -1538,27 +1538,30 @@ def _bdr_account_with_store(client: TestClient, code: str = "0001") -> Any:
     return history
 
 
-def test_konta_shelf_section_only_with_biedronka_account(client: TestClient) -> None:
+def test_shelf_tab_only_with_biedronka_receipts(client: TestClient) -> None:
     client.post("/accounts", data={"label": "Osoba 1"})
-    assert "Ceny półkowe" not in client.get("/konta").text
+    assert client.get("/polka").status_code == 404
+    assert "Ceny półkowe" not in client.get("/polka").text
     _bdr_account_with_store(client)
-    text = client.get("/konta").text
+    assert 'href="/polka"' in client.get("/polka").text  # chip w Ustawieniach
+    assert "Sklep zapisany" not in client.get("/polka").text  # sekcji nie ma już w Kontach
+    text = client.get("/polka").text
     assert "Ceny półkowe" in text and "0001" in text and "ul. Przykładowa 1" in text
 
 
-def test_konta_store_post_saves_known_code_and_rejects_unknown(client: TestClient) -> None:
+def test_polka_store_post_saves_known_code_and_rejects_unknown(client: TestClient) -> None:
     history = _bdr_account_with_store(client)
-    r = client.post("/konta/sklep", data={"store": "0001"})
-    assert (r.status_code, r.headers["location"]) == (303, "/konta?m=store")
+    r = client.post("/polka/sklep", data={"store": "0001"})
+    assert (r.status_code, r.headers["location"]) == (303, "/polka?m=store")
     assert history.get_setting("biedronka_store") == "0001"
-    r = client.post("/konta/sklep", data={"store": "9999"})
-    assert r.headers["location"] == "/konta?m=store_bad"
+    r = client.post("/polka/sklep", data={"store": "9999"})
+    assert r.headers["location"] == "/polka?m=store_bad"
     assert history.get_setting("biedronka_store") == "0001"  # bez zmiany
 
 
-def test_konta_shelf_check_runs_refresh_and_reports(client: TestClient, monkeypatch) -> None:
+def test_polka_check_runs_refresh_and_reports(client: TestClient, monkeypatch) -> None:
     history = _bdr_account_with_store(client)
-    assert client.post("/konta/ceny/sprawdz").headers["location"] == "/konta?m=shelf_none"  # brak sklepu
+    assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_none"  # brak sklepu
     history.set_setting("biedronka_store", "0001")
     seen: list[str] = []
 
@@ -1567,19 +1570,19 @@ def test_konta_shelf_check_runs_refresh_and_reports(client: TestClient, monkeypa
         return shelf_prices.RefreshResult(ok=2)
 
     monkeypatch.setattr(shelf_prices, "refresh_morning", fake)
-    assert client.post("/konta/ceny/sprawdz").headers["location"] == "/konta?m=shelf_ok"
+    assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_ok"
     assert seen == ["x"]
 
     async def auth(h: Any, service: Any) -> Any:
         raise LidlPlusAuthError("expired")
 
     monkeypatch.setattr(shelf_prices, "refresh_morning", auth)
-    assert client.post("/konta/ceny/sprawdz").headers["location"] == "/konta?m=expired"
+    assert client.post("/polka/sprawdz").headers["location"] == "/konta?m=expired"
 
 
-def test_konta_shelf_status_shows_last_read(client: TestClient) -> None:
+def test_polka_shelf_status_shows_last_read(client: TestClient) -> None:
     history = _bdr_account_with_store(client)
     history.set_setting("biedronka_store", "0001")
-    assert "jeszcze nie odczytano" in client.get("/konta").text
+    assert "jeszcze nie odczytano" in client.get("/polka").text
     history.log_event("shelf", "ok", "Ceny półkowe Biedronki: odczytane", {"store": "0001", "count": 3})
-    assert "jeszcze nie odczytano" not in client.get("/konta").text
+    assert "jeszcze nie odczytano" not in client.get("/polka").text
