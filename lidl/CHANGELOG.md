@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.8.0
+
+- Dostępność produktu na półce: obok ceny add-on odczytuje stan półki (jest / mało / brak) w wybranym sklepie.
+  Sieci → Porównanie pokazuje znacznik stanu; „jest” także bez ceny.
+- Push „obserwowane”: dopisek „brak na półce” przy promocji produktu, którego nie ma, oraz osobna wiadomość
+  „wróciło na półkę” (tylko dla obserwowanych). Kolejka „wróciło” jest trwała i czeka na udaną wysyłkę.
+- Odczyt półki (ręczny i poranny) ma wspólny zamek (`?m=shelf_busy`); ręczny odczyt zgłasza też błąd odczytu stanu.
+- Koniec promocji z cennika zapisywany jako data (`promo_to`); brak sklepu albo konta loguje zdarzenie „shelf”.
+- Baza w schemacie v14 (kolumna `shelf_prices.stock`); przed migracją powstaje kopia `history.db.pre-stock`.
+- Odczyt to teraz dwa zapytania na produkt (cena + stan), do 120 dziennie przy 1 s przerwie.
+- Mapowanie poziomu zapasu (0 = brak, 1–2 = mało, 3 = jest) do potwierdzenia w aplikacji Moja Biedronka.
+
 ## 1.7.0
 
 - Ceny półkowe Biedronki: raz dziennie rano add-on odczytuje, ile obserwowane produkty (gwiazdka) i zatwierdzone pary
