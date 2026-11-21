@@ -1671,3 +1671,30 @@ def test_product_names_newest_name_per_code_and_missing_skipped(tmp_path: Path) 
     assert h.product_names(["1", "3"]) == {"1": "Nowa nazwa"}  # najnowsza nazwa; brak kodu pominięty
     assert h.product_names([]) == {}
     assert h.product_names(["1"]) == {"1": h.product_name("1")}
+
+
+def test_coupons_active_skips_expired_and_archived(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from lidl.coupons import Coupon
+
+    def _c(pid: str, title: str, end: int) -> Coupon:
+        return Coupon(
+            coupon_id=f"c{pid}",
+            promotion_id=pid,
+            section="",
+            title=title,
+            discount="-2 zł",
+            valid_from=datetime(2026, 1, 1, tzinfo=UTC),
+            valid_to=datetime(end, 1, 1, tzinfo=UTC),
+            article_ids=(),
+            activated=False,
+        )
+
+    h = History(tmp_path / "h.db")
+    h.save_coupons("a", [_c("1", "Masło", 2099), _c("2", "Mleko", 2020), _c("3", "Chleb", 2099)], "t1")
+    h.save_coupons("a", [_c("1", "Masło", 2099), _c("2", "Mleko", 2020)], "t2")  # „Chleb” zarchiwizowany
+    got = h.coupons_active(date(2026, 11, 21))
+    assert [t for t, _d, _v in got] == ["Masło"]
+    assert got[0][1] == "-2 zł"
+    assert got[0][2] == "2099-01-01"

@@ -226,3 +226,24 @@ async def test_product_stock_non_dict_is_bad_shape() -> None:
     s = FakeSession([Resp(200, ["nie", "slownik"])])
     with pytest.raises(LidlPlusError, match="bad_shape"):
         await _api(s).product_stock("6715", "5900000000001")
+
+
+async def test_product_search_path_is_url_encoded_and_keeps_named_dicts() -> None:
+    body = [
+        {"name": "Masło extra 200 g", "sap_product_number": "123", "unit": "szt"},
+        {"name": "", "sap_product_number": "999"},
+        "nie-slownik",
+        {"sap_product_number": "888"},
+    ]
+    s = FakeSession([Resp(200, body)])
+    got = await _api(s).product_search("masło extra")
+    assert got == [{"name": "Masło extra 200 g", "sap_product_number": "123", "unit": "szt"}]
+    assert s.get_calls[0]["url"].split("/api/v7/")[-1] == "products/search/mas%C5%82o%20extra/"
+    assert s.get_calls[0]["method"] == "GET"
+
+
+async def test_product_search_empty_list_and_non_list_is_bad_shape() -> None:
+    assert await _api(FakeSession([Resp(200, [])])).product_search("kod-ean") == []
+    s = FakeSession([Resp(200, {"nie": "lista"})])
+    with pytest.raises(LidlPlusError, match="bad_shape"):
+        await _api(s).product_search("masło")

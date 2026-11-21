@@ -274,6 +274,17 @@ class BiedronkaApi:
             raise LidlPlusError("bad_shape")
         return data
 
+    async def product_search(self, query: str) -> list[dict[str, Any]]:
+        """Wyszukiwanie po nazwie (E31.1 spike: nazwa, SAP, jednostka; bez EAN i ceny)."""
+        data = await self.request(f"products/search/{quote(query, safe='')}/")
+        if not isinstance(data, list):
+            raise LidlPlusError("bad_shape")
+        return [
+            item
+            for item in data
+            if isinstance(item, dict) and isinstance(item.get("name"), str) and item["name"]
+        ]
+
     async def product_stock(self, store: str, ean: str) -> dict[str, Any]:
         """Stan na półce produktu w sklepie (`coverage`, E30.1)."""
         data = await self.request(f"products/stock/{quote(store, safe='')}/{quote(ean, safe='')}/")
