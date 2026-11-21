@@ -64,6 +64,37 @@ Kontrakt **Wykonawca** dopisuję do `docs/PLAN_E30_dostepnosc.md` po spike'u (zn
 - Testy (TDD): fałszywe API (jest/mało/brak/404/zły kształt), migracja v14 z kopią, przejście brak→jest, brak przejścia przy pierwszym odczycie.
 - Rollback: revert; migracja tylko dodaje kolumny, kopia `.pre-stock`.
 
+**Wykonawca E30.2 (paczka W1, `haiku-worker`; repo `/config/addons/ha-lidl-app`, katalog `lidl/app`; testy: `cd lidl/app && .venv/bin/python -m pytest -q`):**
+Skille: `addon-conventions`, `tdd` (test przed kodem). Upraszczamy plan: **jedna** nowa kolumna `stock` (bez `stock_at` — wiek = `fetched_at`).
+1. `src/lidl/client/biedronka.py`: `async def product_stock(self, store: str, ean: str) -> dict[str, Any]` — kopia wzoru `product_price`
+   (`products/stock/{quote(store)}/{quote(ean)}/`; nie-dict → `LidlPlusError("bad_shape")`). Test w `tests/test_biedronka_client.py` jak dla `product_price` (linia ~207).
+2. `src/lidl/history.py`: `SCHEMA_VERSION = 14`; w `_SCHEMA` do `shelf_prices` dodaj `stock TEXT` (po `is_promotion`; `'yes'|'low'|'no'|NULL`);
+   `_migrate_v13(path)`: gdy istnieje tabela `tickets` → kopia `.pre-stock` (jak `_migrate_v12`), potem `ALTER TABLE shelf_prices ADD COLUMN stock TEXT`
+   jeśli kolumny nie ma (`PRAGMA table_info`); wołana w bloku migracji jak `_migrate_v12` (`if has_tables and version < 14`).
+   `ShelfPrice` dostaje pole `stock: str | None = None` NA KOŃCU (domyślne, by nie rozbić istniejących wywołań); `shelf_replace` zapisuje `stock`,
+   `shelf_list` czyta `stock`. Test migracji v13→v14 (kopia `.pre-stock` istnieje, kolumna jest, dane zostają) wg `tests/test_history.py`.
+3. `src/lidl/shelf_prices.py`:
+   - `def parse_stock(data: Any) -> str | None`: dict z `coverage` typu `int` (nie `bool`) → `0 → 'no'`, `1`/`2 → 'low'`, `>=3 → 'yes'`; `coverage` ujemne, brak klucza albo zły
+     typ → `ValueError("nieznany kształt odpowiedzi")`. (Jedyne miejsce mapowania; może się zmienić po weryfikacji z aplikacją.)
+   - `RefreshResult`: dodaj `stock_failed: int = 0` i `back_in_stock: list[str] = field(default_factory=list)`.
+   - `refresh(...)`: przed pętlą `previous = {r.ean: r.stock for r in history.shelf_list(store)}`. Dla każdego EAN-u po odczycie ceny (pauza `REQUEST_PAUSE_S`
+     także przed zapytaniem o stan) wołaj `api.product_stock(store, ean)`:
+       * `LidlPlusAuthError`/`LidlPlusCannotConnect` → `raise` (jak przy cenie);
+       * `LidlPlusError` ze `status == 404` → `stock = None` (nieznany, bez błędu);
+       * inny `LidlPlusError`, `TypeError`, `ValueError` → `stock_failed += 1`, `errors.append(f"{ean} (stan): ...")`, `stock = previous.get(ean)` (zachowaj poprzedni);
+       * sukces → `stock = parse_stock(data)`.
+     Wiersz: gdy cena jest → `dataclasses.replace(row, stock=stock)`; gdy ceny brak (`parse_price` → `None` albo 404 ceny) i `stock is not None` → wiersz pusty
+     `ShelfPrice(store, ean, None, None, None, None, None, False, False, fetched_at, stock)` (zapisany, nie `cleared`); gdy ceny brak i `stock is None` → jak dziś (`cleared`
+     tylko dla „brak ceny”, 404 ceny = `skipped`). 404 ceny przy znanym stanie liczymy jako `ok`, nie `skipped`.
+     `back_in_stock`: EAN z `watched_eans(history)`, gdzie `previous.get(ean) == 'no'` i nowy `stock in ('yes','low')`.
+     Zdarzenie końcowe: błędy stanu liczone razem z `failed` w istniejącym `shelf/error`; reszta bez zmian.
+   - `shelf_offers`/`ShelfOffer`: BEZ zmian w tym etapie (E30.3).
+4. Testy `tests/test_shelf_prices.py` (FakeApi z `product_stock`): `parse_stock` (0/1/2/3/`True`/brak/ujemne), refresh z `yes`/`low`/`no`, 404 stanu → `None`, błąd stanu zachowuje poprzedni
+   `stock` i liczy `stock_failed`, wiersz bez ceny ze stanem trafia do `shelf_list`, `back_in_stock` tylko dla obserwowanych i tylko przy przejściu `no`→`yes|low` (brak przy pierwszym
+   odczycie i przy `yes`→`yes`). Istniejące testy dostają FakeApi bez `product_stock` → dodaj domyślną metodę w FakeApi zwracającą `{"coverage": 3}`.
+`DONE:` pytest całego `lidl/app` zielony (≥735 + nowe), `.venv/bin/ruff check src tests` i `.venv/bin/mypy src` bez błędów, `git status --short` tylko w plikach z listy.
+`NIE RÓB:` zmian w `notify.py`, `daily.py`, `web/*`, `config.yaml`/wersji, `docs/`; commitów; zmiany podpisu `parse_price`.
+
 ### E30.3 Push i panel (ścieżka A; paczka W1 po E30.2, `haiku-worker`, `verifier`)
 - `notify.py`: `_shelf_line` z dopiskiem „brak na półce w <sklep>” gdy `stock='no'` (`ShelfOffer` + pole `stock`);
   nowa linia/wiadomość „wrócił na półkę: <nazwa> (<sklep>)” w tym samym pushu obserwowanych (tag `TAG_WATCHED`).
