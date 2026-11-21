@@ -64,6 +64,38 @@ Rollback: `git revert`.
 - Testy: fałszywe API (cena/promocja/brak Omnibusa/404/zły kształt), migracja v13, `targets`.
 - Rollback: revert commitów; migracja tylko dodaje tabelę, kopia `.pre-shelf`.
 
+**Wykonawca E29.2 (paczka W1, `haiku-worker`; repo `/config/addons/ha-lidl-app`, katalog `lidl/app`):**
+- Skille: `addon-conventions`, `tdd` (test przed kodem). Wzory: `chain_savings.refresh`/`fetch` (błąd części nie ukrywa reszty),
+  migracje `History._migrate_v8/_v9` (kopia `.pre-…` przez `self._db.backup`), testy `tests/test_chain_savings.py` (FakeApi), `tests/test_history.py`.
+- Pliki i zmiana:
+  1. `src/lidl/client/biedronka.py`: `async def product_price(self, store: str, ean: str) -> dict[str, Any]` —
+     `await self.request(f"products/price/{quote(store, safe='')}/{quote(ean, safe='')}/")`; wynik nie-dict → `LidlPlusError("bad_shape")`.
+  2. `src/lidl/history.py`: `SCHEMA_VERSION = 13`; w `_SCHEMA` tabele `shelf_prices(store TEXT, ean TEXT, price REAL, regular REAL,
+     omnibus REAL, promo_from TEXT, promo_to TEXT, card_only INTEGER NOT NULL DEFAULT 0, is_promotion INTEGER NOT NULL DEFAULT 0,
+     fetched_at TEXT NOT NULL, PRIMARY KEY (store, ean))` i `settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)`;
+     `_migrate_v12(path)` (kopia `.pre-shelf`, tylko gdy istnieje `tickets`) wołana jak `_migrate_v11` (`if has_tables and version < 13`);
+     metody `get_setting(key) -> str | None`, `set_setting(key, value)`, `shelf_replace(store, rows)` (upsert wierszy), `shelf_list(store=None)`
+     zwracająca `list[ShelfPrice]` (dataclass w `shelf_prices.py` lub history — wzorzec `SavedSaving`).
+     Nowy `History.chain_store_codes()` NIE jest potrzebny (sklepy z paragonów w E29.4).
+  3. Nowy `src/lidl/shelf_prices.py`: `targets(history) -> list[str]` (EAN-y: z `history.watched_codes()` kody `b:<EAN>` (i `n:<EAN>`
+     tylko gdy `<EAN>` to 8–13 cyfr) ∪ `b_art_id` z `chain_pair_list()` ze `status == "approved"`; bez prefiksu, unikalne, posortowane,
+     ważone pomijamy: kody `n:`/`b:` z sufiksem wagi nie-cyfrowym; obcięte do `MAX_EANS = 60`);
+     `parse_price(ean, data, now) -> ShelfPrice | None` (`price==""` → `None`; `omnibus "0.00"` → `omnibus=None`; ceny `float(str)`;
+     `promo_from/to` z `promotion_valid_period` jako tekst bez parsowania; `is_promotion`, `only_with_biedronka_card` → `card_only`);
+     `async def refresh(history, api, store, *, sleep=asyncio.sleep) -> RefreshResult(ok, skipped, failed, errors)`: pętla po `targets`,
+     `await sleep(1.0)` między zapytaniami, `LidlPlusError` z `http_404` → pomiń EAN (skipped), inne błędy (w tym `http_503`) → `failed`
+     + `errors`, reszta idzie dalej; `LidlPlusAuthError` przerywa pętlę i jest rzucany dalej; zapis `shelf_replace` tylko udanych
+     (stare wiersze zostają); po przebiegu bez błędów `history.log_event("shelf", "ok", "Ceny półkowe Biedronki: odczytane", {"store": store, "count": n})`,
+     przy błędach `log_event("shelf", "error", …)` (bez treści odpowiedzi).
+  4. Testy: `tests/test_shelf_prices.py` (FakeApi: cena+promocja, brak Omnibusa, `price==""`, 404, 503, zły kształt, auth przerywa; `targets`:
+     obserwowane + zatwierdzone pary, bez ważonych, limit 60; `sleep` podmieniony na no-op), `tests/test_history.py` (migracja v12→v13 tworzy
+     `shelf_prices`+`settings` i kopię `.pre-shelf`, round-trip `get/set_setting`, `shelf_replace/list`), `tests/test_biedronka_client.py` (`product_price`: ścieżka, zły kształt).
+     Fixtures neutralne („Sklep X”, EAN `5900000000001`…), bez prawdziwych danych.
+- Test: `cd /config/addons/ha-lidl-app/lidl/app && uv run pytest -q --ignore=tests/test_leaflet.py && uv run ruff check && uv run mypy src`.
+- `DONE:` wszystkie trzy komendy zielone; nowe testy czerwone przed kodem i zielone po; `git status --short` w worktree = tylko pliki z listy wyżej.
+- `NIE RÓB:` `daily.py`, `notify.py`, `web/*`, szablony, `config.yaml` (wersja), `ROADMAP`; nie commitować; nie wołać prawdziwego API ani czytać `~/dev/biedronka-spike/data`;
+  nie zmieniać istniejących migracji ani testów poza dopisaniem nowych; bez nowych zależności.
+
 ### E29.3 Poranny przebieg + push (paczka W2 po W1, `haiku-worker`, verifier)
 - `daily.py`: krok odczytu cen przed `_watched` (brak sklepu/konta Biedronki = pomijam z info w logu; błąd = warn, nie
   zatrzymuje porannego przebiegu — jak Shakeomat).
