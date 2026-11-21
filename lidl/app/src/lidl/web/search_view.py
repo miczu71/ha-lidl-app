@@ -41,8 +41,8 @@ def _day(iso: str | None) -> date | None:
 def _watch_key(h: SearchHit) -> str | None:
     if h.chain == "biedronka" and h.ean:
         return f"b:{h.ean}"
-    if h.chain == "lidl":
-        return h.key or None
+    if h.chain == "lidl" and h.key and (LIDL_CODE_RE.fullmatch(h.key) or ean_of(h.key)):
+        return h.key  # kod Lidla albo stary `n:<EAN>`; nazwy zastępcze nie są obserwowalne
     return None
 
 

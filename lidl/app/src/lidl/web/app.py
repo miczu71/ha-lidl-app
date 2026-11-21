@@ -36,7 +36,7 @@ from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
 from lidl.rewards import RewardsRunner
-from lidl.search import EAN_RE, BiedronkaSearchCache, search_all
+from lidl.search import EAN_RE, BiedronkaSearchCache, ean_of, search_all
 from lidl.service import LidlService
 from lidl.settings import COUNTRY, Settings
 from lidl.sync import HistorySync
@@ -1003,7 +1003,10 @@ def create_app(settings: Settings) -> FastAPI:
             try:
                 api = await service(request).chain_api(slugs[0])
                 remote = await request.app.state.bdr_search.names(api, q)
-            except LidlPlusError:
+            except LidlPlusAuthError:
+                error = "Sesja wygasła — zaloguj ponownie w Konta"
+            except LidlPlusError as err:
+                log.warning("szukaj: katalog Biedronki niedostępny: %s", err)
                 error = "Katalog Biedronki niedostępny"
         hits = search_all(
             history, q, today=date.today(), promos=request.app.state.promotions.latest, remote=remote
@@ -1044,7 +1047,8 @@ def create_app(settings: Settings) -> FastAPI:
                 return render(
                     request, "_search_stan.html", ean=ean, msg="Sesja wygasła — zaloguj ponownie w Konta"
                 )
-            except (LidlPlusError, ValueError):
+            except (LidlPlusError, ValueError) as err:
+                log.warning("szukaj: odczyt stanu %s nieudany: %r", ean, err)
                 return render(request, "_search_stan.html", ean=ean, msg="Nie udało się odczytać")
         return render(
             request,
@@ -1059,7 +1063,7 @@ def create_app(settings: Settings) -> FastAPI:
     @app.post("/szukaj/obserwuj")
     async def search_watch(request: Request, key: str = Form(...), on: str = Form(...)) -> Response:
         history: History = request.app.state.history
-        code = key[2:] if key.startswith("b:") else ""
+        code = ean_of(key)
         if not ((code and code in known_eans(history)) or LIDL_CODE_RE.fullmatch(key)):
             return Response("Nieznany produkt.", status_code=400)
         history.set_watched(key, on == "1")

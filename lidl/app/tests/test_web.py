@@ -1699,8 +1699,39 @@ def test_szukaj_watch_saves_key_and_rejects_bad_key(client: TestClient, monkeypa
     assert "b:4006381333931" in history.watched_codes()
     assert client.post("/szukaj/obserwuj", data={"key": "b:999", "on": "1"}).status_code == 400
     assert client.post("/szukaj/obserwuj", data={"key": "xyz", "on": "1"}).status_code == 400
+    assert client.post("/szukaj/obserwuj", data={"key": "1234567", "on": "1"}).status_code == 200  # kod Lidla
+    assert client.post("/szukaj/obserwuj", data={"key": "n:4006381333931", "on": "1"}).status_code == 200
+    assert {"1234567", "n:4006381333931"} <= history.watched_codes()
+    off = client.post("/szukaj/obserwuj", data={"key": "1234567", "on": "0"})
+    assert off.status_code == 200 and "1234567" not in history.watched_codes()
 
 
 def test_szukaj_box_is_single_on_paragony(client: TestClient) -> None:
     text = client.get("/paragony").text
     assert text.count('id="szukaj"') == 1
+
+
+def test_szukaj_remote_catalog_success_and_auth_error(client: TestClient, monkeypatch) -> None:
+    from lidl.client.exceptions import LidlPlusAuthError
+
+    _bdr_account_with_store(client)
+    client.app.state.service.store.save_tokens("osoba-b", {"access_token": "a", "refresh_token": "r"})  # type: ignore[attr-defined]
+    assert "Szukaj też w katalogu" in client.get("/szukaj?q=masło").text  # przycisk przy ≥3 znakach
+    assert "Szukaj też w katalogu" not in client.get("/szukaj?q=ma").text
+
+    class FakeApi:
+        async def product_search(self, query: str) -> list[dict[str, Any]]:
+            return [{"name": "Masło katalogowe", "sap_product_number": "1"}]
+
+    async def fake_chain_api(self: LidlService, slug: str) -> FakeApi:
+        return FakeApi()
+
+    monkeypatch.setattr(LidlService, "chain_api", fake_chain_api)
+    text = client.get("/szukaj?q=masło&zdalne=1").text
+    assert "Masło katalogowe" in text and "Szukaj też w katalogu" not in text
+
+    async def expired(self: LidlService, slug: str) -> FakeApi:
+        raise LidlPlusAuthError("expired")
+
+    monkeypatch.setattr(LidlService, "chain_api", expired)
+    assert "Sesja wygasła" in client.get("/szukaj?q=chleb&zdalne=1").text
