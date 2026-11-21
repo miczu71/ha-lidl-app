@@ -59,7 +59,8 @@ async def refresh_store_geo_biedronka(
     """Geokoduje adresy sklepów Biedronki w Nominatim (tylko publiczny adres sklepu: ulica, kod, miasto).
 
     Brak trafienia albo adresu = zapis bez współrzędnych (nie pytamy ponownie); zła odpowiedź dla jednego
-    sklepu pomija go bez zapisu (ponowi jutro), błąd sieci przerywa przebieg. Zwraca liczbę sklepów z nowym punktem."""
+    sklepu pomija go bez zapisu (ponowi jutro), błąd sieci przerywa przebieg.
+    Zwraca liczbę sklepów z nowym punktem."""
     missing = history.biedronka_stores_without_geo()
     located = 0
     first = True
