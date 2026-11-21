@@ -321,8 +321,9 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   `shelf_prices.py`) → E29.3 poranny przebieg + push → E29.4 panel (Konta, `/sieci`) → E29.5 wydanie 1.7.0.
   Stan: E29.0 ✅ (docs), E29.1 ✅ (spike, bramka zaliczona — wynik w planie), E29.2 ✅ (backend, commit `17fd242`: `product_price`,
   schemat v13 `shelf_prices`+`settings`, `shelf_prices.py` targets/parse_price/refresh; pytest 702 passed, ruff+mypy zielone,
-  verifier APPROVE), dalej E29.3 (poranny przebieg + push; musi też: sparsować „do kiedy” z `promo_from` (tekst `od 16.11 do 22.11`),
-  obsłużyć `LidlPlusAuthError` z `refresh` jako Problem — refresh nie loguje eventu przy auth).
+  verifier APPROVE), E29.3 ✅ (commit `3fb5c28`: krok „ceny” w porannym przebiegu przed kuponami, `parse_promo_end`/`shelf_offers`/`refresh_morning`,
+  linia Biedronki w `compose_watched`, klucz `bs:<ean>:<koniec|cena>`, `LidlPlusAuthError` → event `shelf/error`; pytest 723 passed, ruff+mypy zielone,
+  verifier APPROVE; NIEBLOKUJĄCE: brak testu nieudanego pushu z linią Biedronki), dalej E29.4 (panel: wybór sklepu w Konta + kolumna „dziś na półce” w `/sieci`).
 - **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
   kosztu limitów freellmapi (skill `pomiar`); bez tego odpada.
 
