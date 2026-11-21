@@ -27,19 +27,19 @@ class SearchHit:
     kind: str
     chain: str
     name: str
-    key: str | None
-    ean: str | None
-    price: float | None
-    purchases: int
-    last_date: str | None
-    until: str | None
+    key: str | None = None
+    ean: str | None = None
+    price: float | None = None
+    purchases: int = 0
+    last_date: str | None = None
+    until: str | None = None
 
 
 class _ProductSearch(Protocol):
     async def product_search(self, query: str) -> list[dict[str, Any]]: ...
 
 
-def _ean_of(art_id: str) -> str | None:
+def ean_of(art_id: str) -> str | None:
     """EAN z kodu `b:<EAN>` / `n:<EAN>`; nazwy zastępcze (`b:<nazwa>`) nie są EAN-em."""
     code = art_id[2:] if art_id[:2] in ("b:", "n:") else ""
     return code if EAN_RE.fullmatch(code) else None
@@ -78,11 +78,10 @@ def search_all(
                 chain="biedronka" if p.art_id.startswith("b:") else "lidl",
                 name=p.name,
                 key=p.art_id,
-                ean=_ean_of(p.art_id),
+                ean=ean_of(p.art_id),
                 price=p.last_price,
                 purchases=p.purchases,
                 last_date=p.last_date,
-                until=None,
             )
         )
     by_ean = {h.ean: i for i, h in enumerate(bought) if h.ean}
@@ -103,11 +102,8 @@ def search_all(
                 kind="offer",
                 chain="biedronka",
                 name=s.name,
-                key=s.ext_id,
                 ean=ean,
                 price=s.price,
-                purchases=0,
-                last_date=None,
                 until=s.valid_to,
             )
         )
@@ -133,27 +129,18 @@ def search_all(
                 chain="lidl",
                 name=pr.title,
                 key=pr.art_id,
-                ean=None,
-                price=None,
-                purchases=0,
-                last_date=None,
                 until=pr.end.isoformat(),
             )
         )
 
     # d) kupony Lidla (bieżąca lista, nie zarchiwizowane)
-    for title, _discount, valid_to in history.coupons_active(today):
+    for title, valid_to in history.coupons_active(today):
         if matches(title, query):
             hits.append(
                 SearchHit(
                     kind="coupon",
                     chain="lidl",
                     name=title,
-                    key=None,
-                    ean=None,
-                    price=None,
-                    purchases=0,
-                    last_date=None,
                     until=valid_to,
                 )
             )
@@ -165,20 +152,7 @@ def search_all(
         if not name or not matches(name, query) or _plain(name) in known:
             continue
         known.add(_plain(name))
-        sap = item.get("sap_product_number")
-        hits.append(
-            SearchHit(
-                kind="catalog",
-                chain="biedronka",
-                name=name,
-                key=str(sap) if sap is not None else None,
-                ean=None,
-                price=None,
-                purchases=0,
-                last_date=None,
-                until=None,
-            )
-        )
+        hits.append(SearchHit(kind="catalog", chain="biedronka", name=name))
 
     order = {"bought": 0, "offer": 1, "promo": 2, "coupon": 3, "catalog": 4}
     hits.sort(key=lambda h: (order[h.kind], -h.purchases))

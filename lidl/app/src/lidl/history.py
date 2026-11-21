@@ -2001,15 +2001,15 @@ class History:
         )
         return list(cur)
 
-    def coupons_active(self, today: date) -> list[tuple[str, str, str]]:
-        """Kupony z bieżącej listy (nie zarchiwizowane), ważne co najmniej do `today`: (tytuł, rabat, koniec
+    def coupons_active(self, today: date) -> list[tuple[str, str]]:
+        """Kupony z bieżącej listy (nie zarchiwizowane), ważne co najmniej do `today`: (tytuł, koniec
         ważności ISO); bez powtórzeń, po tytule (E31.2, wyszukiwarka)."""
         rows = self._db.execute(
-            "SELECT DISTINCT title, discount, substr(valid_to, 1, 10) FROM coupons"
+            "SELECT DISTINCT title, substr(valid_to, 1, 10) FROM coupons"
             " WHERE gone_at IS NULL AND substr(valid_to, 1, 10) >= ? ORDER BY title",
             (today.isoformat(),),
         )
-        return [(title, discount, valid_to) for title, discount, valid_to in rows]
+        return [(title, valid_to) for title, valid_to in rows]
 
     def savings_kpi(self, today: date | None = None) -> SavingsKpi:
         """Oszczędności z rabatów na pozycjach (kupony Lidl Plus osobno od promocji); lista API ma to pole

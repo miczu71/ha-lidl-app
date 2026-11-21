@@ -132,9 +132,9 @@ def test_catalog_skips_known_names_and_dedups(tmp_path: Path) -> None:
     ]
     got = search_all(h, "masło", today=TODAY, remote=remote)
     catalog = [x for x in got if x.kind == "catalog"]
-    assert [(x.name, x.key, x.chain, x.ean, x.price) for x in catalog] == [
-        ("Masło Gouda 300 g", "222", "biedronka", None, None),
-        ("Sałata masłowa", "444", "biedronka", None, None),
+    assert [(x.name, x.chain, x.ean, x.price) for x in catalog] == [
+        ("Masło Gouda 300 g", "biedronka", None, None),
+        ("Sałata masłowa", "biedronka", None, None),
     ]
 
 

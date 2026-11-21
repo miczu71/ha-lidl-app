@@ -1695,6 +1695,5 @@ def test_coupons_active_skips_expired_and_archived(tmp_path: Path) -> None:
     h.save_coupons("a", [_c("1", "Masło", 2099), _c("2", "Mleko", 2020), _c("3", "Chleb", 2099)], "t1")
     h.save_coupons("a", [_c("1", "Masło", 2099), _c("2", "Mleko", 2020)], "t2")  # „Chleb” zarchiwizowany
     got = h.coupons_active(date(2026, 11, 21))
-    assert [t for t, _d, _v in got] == ["Masło"]
-    assert got[0][1] == "-2 zł"
-    assert got[0][2] == "2099-01-01"
+    assert [t for t, _v in got] == ["Masło"]
+    assert got[0][1] == "2099-01-01"

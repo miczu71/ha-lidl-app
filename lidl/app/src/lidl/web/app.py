@@ -997,7 +997,8 @@ def create_app(settings: Settings) -> FastAPI:
         slugs = chain_savings._bdr_slugs(service(request))
         remote: list[dict[str, Any]] = []
         error = ""
-        wants_remote = zdalne == "1" and len(q) >= 3 and bool(slugs)
+        remote_ok = bool(slugs) and len(q) >= 3
+        wants_remote = remote_ok and zdalne == "1"
         if wants_remote:
             try:
                 api = await service(request).chain_api(slugs[0])
@@ -1011,7 +1012,7 @@ def create_app(settings: Settings) -> FastAPI:
             "q": q,
             "hits": search_rows(hits, history.watched_codes()),
             "error": error,
-            "can_remote": bool(slugs) and len(q) >= 3 and not wants_remote,
+            "can_remote": remote_ok and not wants_remote,
         }
         if request.headers.get("hx-request"):
             return render(request, "_search_results.html", **ctx)
@@ -1034,10 +1035,11 @@ def create_app(settings: Settings) -> FastAPI:
         async with lock:
             try:
                 api = await service(request).chain_api(slugs[0])
-                price = shelf_prices.parse_price(
-                    store, ean, await api.product_price(store, ean), datetime.now()
+                price_raw, stock_raw = await asyncio.gather(
+                    api.product_price(store, ean), api.product_stock(store, ean)
                 )
-                stock = shelf_prices.parse_stock(await api.product_stock(store, ean))
+                price = shelf_prices.parse_price(store, ean, price_raw, datetime.now())
+                stock = shelf_prices.parse_stock(stock_raw)
             except LidlPlusAuthError:
                 return render(
                     request, "_search_stan.html", ean=ean, msg="Sesja wygasła — zaloguj ponownie w Konta"

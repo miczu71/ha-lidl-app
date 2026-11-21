@@ -8,7 +8,7 @@ from datetime import date
 from typing import Any
 
 from lidl.history import History
-from lidl.search import EAN_RE, SearchHit
+from lidl.search import SearchHit, ean_of
 from lidl.text import CHAIN_LABELS, fmt_day_month, fmt_pln
 
 LIDL_CODE_RE = re.compile(r"\d{7}")
@@ -26,8 +26,7 @@ def known_eans(history: History) -> set[str]:
     """EAN-y z kupowanych produktów (`b:`/`n:` + 8–14 cyfr) i z ofert Biedronki w karuzeli."""
     eans: set[str] = set()
     for p in history.ranking():
-        code = p.art_id[2:] if p.art_id[:2] in ("b:", "n:") else ""
-        if EAN_RE.fullmatch(code):
+        if code := ean_of(p.art_id):
             eans.add(code)
     for s in history.savings_list():
         if s.kind == "offer" and s.extra.get("ean"):
