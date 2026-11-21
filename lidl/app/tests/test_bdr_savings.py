@@ -226,3 +226,11 @@ def test_shake_htmx_wait_and_plain_post_redirect(client: TestClient, monkeypatch
     assert "jeszcze dostępny" in htmx.text and 'id="bdr-shake"' in htmx.text
     plain = client.post("/biedronka/shakeomat")
     assert plain.status_code == 303 and plain.headers["location"].endswith("?m=shake_wait")
+
+
+def test_route_snapshot_age_comes_from_the_last_savings_event(client: TestClient) -> None:
+    h = _with_biedronka(client)
+    assert "Jeszcze bez danych" in client.get("/biedronka").text
+    h.log_event("savings", "ok", "Migawka odświeżona", {})
+    assert "Jeszcze bez danych" not in client.get("/biedronka").text
+    assert f"Dane z {datetime.now():%d.%m}" in client.get("/biedronka").text

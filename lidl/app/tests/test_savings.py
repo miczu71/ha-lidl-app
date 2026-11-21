@@ -181,6 +181,24 @@ def test_general_coupons_are_separate_and_zero_without_difference(seeded: Histor
     assert (only_t3.coupons_total, only_t3.promos_total) == (0.0, 1.0)
     zero = seeded.savings_breakdown(ReceiptFilter(start=date(2026, 6, 6), end=date(2026, 6, 6)))
     assert zero.general_coupons_amount == 0.0
+    assert zero.spend_total == pytest.approx(20.0)  # t2 liczy się, tylko bez różnicy kuponu
+    assert (zero.coupons_total, zero.promos_total) == (4.0, 0.0)  # kupon na pozycji, nie „ogólny”
+
+
+def test_store_filter_narrows_savings_to_one_store(seeded: History) -> None:
+    seeded.upsert_tickets("a", [_ticket("t6", "2026-06-09", total=8.0, savings=2.0)])
+    seeded.save_detail(
+        "t6",
+        "S",
+        ParsedReceipt(
+            items=[ReceiptItem("9", "Chleb", 1, 6.0, 6.0, discount=-2.0, promo="Taniej za 2")],
+            store={"code": "PL0002"},
+        ),
+    )
+    only = seeded.savings_breakdown(ReceiptFilter(store="PL0002"))
+    assert (only.spend_total, only.promos_total, only.coupons_total) == (8.0, 2.0, 0.0)
+    assert seeded.savings_breakdown(ReceiptFilter(store="PL9999")).spend_total == 0.0
+    assert seeded.savings_breakdown().spend_total > only.spend_total
 
 
 def test_filters_narrow_both_sums(seeded: History) -> None:
