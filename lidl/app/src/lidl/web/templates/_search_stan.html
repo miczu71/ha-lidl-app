@@ -1,0 +1,6 @@
+{# Odpowiedź „Stan w sklepie” (htmx): cena półkowa i stan półki w sklepie z ustawienia. #}
+{% if msg %}
+<p class="meta" role="status">{{ msg }}</p>
+{% else %}
+<p class="meta" role="status">{% if price_txt %}Cena w sklepie: {{ price_txt }}{% if regular_txt %} (regularna {{ regular_txt }}){% endif %}{% else %}Brak ceny półkowej{% endif %}{% if stock_txt %} · na półce: {{ stock_txt }}{% endif %}</p>
+{% endif %}

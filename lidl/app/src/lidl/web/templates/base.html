@@ -22,7 +22,7 @@
   </script>
 </head>
 <body>
-  <header class="bar">{% block bar %}<a class="brand" href="{{ base }}/"><img src="{{ base }}/static/mark.svg?v={{ version }}" width="28" height="28" alt="">Zakupy (Lidl + Biedronka)</a>{% endblock %}</header>
+  <header class="bar">{% block bar %}<a class="brand" href="{{ base }}/"><img src="{{ base }}/static/mark.svg?v={{ version }}" width="28" height="28" alt="">Zakupy (Lidl + Biedronka)</a><form class="searchbar" action="{{ base }}/szukaj" method="get" role="search"><input id="szukaj" type="search" name="q" value="{{ q or '' }}" placeholder="Szukaj produktu" aria-label="Szukaj produktu" autocomplete="off" {% if section == 'szukaj' %}hx-get="{{ base }}/szukaj" hx-trigger="input changed delay:400ms, search" hx-target="#szukaj-wyniki"{% endif %}></form>{% endblock %}</header>
   <main class="body"><div class="wrap">
     {% if section %}
     {# Menu: 5 działów + podzakładki. Trasy bez zmian; Sieci i Oszczędzanie tylko gdy są dane (multi_chain / bdr_tab). #}

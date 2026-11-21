@@ -1,0 +1,23 @@
+{# Wyniki wyszukiwarki (też odpowiedź htmx na wpisywanie i na „Szukaj też w katalogu”). #}
+{% if error %}
+<p class="notice" role="status">{{ error }}</p>
+{% endif %}
+{% if q and not hits %}
+<p class="meta">Nic nie pasuje do „{{ q }}”.</p>
+{% endif %}
+{% for r in hits %}
+<div class="hit">
+  <div class="hit__name"><span class="chain-tag chain-tag--{{ r.chain }}">{{ r.chain_label }}</span> {{ r.name }}</div>
+  <div class="hit__meta">{% if r.history %}<span>{{ r.history }}</span>{% else %}<span>{{ r.kind_label }}</span>{% endif %}{% if r.price %} · <span>{{ r.price }}</span>{% endif %}{% if r.until %} · <span>{{ r.until }}</span>{% endif %}</div>
+  <div class="hit__ctl">
+    {% if r.can_stock %}
+    <button class="ds-btn ds-btn--secondary" type="button" hx-get="{{ base }}/szukaj/stan/{{ r.ean }}" hx-target="#stan-{{ r.ean }}" hx-swap="innerHTML">Stan w sklepie</button>
+    <div id="stan-{{ r.ean }}"></div>
+    {% endif %}
+    {% if r.watch_key %}{% include "_search_star.html" %}{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% if can_remote %}
+<p><button class="ds-btn ds-btn--secondary" type="button" hx-get="{{ base }}/szukaj?zdalne=1" hx-include="#szukaj" hx-target="#szukaj-wyniki">Szukaj też w katalogu Biedronki</button></p>
+{% endif %}

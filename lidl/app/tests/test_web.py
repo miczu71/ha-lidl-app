@@ -1626,3 +1626,81 @@ def test_polka_check_is_busy_while_another_read_runs(client: TestClient, monkeyp
     assert "Odczyt cen już trwa" in client.get("/polka?m=shelf_busy").text
     assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_ok"
     assert calls == [1]
+
+
+def test_szukaj_finds_bought_product_with_chain_tag(client: TestClient) -> None:
+    _connect(client)
+    _seed(client)
+    text = client.get("/szukaj?q=produkt").text
+    assert "Produkt A" in text and "kupowane 2×" in text
+    assert "chain-tag--lidl" in text and "kupowane" in text
+
+
+def test_szukaj_empty_query_and_htmx_fragment(client: TestClient) -> None:
+    _connect(client)
+    _seed(client)
+    r = client.get("/szukaj?q=")
+    assert r.status_code == 200 and "Nic nie pasuje" not in r.text
+    r = client.get("/szukaj?q=produkt", headers={"hx-request": "true"})
+    assert r.status_code == 200 and "<html" not in r.text and "Produkt A" in r.text
+
+
+def test_szukaj_stock_unknown_ean_is_404(client: TestClient) -> None:
+    assert client.get("/szukaj/stan/4006381333931").status_code == 404
+
+
+def test_szukaj_stock_shows_price_and_stock(client: TestClient, monkeypatch) -> None:
+    import lidl.web.app as web_app
+
+    history = _bdr_account_with_store(client)
+    history.set_setting("biedronka_store", "0001")
+    client.app.state.service.store.save_tokens("osoba-b", {"access_token": "a", "refresh_token": "r"})  # type: ignore[attr-defined]
+    monkeypatch.setattr(web_app, "known_eans", lambda h: {"4006381333931"})
+
+    class FakeApi:
+        async def product_price(self, store: str, ean: str) -> dict[str, Any]:
+            return {"price": 3.49, "regular_price": 4.99, "is_promotion": True}
+
+        async def product_stock(self, store: str, ean: str) -> dict[str, Any]:
+            return {"coverage": 4}
+
+    async def fake_chain_api(self: LidlService, slug: str) -> FakeApi:
+        return FakeApi()
+
+    monkeypatch.setattr(LidlService, "chain_api", fake_chain_api)
+    text = client.get("/szukaj/stan/4006381333931").text
+    assert "3,49 zł" in text and "4,99 zł" in text and "jest" in text
+
+
+def test_szukaj_stock_busy_shows_message(client: TestClient, monkeypatch) -> None:
+    import asyncio
+
+    import lidl.web.app as web_app
+
+    history = _bdr_account_with_store(client)
+    history.set_setting("biedronka_store", "0001")
+    client.app.state.service.store.save_tokens("osoba-b", {"access_token": "a", "refresh_token": "r"})  # type: ignore[attr-defined]
+    monkeypatch.setattr(web_app, "known_eans", lambda h: {"4006381333931"})
+    lock = client.app.state.shelf_lock  # type: ignore[attr-defined]
+    asyncio.run(lock.acquire())
+    try:
+        assert "Trwa odczyt cen" in client.get("/szukaj/stan/4006381333931").text
+    finally:
+        lock.release()
+
+
+def test_szukaj_watch_saves_key_and_rejects_bad_key(client: TestClient, monkeypatch) -> None:
+    import lidl.web.app as web_app
+
+    history = client.app.state.history  # type: ignore[attr-defined]
+    monkeypatch.setattr(web_app, "known_eans", lambda h: {"4006381333931"})
+    r = client.post("/szukaj/obserwuj", data={"key": "b:4006381333931", "on": "1"})
+    assert r.status_code == 200 and 'aria-pressed="true"' in r.text and "<html" not in r.text
+    assert "b:4006381333931" in history.watched_codes()
+    assert client.post("/szukaj/obserwuj", data={"key": "b:999", "on": "1"}).status_code == 400
+    assert client.post("/szukaj/obserwuj", data={"key": "xyz", "on": "1"}).status_code == 400
+
+
+def test_szukaj_box_is_single_on_paragony(client: TestClient) -> None:
+    text = client.get("/paragony").text
+    assert text.count('id="szukaj"') == 1

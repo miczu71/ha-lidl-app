@@ -36,6 +36,7 @@ from lidl.leaflet import LeafletRunner
 from lidl.promotions import PromotionRunner
 from lidl.receipt import parse_detail
 from lidl.rewards import RewardsRunner
+from lidl.search import EAN_RE, BiedronkaSearchCache, search_all
 from lidl.service import LidlService
 from lidl.settings import COUNTRY, Settings
 from lidl.sync import HistorySync
@@ -86,6 +87,8 @@ from .receipts import (
 )
 from .rhythm import heatmap, map_points, store_rows
 from .savings import savings_view
+from .search_view import LIDL_CODE_RE, known_eans
+from .search_view import rows as search_rows
 from .status import FILTERS as STATUS_FILTERS
 from .status import LEVELS as STATUS_LEVELS
 from .status import Problem, Snapshot
@@ -211,6 +214,8 @@ def create_app(settings: Settings) -> FastAPI:
 
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.feed = feed
+            app.state.promotions = promotions  # wyszukiwarka E31: promocje Lidla (`latest`)
+            app.state.bdr_search = BiedronkaSearchCache()  # wyszukiwarka E31: zdalny katalog Biedronki
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
             leaflet = LeafletRunner(session, history, settings) if settings.llm_enabled else None
             app.state.leaflet, app.state.started = leaflet, datetime.now()
@@ -984,6 +989,79 @@ def create_app(settings: Settings) -> FastAPI:
     async def toggle_watched(request: Request, art_id: str, on: str = Form(...)) -> Response:
         request.app.state.history.set_watched(art_id, on == "1")
         return toggled(request, art_id)
+
+    @app.get("/szukaj")
+    async def search_page(request: Request, q: str = "", zdalne: str = "0") -> Response:
+        history: History = request.app.state.history
+        q = q.strip()
+        slugs = chain_savings._bdr_slugs(service(request))
+        remote: list[dict[str, Any]] = []
+        error = ""
+        wants_remote = zdalne == "1" and len(q) >= 3 and bool(slugs)
+        if wants_remote:
+            try:
+                api = await service(request).chain_api(slugs[0])
+                remote = await request.app.state.bdr_search.names(api, q)
+            except LidlPlusError:
+                error = "Katalog Biedronki niedostępny"
+        hits = search_all(
+            history, q, today=date.today(), promos=request.app.state.promotions.latest, remote=remote
+        )
+        ctx: dict[str, Any] = {
+            "q": q,
+            "hits": search_rows(hits, history.watched_codes()),
+            "error": error,
+            "can_remote": bool(slugs) and len(q) >= 3 and not wants_remote,
+        }
+        if request.headers.get("hx-request"):
+            return render(request, "_search_results.html", **ctx)
+        return render(request, "search.html", section="szukaj", **ctx)
+
+    @app.get("/szukaj/stan/{ean}")
+    async def search_stock(request: Request, ean: str) -> Response:
+        history: History = request.app.state.history
+        if not EAN_RE.fullmatch(ean) or ean not in known_eans(history):
+            return Response("Nie znam tego produktu.", status_code=404)
+        store = history.get_setting("biedronka_store")
+        slugs = chain_savings._bdr_slugs(service(request))
+        if not store:
+            return render(request, "_search_stan.html", ean=ean, msg="Wybierz sklep w Ceny półkowe")
+        if not slugs:
+            return render(request, "_search_stan.html", ean=ean, msg="Połącz konto Biedronki w Konta")
+        lock: asyncio.Lock = request.app.state.shelf_lock
+        if lock.locked():  # trwa odczyt (ręczny albo poranny): nie czekamy na zamek w widoku
+            return render(request, "_search_stan.html", ean=ean, msg="Trwa odczyt cen, spróbuj za chwilę")
+        async with lock:
+            try:
+                api = await service(request).chain_api(slugs[0])
+                price = shelf_prices.parse_price(
+                    store, ean, await api.product_price(store, ean), datetime.now()
+                )
+                stock = shelf_prices.parse_stock(await api.product_stock(store, ean))
+            except LidlPlusAuthError:
+                return render(
+                    request, "_search_stan.html", ean=ean, msg="Sesja wygasła — zaloguj ponownie w Konta"
+                )
+            except (LidlPlusError, ValueError):
+                return render(request, "_search_stan.html", ean=ean, msg="Nie udało się odczytać")
+        return render(
+            request,
+            "_search_stan.html",
+            ean=ean,
+            msg="",
+            price_txt=fmt_pln(price.price, 2) if price and price.price is not None else "",
+            regular_txt=fmt_pln(price.regular, 2) if price and price.regular is not None else "",
+            stock_txt={"yes": "jest", "low": "mało", "no": "brak"}.get(stock or "", ""),
+        )
+
+    @app.post("/szukaj/obserwuj")
+    async def search_watch(request: Request, key: str = Form(...), on: str = Form(...)) -> Response:
+        history: History = request.app.state.history
+        code = key[2:] if key.startswith("b:") else ""
+        if not ((code and code in known_eans(history)) or LIDL_CODE_RE.fullmatch(key)):
+            return Response("Nieznany produkt.", status_code=400)
+        history.set_watched(key, on == "1")
+        return render(request, "_search_star.html", r={"watch_key": key, "watched": on == "1"})
 
     @app.get("/kraje")
     async def countries_page(request: Request) -> Response:

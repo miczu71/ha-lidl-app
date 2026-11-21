@@ -606,5 +606,13 @@ a.st:hover .st__name { color: var(--blue); text-decoration: underline; text-unde
 .chain-tag::before { content: ""; width: 8px; height: 8px; border-radius: var(--radius-pill); background: var(--chain-dot, var(--ink-muted)); }
 .chain-tag--biedronka { --chain-dot: #d6192c; }
 .chain-tag--lidl { --chain-dot: #0050aa; }
+/* Wyszukiwarka E31: pole w pasku, wiersz wyniku (łamie się na 390 px), bez poziomego przewijania. */
+.searchbar { flex: 1; min-width: 0; margin-left: var(--space-2); }
+@media (max-width: 520px) { .bar { flex-wrap: wrap; } .searchbar { flex: 1 1 100%; order: 2; margin: 0 0 var(--space-2); } }
+input#szukaj { width: 100%; min-height: 44px; padding: 0 var(--space-4); border: 1.5px solid var(--line); border-radius: var(--radius-pill); background: var(--surface-inset); color: var(--ink); font: 400 16px/20px var(--font-sans); }
+.hit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: var(--space-3) 0; border-bottom: 1.5px solid var(--line); }
+.hit__name { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; font: 600 16px/22px var(--font-sans); color: var(--ink); }
+.hit__meta { flex: 1 1 100%; min-width: 0; color: var(--ink-muted); font: 500 13px/18px var(--font-sans); }
+.hit__ctl { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 /* Pasek oszczędności „Taniej!” (żółty zarezerwowany dla oszczędności). */
 .bdr-saving { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); background: var(--bdr-sun, #ffe500); color: var(--bdr-on-sun, #17181f); border-radius: var(--radius-lg); padding: var(--space-4); font-variant-numeric: tabular-nums; }

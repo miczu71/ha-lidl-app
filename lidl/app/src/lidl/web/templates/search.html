@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Szukaj — Zakupy{% endblock %}
+{% block main %}
+<div>
+  <h1 class="t">Szukaj</h1>
+  <p class="lead">Produkty z paragonów, oferty, promocje i kupony Lidla i Biedronki.</p>
+</div>
+<div id="szukaj-wyniki">{% include "_search_results.html" %}</div>
+{% endblock %}

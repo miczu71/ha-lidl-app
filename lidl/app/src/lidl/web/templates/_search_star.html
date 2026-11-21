@@ -1,0 +1,6 @@
+{# Gwiazdka obserwowania w wyniku wyszukiwania (wzór `star` z `_coupons_row.html`); odpowiedź to ta sama gwiazdka. #}
+<form method="post" action="{{ base }}/szukaj/obserwuj" hx-post="{{ base }}/szukaj/obserwuj" hx-swap="outerHTML">
+<input type="hidden" name="key" value="{{ r.watch_key }}">
+<input type="hidden" name="on" value="{{ '0' if r.watched else '1' }}">
+<button class="star" type="submit" aria-pressed="{{ 'true' if r.watched else 'false' }}" aria-label="Obserwuj produkt" title="{{ 'Obserwowany' if r.watched else 'Obserwuj' }}"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-star"/></svg></button>
+</form>
