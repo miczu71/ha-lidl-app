@@ -13,7 +13,8 @@ MESSAGES = {
     "shake_ok": ("ok", "Shakeomat odsłonięty."),
     "shake_wait": (
         "info",
-        "Ten Shakeomat nie jest jeszcze dostępny. Przycisk odblokuje się o podanej godzinie.",
+        "Ten Shakeomat jest już odsłonięty albo jeszcze niedostępny. "
+        "Jeśli czeka na godzinę, przycisk się odblokuje.",
     ),
     "shake_none": ("info", "Brak Shakeomatu do odsłonięcia."),
     "shake_noacc": ("err", "Konto Biedronki nie jest połączone. Zaloguj się ponownie w ustawieniach konta."),
@@ -33,6 +34,7 @@ class SavingsView:
     shake_next_label: str = ""  # „13:47” (czas polski), gdy wait
     shake_ready_at: str = ""  # ISO UTC dla skryptu odblokowującego przycisk
     shake_offers: list[str] = field(default_factory=list)  # oferty oznaczone jako z Shakeomatu
+    shake_drawn: list[str] = field(default_factory=list)  # „Mleko — 3,49 zł (zamiast 4,99 zł), do 25.11”
     urgent_count: int = 0
     fetched_label: str = ""  # „Dane z 20.11, 07:02” albo „Jeszcze bez danych”
     stale: bool = False  # migawka starsza niż STALE_AFTER (pominięty poranny przebieg)
@@ -62,8 +64,25 @@ def _entry(row: SavedSaving, today: date) -> dict[str, Any] | None:
     }
 
 
+def drawn_line(item: dict[str, Any]) -> str:
+    """Jedna linia wyniku Shakeomatu: „Mleko 1l — 3,49 zł (zamiast 4,99 zł), do 25.11”."""
+    line = str(item.get("name", ""))
+    price, regular, end = item.get("price"), item.get("regular_price"), local_date(item.get("end"))
+    if price is not None:
+        line += f" — {fmt_pln(price, 2)}"
+        if regular and regular > price:
+            line += f" (zamiast {fmt_pln(regular, 2)})"
+    if end is not None:
+        line += f", do {end.day:02d}.{end.month:02d}"
+    return line
+
+
 def build(
-    rows: list[SavedSaving], today: date, fetched: datetime | None = None, now: datetime | None = None
+    rows: list[SavedSaving],
+    today: date,
+    fetched: datetime | None = None,
+    now: datetime | None = None,
+    drawn: list[dict[str, Any]] | None = None,
 ) -> SavingsView:
     view = SavingsView()
     if fetched is None:
@@ -74,6 +93,9 @@ def build(
         view.stale = local_now - fetched > STALE_AFTER
     moment = now if now is not None and now.tzinfo is not None else datetime.now(UTC)
     view.shake_state, ready_at = shake_state(rows, today, moment)
+    view.shake_drawn = [drawn_line(d) for d in drawn or []]
+    if view.shake_drawn and view.shake_state == "none":  # kafelek zniknął po odsłonięciu, wynik zostaje
+        view.shake_state = "done"
     view.shakeomat = view.shake_state != "none"
     if ready_at is not None:
         view.shake_next_label = local_hhmm(ready_at)

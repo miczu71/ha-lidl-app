@@ -7,6 +7,7 @@ tolerancyjny: nieznane pola pomija, a element bez identyfikatora i nazwy odrzuca
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta, timezone
@@ -20,6 +21,7 @@ log = logging.getLogger(__name__)
 SAVINGS_FETCHED_KEY = "savings_fetched_at"  # czas ostatniego udanego odświeżenia migawki (nie wygasa)
 OFFER_KINDS = {"offer", "shakeomat"}
 SHAKEOMAT_TYPES = ("SHAKEOMAT", "SHAKEOMAT_2", "SHAKEOMARKA")
+SHAKE_DRAWN_KEY = "shake_drawn"  # ustawienie: wynik dzisiejszego odsłonięcia {"day": ISO, "items": [...]}
 J4U_SLUG = "just4you"
 URGENT_DAYS = 3  # voucher kończący się w tylu dniach trafia do porannego powiadomienia
 
@@ -256,6 +258,7 @@ class ShakeResult:
     failed: list[str] = field(default_factory=list)
     skipped: int = 0  # HTTP 409: kafelek jeszcze/już niedostępny — nie jest błędem
     new_offers: list[str] = field(default_factory=list)  # oferty, które po odsłonięciu doszły do migawki
+    drawn: list[dict[str, Any]] = field(default_factory=list)  # oferty wylosowane (z odpowiedzi odsłonięcia)
 
 
 def _utc(iso: str | None) -> datetime | None:
@@ -294,6 +297,38 @@ def shake_state(rows: list[Any], today: date, now: datetime) -> tuple[str, datet
     return "wait", min(t for t in (_utc(r.valid_from) for r in open_) if t is not None)
 
 
+def drawn_from_reply(reply: Any) -> dict[str, Any] | None:
+    """Wylosowana oferta z odpowiedzi odsłonięcia (nazwa, cena, cena regularna, koniec ważności)."""
+    if not isinstance(reply, dict):
+        return None
+    name = _text(reply, "name")
+    if not name:
+        return None
+    return {
+        "name": name,
+        "price": _as_float(reply.get("price")),
+        "regular_price": _as_float(reply.get("regular_price")),
+        "end": _text(reply, "end"),
+    }
+
+
+def load_drawn(history: History, today: date) -> list[dict[str, Any]]:
+    """Dzisiejszy wynik Shakeomatu (puste, gdy brak albo z innego dnia)."""
+    try:
+        data = json.loads(history.get_setting(SHAKE_DRAWN_KEY) or "{}")
+    except ValueError:
+        return []
+    items = data.get("items") if isinstance(data, dict) and data.get("day") == today.isoformat() else None
+    return [i for i in items if isinstance(i, dict)] if isinstance(items, list) else []
+
+
+def _save_drawn(history: History, today: date, items: list[dict[str, Any]]) -> None:
+    history.set_setting(
+        SHAKE_DRAWN_KEY,
+        json.dumps({"day": today.isoformat(), "items": [*load_drawn(history, today), *items]}),
+    )
+
+
 async def shake(
     history: History, slug: str, api: Any, today: date, now: datetime | None = None
 ) -> ShakeResult:
@@ -323,8 +358,12 @@ async def shake(
             continue
         result.done += 1  # zapis znacznika poza try: jego błąd nie jest błędem odsłonięcia
         history.savings_mark_revealed(slug, tile.ext_id, today)
+        if (drawn := drawn_from_reply(reply)) is not None:
+            result.drawn.append(drawn)
         if isinstance(reply, dict) and not reply_keys:
             reply_keys = sorted(str(k) for k in reply)  # kształt odpowiedzi PATCH (same klucze, bez wartości)
+    if result.drawn:
+        _save_drawn(history, today, result.drawn)
     refresh_failed = False
     if result.done:
         try:

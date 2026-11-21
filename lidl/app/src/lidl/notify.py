@@ -95,7 +95,10 @@ def compose_shakeomat(results: list[ShakeResult], labels: dict[str, str]) -> tup
     lines = []
     for r in tried:
         label = labels.get(r.slug, r.slug)
-        lines.append(f"{label}: odsłonięto {r.done}" + (f", błąd: {'; '.join(r.failed)}" if r.failed else ""))
+        won = f", wylosowano: {', '.join(d['name'] for d in r.drawn)}" if r.drawn else ""
+        lines.append(
+            f"{label}: odsłonięto {r.done}{won}" + (f", błąd: {'; '.join(r.failed)}" if r.failed else "")
+        )
     failed = any(r.failed for r in tried)
     title = "Biedronka: Shakeomat — nie wszystko się udało" if failed else "Biedronka: Shakeomat odsłonięty"
     return title, "\n".join(lines)

@@ -405,3 +405,36 @@ async def test_shake_refresh_failure_is_noted_in_event(tmp_path: Path) -> None:
     assert result.done == 1
     events = [e for e in h.events(datetime(2000, 1, 1), area="daily")]
     assert events and events[-1].level == "ok"
+
+
+class DrawApi(ShakeApi):
+    async def reveal_and_activate(self, offer_id: str) -> Any:
+        await super().reveal_and_activate(offer_id)
+        return {"name": "Mleko 1l", "price": 3.49, "regular_price": 4.99, "end": "2026-11-25T22:59:59Z"}
+
+
+async def test_shake_saves_drawn_offer_from_reply_for_today(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    h.savings_replace(
+        "a", {"shakeomat"}, [Saving("shakeomat", "sh-1", "Shakeomat", None, None, None, None, {})]
+    )
+    result = await chain_savings.shake(h, "a", DrawApi(), date(2026, 11, 21))  # type: ignore[arg-type]
+    want = {"name": "Mleko 1l", "price": 3.49, "regular_price": 4.99, "end": "2026-11-25T22:59:59Z"}
+    assert result.drawn == [want]
+    assert chain_savings.load_drawn(h, date(2026, 11, 21)) == [want]
+    assert chain_savings.load_drawn(h, date(2026, 11, 22)) == []  # wynik ważny tylko tego dnia
+
+
+def test_drawn_from_reply_ignores_replies_without_a_name() -> None:
+    assert chain_savings.drawn_from_reply({"ok": True}) is None
+    assert chain_savings.drawn_from_reply(None) is None
+
+
+def test_load_drawn_survives_a_broken_setting(tmp_path: Path) -> None:
+    from datetime import date
+
+    h = History(tmp_path / "h.db")
+    h.set_setting(chain_savings.SHAKE_DRAWN_KEY, "{not json")
+    assert chain_savings.load_drawn(h, date(2026, 11, 21)) == []

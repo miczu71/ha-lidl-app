@@ -1205,14 +1205,24 @@ def create_app(settings: Settings) -> FastAPI:
             request,
             "bdr_savings.html",
             section="biedronka",
-            view=bdr_savings.build(history.savings_list(), date.today(), _savings_fetched(history)),
+            view=bdr_savings.build(
+                history.savings_list(),
+                date.today(),
+                _savings_fetched(history),
+                drawn=chain_savings.load_drawn(history, date.today()),
+            ),
             message=bdr_savings.MESSAGES.get(m or ""),
             auto_shakeomat=settings.biedronka_auto_shakeomat,
         )
 
     def shake_card(request: Request, flash: tuple[str, str] | None = None) -> Response:
         history: History = request.app.state.history
-        view = bdr_savings.build(history.savings_list(), date.today(), _savings_fetched(history))
+        view = bdr_savings.build(
+            history.savings_list(),
+            date.today(),
+            _savings_fetched(history),
+            drawn=chain_savings.load_drawn(history, date.today()),
+        )
         return render(
             request,
             "_bdr_shake.html",

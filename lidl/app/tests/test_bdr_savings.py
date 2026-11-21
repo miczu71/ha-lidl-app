@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime
 
 from fastapi.testclient import TestClient
@@ -223,7 +224,7 @@ def test_shake_htmx_wait_and_plain_post_redirect(client: TestClient, monkeypatch
 
     monkeypatch.setattr(chain_savings, "shake_accounts", fake)
     htmx = client.post("/biedronka/shakeomat", headers={"hx-request": "true"})
-    assert "jeszcze dostępny" in htmx.text and 'id="bdr-shake"' in htmx.text
+    assert "już odsłonięty" in htmx.text and 'id="bdr-shake"' in htmx.text
     plain = client.post("/biedronka/shakeomat")
     assert plain.status_code == 303 and plain.headers["location"].endswith("?m=shake_wait")
 
@@ -240,3 +241,31 @@ def test_route_snapshot_age_prefers_the_persistent_setting(client: TestClient) -
     h = _with_biedronka(client)
     h.set_setting("savings_fetched_at", "2026-10-01T07:02:00")  # starsze niż 30 dni dziennika
     assert "Dane z 01.10, 07:02" in client.get("/biedronka").text
+
+
+def test_shakeomat_htmx_click_shows_the_drawn_offer_on_the_same_card(client: TestClient, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    h = _with_biedronka(client)
+    h.savings_replace("b", {"shakeomat"}, [_s("shakeomat", "sh1", "Shakeomat", "2020-01-01T00:00:00Z")])
+    from lidl import chain_savings
+
+    async def fake(history, service, today):  # type: ignore[no-untyped-def]
+        drawn = {"name": "Mleko 1l", "price": 3.49, "regular_price": 4.99, "end": "2099-01-01T00:00:00Z"}
+        history.set_setting(
+            chain_savings.SHAKE_DRAWN_KEY, json.dumps({"day": today.isoformat(), "items": [drawn]})
+        )
+        history.savings_replace("b", {"shakeomat"}, [])  # po odsłonięciu kafelek znika z karuzeli
+        return [chain_savings.ShakeResult("b", 1, drawn=[drawn])]
+
+    monkeypatch.setattr(chain_savings, "shake_accounts", fake)
+    card = client.post("/biedronka/shakeomat", headers={"hx-request": "true"}).text
+    assert "Wylosowano:" in card and "Mleko 1l — 3,49" in card and "zamiast 4,99" in card
+    assert "Shakeomat odsłonięty." in card and "Dzisiejszy Shakeomat odsłonięty" in card
+    assert "Odsłoń teraz" not in card
+    page = client.get("/biedronka").text  # po przeładowaniu wynik zostaje na karcie
+    assert "Wylosowano:" in page and "Mleko 1l" in page
+
+
+def test_shake_already_revealed_message_is_not_about_waiting_only() -> None:
+    from lidl.web.bdr_savings import MESSAGES
+
+    assert "już odsłonięty" in MESSAGES["shake_wait"][1]

@@ -11,6 +11,7 @@
       {%- elif view.shake_state == "none" %}Odśwież stronę, jeśli w aplikacji jest dzisiejszy Shakeomat.
       {%- elif view.shake_offers %}Oferty z Shakeomatu: {{ view.shake_offers | join(", ") }}.
       {%- else %}Wylosowana oferta jest na liście poniżej albo w aplikacji Moja Biedronka.{% endif %}</span>
+    {%- if view.shake_drawn %}<br><span class="meta"><strong>Wylosowano:</strong> {{ view.shake_drawn | join("; ") }}</span>{% endif %}
     {%- if flash %}<br><span class="meta notice--{{ flash[0] }}">{{ flash[1] }}</span>{% endif %}
   </span>
   {%- if view.shake_state in ("ready", "wait") %}

@@ -80,3 +80,11 @@ def test_compose_shakeomat() -> None:
         "",
     )
     assert "nie wszystko" in title and "http_409" in body
+
+
+def test_compose_shakeomat_names_the_drawn_offer() -> None:
+    from lidl.chain_savings import ShakeResult
+
+    drawn = [{"name": "Mleko 1l", "price": 3.49, "regular_price": None, "end": None}]
+    _, body = notify.compose_shakeomat([ShakeResult("b", 1, drawn=drawn)], {"b": "Ada"})
+    assert body == "Ada: odsłonięto 1, wylosowano: Mleko 1l"
