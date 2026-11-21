@@ -1095,13 +1095,13 @@ class History:
         """v14 → v15: `store_geo` z kluczem (sieć, kod) zamiast samego kodu; sieć istniejących punktów wynika
         z paragonów (kod z paragonu Biedronki → `biedronka`, reszta → `lidl`); wcześniej kopia
         `.pre-geo-chain`."""
+        if "chain" in {r[1] for r in self._db.execute("PRAGMA table_info(store_geo)")}:
+            return
         dest = sqlite3.connect(path.with_name(path.name + ".pre-geo-chain"))
         try:
             self._db.backup(dest)
         finally:
             dest.close()
-        if "chain" in {r[1] for r in self._db.execute("PRAGMA table_info(store_geo)")}:
-            return
         with self._db:
             self._db.execute("ALTER TABLE store_geo RENAME TO store_geo_v14")
             self._db.execute(

@@ -134,6 +134,12 @@ MESSAGES = {
 }
 
 
+def _msg(m: str) -> dict[str, str] | None:
+    """Komunikat z `?m=` dla szablonu (`kind`, `text`); None dla nieznanego klucza."""
+    kind, text = MESSAGES.get(m, ("", ""))
+    return {"kind": kind, "text": text} if text else None
+
+
 def _savings_fetched(history: History) -> datetime | None:
     """Czas ostatniego udanego odświeżenia migawki Oszczędzania: ustawienie (nie wygasa), a dla baz sprzed
     1.9.1 dziennik (30 dni)."""
@@ -360,16 +366,12 @@ def create_app(settings: Settings) -> FastAPI:
     @app.get("/konta")
     async def index(request: Request, m: str = "", a: str = "") -> Response:
         svc = service(request)
-        msg = None
-        if m in MESSAGES:
-            kind, text = MESSAGES[m]
-            msg = {"kind": kind, "text": text}
         return render(
             request,
             "index.html",
             section="konta",
             accounts=svc.store.list(),
-            msg=msg,
+            msg=_msg(m),
         )
 
     @app.get("/polka")
@@ -377,12 +379,11 @@ def create_app(settings: Settings) -> FastAPI:
         history: History = request.app.state.history
         if "biedronka" not in history.has_chains():
             return Response("Brak paragonów Biedronki.", status_code=404)
-        kind, text = MESSAGES.get(m, ("", ""))
         return render(
             request,
             "polka.html",
             section="polka",
-            msg={"kind": kind, "text": text} if text else None,
+            msg=_msg(m),
             shelf=shelf_view(history),
         )
 
@@ -1165,9 +1166,8 @@ def create_app(settings: Settings) -> FastAPI:
             chains.decided_rows(history, "approved", all_pairs),
             chains.decided_rows(history, "rejected", all_pairs),
         )
-        kind, text = MESSAGES.get(m, ("", ""))
         return {
-            "msg": {"kind": kind, "text": text} if text else None,
+            "msg": _msg(m),
             "kat": kat or "",  # htmx-owe formularze par niosą filtr dalej (E28.6)
             "proposals": proposals,
             "approved": approved,
@@ -1274,7 +1274,6 @@ def create_app(settings: Settings) -> FastAPI:
             return Response("Brak paragonów z drugiej sieci.", status_code=404)
         if action not in ("approve", "reject", "undo", "restore"):
             return Response("Nieznana akcja pary.", status_code=400)
-        ok = True
         if action in ("approve", "reject") and not chains.is_known_product(history, b_art_id):
             ok = False  # tylko produkty z paragonów Biedronki, bez śmieciowych wierszy
         elif action == "approve":
