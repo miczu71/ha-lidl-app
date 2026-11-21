@@ -97,3 +97,17 @@ Supervisor.
 - Zbyt wiele zapytań przy szybkim pisaniu: debounce htmx 400 ms, cache, Biedronka tylko z przycisku.
 - Znaki towarowe w repo PUBLIC (sprawdzane w E31.1).
 - Kontekst tej sesji jest duży: po akceptacji zaczynam od E31.0, potem `stage-end` i auto-handoff.
+
+## Wynik spike'u E31.1 (2026-11-21)
+**Biedronka `products/search/<fraza>/`** (5 fraz: masło, mleko, banany, chleb, ser gouda, mozzarella; ≤1/s; 200, bez 429):
+- działa na żywo, zwraca listę 10 pozycji `{name, sap_product_number, unit}`; **brak EAN, ceny, zdjęcia i stronicowania**; fraza bez trafień (kod EAN) → `[]`.
+- ranking szumny (np. „masło” → popcorn maślany, sałata masłowa); nazwa zawiera gramaturę.
+- `products/price/<sklep>/<SAP>/` odrzuca SAP (`BiedronkaError`) — cena i stan wymagają EAN. SAP↔EAN znamy tylko tam, gdzie
+  odpowiedź ma oba pola: karuzela ofert (`product_main_ean_code` + `sap_product_number`); `most-purchased` ma tylko SAP.
+- **Bramka: B** — nazwy z katalogu na żywo są, EAN-u (więc ceny/stanu po kliknięciu) nie ma.
+**Lidl `www.lidl.pl/q/api/search`** (bez filtra kategorii, parametry jak `WEB_PARAMS`, `fetchsize` 10–50):
+- 200, `numFound` 47–74, `items[].gridbox.data` z `fullTitle`, `erpNumber`, `ians`, `price.price`, `category`; stronicowanie `offset`/`fetchsize`.
+- to sklep online: ~80% wyników to non-food (AGD, moda); żywność rzadka („masło” → 1 produkt, „mleko” → 1, „banany” → 4 z 10) i zwykle `price: None`
+  (cena tylko przy ofercie). Z filtrem `category.id=10068374`: „masło” → 2 wyniki. Kod: `erpNumber`/`ians`, nie EAN.
+- **Wniosek:** Lidl nie daje stałego asortymentu spożywczego; wystarczy jako uzupełnienie ofert/gazetki, nie jako katalog.
+**Logotypy:** zasady użycia znaków Lidl/Biedronka w repo PUBLIC niesprawdzone przeze mnie (brak źródła do automatycznej weryfikacji) — decyzja usera.
