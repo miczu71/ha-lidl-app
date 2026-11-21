@@ -127,6 +127,9 @@ class FakeHistory:
     def product_name(self, art_id: str) -> str | None:
         return self.names.get(art_id)
 
+    def product_names(self, codes: Any) -> dict[str, str]:
+        return {c: self.names[c] for c in codes if c in self.names}
+
     def warm(self) -> None:
         self.warmed = getattr(self, "warmed", 0) + 1
 
@@ -650,3 +653,29 @@ async def test_back_in_stock_unwatched_ean_not_pushed_but_cleared(monkeypatch: p
     await _job([], history=history, dry_run=False)()
     assert [title for title, _ in sent] == ["Lidl: Produkt X — wróciło na półkę w Biedronce"]
     assert shelf_prices.pending_back(history) == []  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(("dry_run", "pending_after"), [(False, []), (True, ["5900000000009"])])
+async def test_unwatched_back_alone_is_cleared_without_push(
+    monkeypatch: pytest.MonkeyPatch, dry_run: bool, pending_after: list[str]
+) -> None:
+    sent: list[Any] = []
+
+    async def send(session: Any, message: Any, *, tag: str = notify.TAG) -> bool:
+        if tag == notify.TAG_WATCHED:
+            sent.append(message)
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    history = _back_history(["5900000000009"])  # obserwowany jest tylko SHELF_EAN
+    await _job([], history=history, dry_run=dry_run)()
+    assert sent == []
+    assert shelf_prices.pending_back(history) == pending_after  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(("dry_run", "pending_after"), [(False, []), (True, ["5900000000009"])])
+async def test_back_pending_cleared_when_nothing_is_watched(dry_run: bool, pending_after: list[str]) -> None:
+    history = _back_history(["5900000000009"])
+    history.watched.clear()
+    await _job([], history=history, dry_run=dry_run)()
+    assert shelf_prices.pending_back(history) == pending_after  # type: ignore[arg-type]

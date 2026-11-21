@@ -281,6 +281,8 @@ class DailyJob:
         i każda promocja tylko raz (`watched_sent`; w trybie próbnym bez zapisu)."""
         watched = self._history.watched_codes()
         if not watched:
+            if not self.dry_run:  # nic nie jest obserwowane: „wróciło na półkę” nie ma komu pójść
+                shelf_prices.clear_back(self._history, shelf_prices.pending_back(self._history))
             return
         today = date.today()
         coupons = {
@@ -292,11 +294,15 @@ class DailyJob:
         shelf = self._shelf_fresh(watched, today, sent)
         # E30.3: „wróciło na półkę” czeka trwale w ustawieniu; w pushu tylko obserwowane EAN-y
         pending = shelf_prices.pending_back(self._history)
-        back: list[str] = []
+        back_codes: dict[str, str] = {}
         for ean in pending:
             code = next((c for c in (f"b:{ean}", f"n:{ean}") if c in watched), None)
             if code is not None:
-                back.append(self._history.product_name(code) or ean)
+                back_codes[ean] = code
+        names = self._history.product_names(back_codes.values())
+        back = [names.get(code) or ean for ean, code in back_codes.items()]
+        if pending and not back and not self.dry_run:  # same nieobserwowane: nie czekają w nieskończoność
+            shelf_prices.clear_back(self._history, pending)
         message = notify.compose_watched(
             list(coupons.values()),
             list(found.values()),
@@ -318,11 +324,15 @@ class DailyJob:
         store = self._history.get_setting("biedronka_store")
         if not store:
             return []
+        offers = shelf_offers(self._history, store, today)
+        codes = {
+            o.ean: next((c for c in (f"b:{o.ean}", f"n:{o.ean}") if c in watched), o.ean) for o in offers
+        }
+        names = self._history.product_names(codes.values())  # jedno zapytanie zamiast nazwy na ofertę
         fresh: list[tuple[str, str, ShelfOffer]] = []
-        for offer in shelf_offers(self._history, store, today):
+        for offer in offers:
             key = f"bs:{offer.ean}:{offer.end.isoformat() if offer.end else f'{offer.price:.2f}'}"
             if key in sent:
                 continue
-            code = next((c for c in (f"b:{offer.ean}", f"n:{offer.ean}") if c in watched), offer.ean)
-            fresh.append((key, self._history.product_name(code) or offer.ean, offer))
+            fresh.append((key, names.get(codes[offer.ean]) or offer.ean, offer))
         return fresh

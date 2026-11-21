@@ -1639,6 +1639,21 @@ class History:
                 return str(name)
         return None
 
+    def product_names(self, codes: Iterable[str]) -> dict[str, str]:
+        """Jak `product_name`, ale dla wielu kodów naraz (jedno zapytanie); kody bez nazwy są pominięte."""
+        wanted = set(codes)
+        found: dict[str, str] = {}
+        if not wanted:
+            return found
+        resolve = self._resolver()
+        for code, name in self._db.execute(
+            "SELECT i.art_id, i.name FROM items i JOIN tickets t ON t.id = i.ticket_id ORDER BY t.day DESC"
+        ):
+            art_id = resolve(code, name)
+            if art_id in wanted and art_id not in found:
+                found[art_id] = str(name)
+        return found
+
     def ranking(
         self, start: date | None = None, end: date | None = None, query: str = ""
     ) -> list[RankedProduct]:

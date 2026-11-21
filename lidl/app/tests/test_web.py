@@ -1597,3 +1597,26 @@ def test_polka_shelf_status_shows_last_read(client: TestClient) -> None:
     assert "jeszcze nie odczytano" in client.get("/polka").text
     history.log_event("shelf", "ok", "Ceny półkowe Biedronki: odczytane", {"store": "0001", "count": 3})
     assert "jeszcze nie odczytano" not in client.get("/polka").text
+
+
+def test_polka_check_is_busy_while_another_read_runs(client: TestClient, monkeypatch) -> None:
+    import asyncio
+
+    _bdr_account_with_store(client).set_setting("biedronka_store", "0001")
+    calls: list[int] = []
+
+    async def fake(history: Any, service: Any) -> shelf_prices.RefreshResult:
+        calls.append(1)
+        return shelf_prices.RefreshResult(ok=1)
+
+    monkeypatch.setattr(shelf_prices, "refresh_morning", fake)
+    lock = client.app.state.shelf_lock
+    asyncio.run(lock.acquire())  # trwa odczyt (ręczny albo poranny)
+    try:
+        assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_busy"
+    finally:
+        lock.release()
+    assert calls == []  # drugi przebieg nie startuje
+    assert "Odczyt cen już trwa" in client.get("/polka?m=shelf_busy").text
+    assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_ok"
+    assert calls == [1]

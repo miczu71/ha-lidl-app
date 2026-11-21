@@ -126,6 +126,7 @@ MESSAGES = {
     "shelf_ok": ("ok", "Ceny półkowe odczytane."),
     "shelf_none": ("err", "Najpierw wybierz sklep i połącz konto Biedronki."),
     "shelf_err": ("err", "Część cen nie została odczytana. Szczegóły w zakładce Status."),
+    "shelf_busy": ("err", "Odczyt cen już trwa. Spróbuj za chwilę."),
 }
 
 
@@ -185,6 +186,12 @@ def create_app(settings: Settings) -> FastAPI:
             runner = CouponRunner(service, history)
             rewards = RewardsRunner(service)
             promotions = PromotionRunner(session, history)
+            app.state.shelf_lock = asyncio.Lock()  # E30.4: ręczny odczyt i poranny nie biegną równolegle
+
+            async def morning_shelf() -> shelf_prices.RefreshResult | None:
+                async with app.state.shelf_lock:
+                    return await shelf_prices.refresh_morning(history, service)
+
             job = DailyJob(
                 service.store,
                 sync,
@@ -199,8 +206,9 @@ def create_app(settings: Settings) -> FastAPI:
                     if settings.biedronka_auto_shakeomat
                     else None
                 ),
-                shelf=lambda: shelf_prices.refresh_morning(history, service),
+                shelf=morning_shelf,
             )
+
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.feed = feed
             app.state.runner, app.state.job, app.state.rewards = runner, job, rewards
@@ -385,21 +393,25 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.post("/polka/sprawdz")
     async def check_shelf(request: Request) -> Response:
-        try:
-            result = await shelf_prices.refresh_morning(request.app.state.history, service(request))
-        except LidlPlusAuthError:
-            request.app.state.history.log_event(
-                "shelf", "error", "Ceny półkowe Biedronki: sesja wygasła", {"auth": True}
-            )
-            return go(request, "/konta?m=expired")
-        except LidlPlusCannotConnect:
-            return go(request, "/polka?m=offline")
-        except LidlPlusError:
-            return go(request, "/polka?m=shelf_err")
-        if result is None:
-            return go(request, "/polka?m=shelf_none")
-        bad = result.failed or (result.skipped and not result.ok)
-        return go(request, "/polka?m=shelf_err" if bad else "/polka?m=shelf_ok")
+        lock: asyncio.Lock = request.app.state.shelf_lock
+        if lock.locked():  # trwa odczyt (ręczny albo poranny): drugi przebieg nie startuje
+            return go(request, "/polka?m=shelf_busy")
+        async with lock:
+            try:
+                result = await shelf_prices.refresh_morning(request.app.state.history, service(request))
+            except LidlPlusAuthError:
+                request.app.state.history.log_event(
+                    "shelf", "error", "Ceny półkowe Biedronki: sesja wygasła", {"auth": True}
+                )
+                return go(request, "/konta?m=expired")
+            except LidlPlusCannotConnect:
+                return go(request, "/polka?m=offline")
+            except LidlPlusError:
+                return go(request, "/polka?m=shelf_err")
+            if result is None:
+                return go(request, "/polka?m=shelf_none")
+            bad = result.failed or (result.skipped and not result.ok)
+            return go(request, "/polka?m=shelf_err" if bad else "/polka?m=shelf_ok")
 
     @app.post("/accounts")
     async def add_account(request: Request, label: str = Form(...), chain: str = Form("lidl")) -> Response:

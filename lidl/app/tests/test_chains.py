@@ -408,3 +408,13 @@ def test_page_comparison_shelf_stock_yes_has_no_tag(client: TestClient) -> None:
     h.shelf_replace("0001", [_shelf_stock("111", 2.79, "yes")])
     text = client.get("/sieci").text
     assert "2,79" in text and "brak na półce" not in text and "mało" not in text
+
+
+def test_page_comparison_shelf_stock_yes_without_price_says_jest(client: TestClient) -> None:
+    mleko = _both(client)
+    h = _hist(client)
+    h.chain_pair_approve("b:111", mleko, "manual")
+    h.set_setting("biedronka_store", "0001")
+    h.shelf_replace("0001", [_shelf_stock("111", None, "yes")])  # stan znany, cena nie
+    text = client.get("/sieci").text
+    assert 'jest <span class="meta">odczyt 21 lis' in text and "2,79" not in text

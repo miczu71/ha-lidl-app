@@ -56,6 +56,10 @@ def targets(history: History) -> list[str]:
     return sorted(found)[:MAX_EANS]
 
 
+def _iso_or_none(value: date | None) -> str | None:
+    return value.isoformat() if value is not None else None
+
+
 def _money(value: Any) -> float | None:
     if value in (None, ""):
         return None
@@ -79,7 +83,7 @@ def parse_price(store: str, ean: str, data: Any, now: datetime) -> ShelfPrice | 
         regular=_money(data["regular_price"]),
         omnibus=omnibus,
         promo_from=period,
-        promo_to=None,
+        promo_to=_iso_or_none(parse_promo_end(period, now.date())),
         card_only=bool(data.get("only_with_biedronka_card")),
         is_promotion=bool(data.get("is_promotion")),
         fetched_at=now.isoformat(timespec="seconds"),
@@ -253,6 +257,16 @@ class ShelfOffer:
     stock: str | None = None  # E30.3: 'yes'|'low'|'no'|None (nieznany)
 
 
+def _stored_promo_end(row: ShelfPrice, today: date) -> date | None:
+    """Koniec promocji z zapisanej daty `promo_to` (E30.4); zły format albo brak → tekst okresu (stare)."""
+    if row.promo_to:
+        try:
+            return date.fromisoformat(row.promo_to)
+        except ValueError:
+            pass
+    return parse_promo_end(row.promo_from, today)
+
+
 def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
     """Promocje półkowe obserwowanych EAN-ów w sklepie `store`: cena niższa niż Omnibus (albo zwykła)."""
     watched = watched_eans(history)
@@ -263,7 +277,7 @@ def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
         was = row.omnibus if row.omnibus else row.regular
         if was is None or row.price >= was:
             continue
-        end = parse_promo_end(row.promo_from, today)
+        end = _stored_promo_end(row, today)
         if end is not None and end < today:  # stary wiersz po nieudanych odczytach: promocja minęła
             continue
         offers.append(ShelfOffer(row.ean, row.price, was, end, row.card_only, row.stock))
@@ -275,9 +289,11 @@ async def refresh_morning(history: History, service: Any) -> RefreshResult | Non
     połączone konto Biedronki; `None`, gdy nie ma sklepu albo konta."""
     store = history.get_setting("biedronka_store")
     if not store:
+        history.log_event("shelf", "warn", "Ceny półkowe Biedronki: pominięto — brak sklepu", {})
         return None
     slugs = _bdr_slugs(service)
     if not slugs:
+        history.log_event("shelf", "warn", "Ceny półkowe Biedronki: pominięto — brak połączonego konta", {})
         return None
     api = await service.chain_api(slugs[0])
     return await refresh(history, api, store)

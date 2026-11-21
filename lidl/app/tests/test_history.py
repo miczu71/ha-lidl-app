@@ -1661,3 +1661,13 @@ def test_shelf_replace_round_trips_stock(tmp_path: Path) -> None:
     assert h.shelf_list("0001")[0].stock == "no"
     h.shelf_replace("0001", [replace(row, stock="low", fetched_at="t2")])
     assert h.shelf_list("0001")[0].stock == "low"
+
+
+def test_product_names_newest_name_per_code_and_missing_skipped(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets("a", [_ticket("t1", "2026-01-01"), _ticket("t2", "2026-02-01")])
+    h.save_detail("t1", "Sklep X", _receipt(("1", "Stara nazwa", 1, 5.0), ("2", "Druga", 1, 3.0)))
+    h.save_detail("t2", "Sklep X", _receipt(("1", "Nowa nazwa", 1, 5.0)))
+    assert h.product_names(["1", "3"]) == {"1": "Nowa nazwa"}  # najnowsza nazwa; brak kodu pominięty
+    assert h.product_names([]) == {}
+    assert h.product_names(["1"]) == {"1": h.product_name("1")}

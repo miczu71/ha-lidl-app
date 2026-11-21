@@ -98,7 +98,7 @@ def test_parse_price_promotion_with_omnibus() -> None:
     row = parse_price("0001", EAN_A, PROMO, NOW)
     assert row is not None
     assert (row.store, row.ean, row.price, row.regular, row.omnibus) == ("0001", EAN_A, 7.49, 12.99, 9.99)
-    assert row.promo_from == "od 16.11 do 22.11" and row.promo_to is None
+    assert row.promo_from == "od 16.11 do 22.11" and row.promo_to == "2026-11-22"  # E30.4: koniec jako ISO
     assert row.is_promotion is True and row.card_only is False
     assert row.fetched_at == NOW.isoformat(timespec="seconds")
 
@@ -559,3 +559,37 @@ def test_clear_back_removes_only_given_eans(tmp_path: Path) -> None:
     assert shelf_prices.pending_back(h) == [EAN_B]
     shelf_prices.clear_back(h, [EAN_B])
     assert shelf_prices.pending_back(h) == []
+
+
+def test_parse_price_stores_promo_end_as_iso_date() -> None:
+    row = parse_price("0001", EAN_A, PROMO, NOW)
+    assert row is not None and row.promo_to == "2026-11-22"
+    plain = parse_price("0001", EAN_A, PLAIN, NOW)
+    assert plain is not None and plain.promo_to is None
+
+
+def test_shelf_offers_reads_promo_to_and_falls_back_to_period(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.set_watched(f"b:{EAN_B}", True)
+    row_a = replace(_shelf_row(EAN_A, 7.49, 12.99, 9.99), promo_to="2026-11-25")
+    row_b = replace(_shelf_row(EAN_B, 7.49, 12.99, 9.99, period="od 16.11 do 22.11"), promo_to="zle")
+    h.shelf_replace("0001", [row_a, row_b])
+    assert {o.ean: o.end for o in shelf_offers(h, "0001", TODAY)} == {
+        EAN_A: date(2026, 11, 25),
+        EAN_B: date(2026, 11, 22),
+    }
+
+
+async def test_refresh_morning_without_store_logs_warn_event(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    assert await refresh_morning(h, FakeService([BDR])) is None  # type: ignore[arg-type]  # brak sklepu
+    h.set_setting("biedronka_store", "0001")
+    assert await refresh_morning(h, FakeService([])) is None  # type: ignore[arg-type]  # brak konta
+    events = [(e.area, e.level, e.summary) for e in h.events(datetime(2000, 1, 1), area="shelf")]
+    assert sorted(events) == sorted(
+        [
+            ("shelf", "warn", "Ceny półkowe Biedronki: pominięto — brak sklepu"),
+            ("shelf", "warn", "Ceny półkowe Biedronki: pominięto — brak połączonego konta"),
+        ]
+    )
