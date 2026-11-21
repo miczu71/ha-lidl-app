@@ -17,11 +17,13 @@ import aiohttp
 from . import notify
 from .accounts import AccountStore
 from .chain_savings import ShakeResult
+from .client.exceptions import LidlPlusAuthError
 from .coupons import CouponRunner
 from .geo import refresh_all_store_geo
 from .history import History, elapsed_ms
 from .promotions import Promotion, PromotionRunner
 from .rewards import Rewards, RewardsRunner
+from .shelf_prices import RefreshResult, ShelfOffer, shelf_offers
 from .shopdays import is_shopping_day
 from .sync import HistorySync
 
@@ -116,8 +118,10 @@ class DailyJob:
         *,
         dry_run: bool,
         shakeomat: Callable[[], Awaitable[list[ShakeResult]]] | None = None,
+        shelf: Callable[[], Awaitable[RefreshResult | None]] | None = None,
     ) -> None:
         self._shakeomat = shakeomat  # E28.5.4: tylko przy opcji biedronka_auto_shakeomat
+        self._shelf = shelf  # E29.3: ceny półkowe Biedronki (bez sklepu w ustawieniach → None)
         self._store, self._sync, self._runner, self._rewards = store, sync, runner, rewards
         self._promotions, self._history = promotions, history
         self._session = session
@@ -147,6 +151,9 @@ class DailyJob:
             self._history.warm()  # nowe paragony unieważniły wyniki zakładek
             step = "promocje"
             await self._promotions.refresh()
+            if self._shelf is not None:
+                step = "ceny"  # przed obserwowanymi (`_watched` czyta zapisane ceny półkowe)
+                await self._morning_shelf(self._shelf)
             step = "kupony"  # z nagrodami i powiadomieniem
             report.update(await self._coupons(accounts))
             if self._shakeomat is not None:
@@ -183,6 +190,20 @@ class DailyJob:
         message = notify.compose_shakeomat(await run(), labels)
         if message:
             await notify.send(self._session, message, tag=notify.TAG_SHAKEOMAT)
+
+    async def _morning_shelf(self, run: Callable[[], Awaitable[RefreshResult | None]]) -> None:
+        """Ceny półkowe Biedronki (E29.3): błąd nie zatrzymuje porannego przebiegu."""
+        try:
+            await run()
+        except LidlPlusAuthError:
+            self._history.log_event(
+                "shelf", "error", "Ceny półkowe Biedronki: wymagane ponowne logowanie", {"run": "shelf"}
+            )
+        except Exception as err:
+            log.exception("Ceny półkowe Biedronki: krok poranny nieudany")
+            self._history.log_event(
+                "daily", "error", f"Ceny półkowe Biedronki: {type(err).__name__}: {err}", {"run": "shelf"}
+            )
 
     async def hourly(self) -> None:
         """Godzinny import paragonów (E24): bez kuponów i powiadomień; pomija, gdy trwa poranny przebieg.
@@ -268,8 +289,28 @@ class DailyJob:
             if c.account in labels and (key := f"c:{c.account}:{c.promotion_id}") not in sent
         }
         found = _unsent("p", [p for p in promos if p.art_id in watched], sent)
-        message = notify.compose_watched(list(coupons.values()), list(found.values()), today)
+        shelf = self._shelf_fresh(watched, today, sent)
+        message = notify.compose_watched(
+            list(coupons.values()), list(found.values()), today, [(name, offer) for _, name, offer in shelf]
+        )
         if not message:
             return
         if await notify.send(self._session, message, tag=notify.TAG_WATCHED) and not self.dry_run:
-            self._history.mark_watched_sent([*coupons, *found], datetime.now().isoformat())
+            keys = [*coupons, *found, *(key for key, _, _ in shelf)]
+            self._history.mark_watched_sent(keys, datetime.now().isoformat())
+
+    def _shelf_fresh(
+        self, watched: set[str], today: date, sent: set[str]
+    ) -> list[tuple[str, str, ShelfOffer]]:
+        """Niezgłoszone promocje półkowe obserwowanych: (klucz `bs:<ean>:<koniec|cena>`, nazwa, oferta)."""
+        store = self._history.get_setting("biedronka_store")
+        if not store:
+            return []
+        fresh: list[tuple[str, str, ShelfOffer]] = []
+        for offer in shelf_offers(self._history, store, today):
+            key = f"bs:{offer.ean}:{offer.end.isoformat() if offer.end else f'{offer.price:.2f}'}"
+            if key in sent:
+                continue
+            code = next((c for c in (f"b:{offer.ean}", f"n:{offer.ean}") if c in watched), offer.ean)
+            fresh.append((key, self._history.product_name(code) or offer.ean, offer))
+        return fresh

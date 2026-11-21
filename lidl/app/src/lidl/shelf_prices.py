@@ -9,9 +9,10 @@ import logging
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
+from .chain_savings import _bdr_slugs
 from .client.exceptions import LidlPlusAuthError, LidlPlusError
 from .history import History, ShelfPrice
 
@@ -20,6 +21,8 @@ log = logging.getLogger(__name__)
 MAX_EANS = 60  # limit zapytań dziennie (E29.1: ≤60/dzień, ≤1/s)
 REQUEST_PAUSE_S = 1.0
 _EAN_RE = re.compile(r"\d{8,13}")
+_PROMO_END_RE = re.compile(r"do\s+(\d{1,2})\.(\d{1,2})")
+_PROMO_YEAR_BACK = 180  # data końca więcej niż tyle dni przed dziś = przełom roku
 
 
 @dataclass
@@ -127,3 +130,63 @@ async def refresh(
             "shelf", "ok", "Ceny półkowe Biedronki: odczytane", {"store": store, "count": result.ok}
         )
     return result
+
+
+def parse_promo_end(text: str | None, today: date) -> date | None:
+    """Koniec okresu z tekstu `od 16.11 do 22.11` (rok = rok `today`, a data >180 dni wstecz to przyszły rok);
+    `None`, gdy brak tekstu albo nie da się zbudować daty."""
+    match = _PROMO_END_RE.search(text or "")
+    if match is None:
+        return None
+    month, day = int(match.group(2)), int(match.group(1))
+    try:
+        end = date(today.year, month, day)
+        if (today - end).days > _PROMO_YEAR_BACK:
+            end = date(today.year + 1, month, day)
+    except ValueError:
+        return None
+    return end
+
+
+@dataclass(frozen=True)
+class ShelfOffer:
+    """Obserwowany produkt z ceną półki poniżej Omnibusa (albo zwykłej ceny, gdy Omnibusa brak)."""
+
+    ean: str
+    price: float
+    was: float
+    end: date | None
+    card_only: bool
+
+
+def shelf_offers(history: History, store: str, today: date) -> list[ShelfOffer]:
+    """Promocje półkowe obserwowanych EAN-ów w sklepie `store`: cena niższa niż Omnibus (albo zwykła)."""
+    watched = {
+        rest
+        for prefix, _, rest in (code.partition(":") for code in history.watched_codes())
+        if prefix in ("b", "n")
+    }
+    offers: list[ShelfOffer] = []
+    for row in history.shelf_list(store):
+        if not row.is_promotion or row.price is None or row.ean not in watched:
+            continue
+        was = row.omnibus if row.omnibus else row.regular
+        if was is None or row.price >= was:
+            continue
+        offers.append(
+            ShelfOffer(row.ean, row.price, was, parse_promo_end(row.promo_from, today), row.card_only)
+        )
+    return offers
+
+
+async def refresh_morning(history: History, service: Any) -> RefreshResult | None:
+    """Poranny krok (E29.3): odczyt cen półkowych w sklepie z ustawienia `biedronka_store`, przez pierwsze
+    połączone konto Biedronki; `None`, gdy nie ma sklepu albo konta."""
+    store = history.get_setting("biedronka_store")
+    if not store:
+        return None
+    slugs = _bdr_slugs(service)
+    if not slugs:
+        return None
+    api = await service.chain_api(slugs[0])
+    return await refresh(history, api, store)

@@ -24,7 +24,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from lidl import __version__, alerts, chain_pairs, chain_savings, pairs
+from lidl import __version__, alerts, chain_pairs, chain_savings, pairs, shelf_prices
 from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
@@ -194,6 +194,7 @@ def create_app(settings: Settings) -> FastAPI:
                     if settings.biedronka_auto_shakeomat
                     else None
                 ),
+                shelf=lambda: shelf_prices.refresh_morning(history, service),
             )
             app.state.service, app.state.history, app.state.sync = service, history, sync
             app.state.feed = feed

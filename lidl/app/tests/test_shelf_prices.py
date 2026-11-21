@@ -1,17 +1,28 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from lidl import shelf_prices
+from lidl.accounts import Account
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusError
-from lidl.history import History
-from lidl.shelf_prices import MAX_EANS, parse_price, refresh, targets
+from lidl.history import History, ShelfPrice
+from lidl.shelf_prices import (
+    MAX_EANS,
+    ShelfOffer,
+    parse_price,
+    parse_promo_end,
+    refresh,
+    refresh_morning,
+    shelf_offers,
+    targets,
+)
 
 NOW = datetime(2026, 11, 21, 7, 0, 0)
+TODAY = date(2026, 11, 21)
 EAN_A = "5900000000001"
 EAN_B = "5900000000002"
 EAN_C = "5900000000003"
@@ -190,3 +201,128 @@ async def test_refresh_empty_price_clears_old_row(tmp_path: Path) -> None:
     result = await refresh(h, FakeApi({EAN_A: {**PROMO, "price": ""}}), "0001", sleep=_no_sleep)  # type: ignore[arg-type]
     assert result.ok == 1 and result.failed == 0
     assert h.shelf_list("0001") == []
+
+
+@pytest.mark.parametrize(
+    ("text", "today", "expected"),
+    [
+        ("od 16.11 do 22.11", TODAY, date(2026, 11, 22)),
+        ("od 28.12 do 03.01", date(2026, 12, 30), date(2027, 1, 3)),  # rok przełomu grudzień → styczeń
+        ("od 01.01 do 05.01", date(2026, 1, 2), date(2026, 1, 5)),
+        (None, TODAY, None),
+        ("", TODAY, None),
+        ("bez daty", TODAY, None),
+        ("od 16.11 do 31.02", TODAY, None),  # nieistniejąca data
+    ],
+)
+def test_parse_promo_end(text: str | None, today: date, expected: date | None) -> None:
+    assert parse_promo_end(text, today) == expected
+
+
+def _shelf_row(
+    ean: str,
+    price: float | None,
+    regular: float | None,
+    omnibus: float | None = None,
+    *,
+    promo: bool = True,
+    card: bool = False,
+    period: str | None = None,
+) -> ShelfPrice:
+    return ShelfPrice(
+        "0001", ean, price, regular, omnibus, period, None, card, promo, NOW.isoformat(timespec="seconds")
+    )
+
+
+def test_shelf_offers_promotion_below_omnibus(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.shelf_replace("0001", [_shelf_row(EAN_A, 7.49, 12.99, 9.99, period="od 16.11 do 22.11")])
+    assert shelf_offers(h, "0001", TODAY) == [ShelfOffer(EAN_A, 7.49, 9.99, date(2026, 11, 22), False)]
+
+
+def test_shelf_offers_without_omnibus_compares_with_regular(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"n:{EAN_A}", True)
+    h.shelf_replace("0001", [_shelf_row(EAN_A, 3.20, 3.50, card=True)])
+    assert shelf_offers(h, "0001", TODAY) == [ShelfOffer(EAN_A, 3.20, 3.50, None, True)]
+
+
+def test_shelf_offers_skips_non_promotion_price_not_below_and_missing_prices(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    for ean in (EAN_A, EAN_B, EAN_C):
+        h.set_watched(f"b:{ean}", True)
+    h.shelf_replace(
+        "0001",
+        [
+            _shelf_row(EAN_A, 3.20, 3.50, promo=False),  # nie promocja
+            _shelf_row(EAN_B, 9.99, 12.99, 9.99),  # cena = Omnibus, nie „poniżej”
+            _shelf_row(EAN_C, None, 12.99, 9.99),  # „DRUGI ZA x zł” — brak ceny
+        ],
+    )
+    assert shelf_offers(h, "0001", TODAY) == []
+
+
+def test_shelf_offers_skips_unwatched_ean_and_missing_reference(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    h.shelf_replace(
+        "0001",
+        [
+            _shelf_row(EAN_B, 3.20, 3.50),  # nieobserwowany
+            _shelf_row(EAN_A, 3.20, None, None),  # brak Omnibusa i regular
+        ],
+    )
+    assert shelf_offers(h, "0001", TODAY) == []
+
+
+class FakeChainStore:
+    def __init__(self, accounts: list[Account]) -> None:
+        self._accounts = accounts
+
+    def list(self) -> list[Account]:
+        return self._accounts
+
+
+class FakeService:
+    def __init__(self, accounts: list[Account], api: Any = None) -> None:
+        self.store = FakeChainStore(accounts)
+        self.api = api
+        self.asked: list[str] = []
+
+    async def chain_api(self, slug: str) -> Any:
+        self.asked.append(slug)
+        return self.api
+
+
+BDR = Account("bdr-1", "Biedronka 1", refresh_token="r", chain="biedronka")
+
+
+async def test_refresh_morning_without_store_setting_does_nothing(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_watched(f"b:{EAN_A}", True)
+    service = FakeService([BDR])
+    assert await refresh_morning(h, service) is None  # type: ignore[arg-type]
+    assert service.asked == []
+
+
+async def test_refresh_morning_without_biedronka_account_does_nothing(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_setting("biedronka_store", "0001")
+    h.set_watched(f"b:{EAN_A}", True)
+    service = FakeService([Account("osoba-1", "Osoba 1", refresh_token="r")])
+    assert await refresh_morning(h, service) is None  # type: ignore[arg-type]
+    assert service.asked == []
+
+
+async def test_refresh_morning_reads_store_with_first_connected_biedronka_account(tmp_path: Path) -> None:
+    h = _history(tmp_path)
+    h.set_setting("biedronka_store", "0001")
+    h.set_watched(f"b:{EAN_A}", True)
+    api = FakeApi({EAN_A: PROMO})
+    service = FakeService([BDR], api)
+    result = await refresh_morning(h, service)  # type: ignore[arg-type]
+    assert result is not None and result.ok == 1
+    assert service.asked == ["bdr-1"]
+    assert api.calls == [("0001", EAN_A)]
+    assert [r.ean for r in h.shelf_list("0001")] == [EAN_A]

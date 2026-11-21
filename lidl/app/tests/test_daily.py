@@ -9,9 +9,10 @@ import pytest
 
 from lidl import notify
 from lidl.accounts import Account
+from lidl.client.exceptions import LidlPlusAuthError
 from lidl.coupons import AccountReport, Activation, ActiveCoupon
 from lidl.daily import DailyJob, at_time_loop, hourly_loop, next_hour, seconds_until, sync_due
-from lidl.history import History, WatchedCoupon
+from lidl.history import History, ShelfPrice, WatchedCoupon
 from lidl.promotions import Promotion
 from lidl.receipt_html import ParsedReceipt, ReceiptItem
 from lidl.rewards import Rewards, ScratchCard
@@ -106,9 +107,21 @@ class FakeHistory:
         self.watched, self.coupons, self.sent = watched or set(), coupons or [], set[str]()
         self.events: list[tuple[str, str, str, dict[str, Any]]] = []
         self.savings: list[Any] = []
+        self.settings: dict[str, str] = {}
+        self.shelf_rows: list[ShelfPrice] = []
+        self.names: dict[str, str] = {}
 
     def savings_list(self) -> list[Any]:
         return self.savings
+
+    def get_setting(self, key: str) -> str | None:
+        return self.settings.get(key)
+
+    def shelf_list(self, store: str | None = None) -> list[ShelfPrice]:
+        return [r for r in self.shelf_rows if store is None or r.store == store]
+
+    def product_name(self, art_id: str) -> str | None:
+        return self.names.get(art_id)
 
     def warm(self) -> None:
         self.warmed = getattr(self, "warmed", 0) + 1
@@ -141,6 +154,7 @@ def _job(
     history: FakeHistory | None = None,
     *,
     dry_run: bool = True,
+    shelf: Any = None,
 ) -> DailyJob:
     return DailyJob(
         FakeStore(),  # type: ignore[arg-type]
@@ -151,6 +165,7 @@ def _job(
         history or FakeHistory(),  # type: ignore[arg-type]
         None,  # type: ignore[arg-type]
         dry_run=dry_run,
+        shelf=shelf,
     )
 
 
@@ -490,3 +505,81 @@ async def test_morning_shakeomat_runs_only_when_enabled_and_pushes_with_tag(
     await job()
     assert ran == ["shake"]
     assert [t for *_, t in sent if t == notify.TAG_SHAKEOMAT] == [notify.TAG_SHAKEOMAT]
+
+
+async def test_shelf_step_runs_once_between_promotions_and_coupons() -> None:
+    log: list[str] = []
+
+    async def shelf() -> None:
+        log.append("ceny")
+
+    await _job(log, shelf=shelf)()
+    assert log[:3] == ["paragony ['osoba-1']", "promocje", "ceny"]
+    assert log[3].startswith("kupony")
+    assert log.count("ceny") == 1
+
+
+@pytest.mark.parametrize(
+    ("error", "event"),
+    [
+        (
+            LidlPlusAuthError("unauthorized", status=401),
+            ("shelf", "error", "Ceny półkowe Biedronki: wymagane ponowne logowanie", {"run": "shelf"}),
+        ),
+        (
+            RuntimeError("boom"),
+            ("daily", "error", "Ceny półkowe Biedronki: RuntimeError: boom", {"run": "shelf"}),
+        ),
+    ],
+)
+async def test_shelf_failure_is_logged_and_does_not_stop_the_run(
+    monkeypatch: pytest.MonkeyPatch, error: Exception, event: tuple[str, str, str, dict[str, Any]]
+) -> None:
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+
+    async def shelf() -> None:
+        raise error
+
+    log: list[str] = []
+    history = FakeHistory()
+    await _job(log, history=history, dry_run=False, shelf=shelf)()
+    assert event in history.events
+    assert any(line.startswith("kupony") for line in log)
+
+
+SHELF_EAN = "5900000000001"
+
+
+def _shelf_history() -> FakeHistory:
+    history = FakeHistory({f"b:{SHELF_EAN}"})
+    history.settings["biedronka_store"] = "0001"
+    history.names[f"b:{SHELF_EAN}"] = "Produkt X"
+    history.shelf_rows = [
+        ShelfPrice("0001", SHELF_EAN, 7.49, 12.99, 9.99, None, None, False, True, "2026-11-21T07:00:00")
+    ]
+    return history
+
+
+@pytest.mark.parametrize(("dry_run", "pushes"), [(False, 1), (True, 2)])
+async def test_shelf_offer_is_pushed_once_with_watched_and_marked_as_bs_key(
+    monkeypatch: pytest.MonkeyPatch, dry_run: bool, pushes: int
+) -> None:
+    sent: list[tuple[str, str]] = []
+
+    async def send(session: Any, message: tuple[str, str], *, tag: str = notify.TAG) -> bool:
+        if tag == notify.TAG_WATCHED:
+            sent.append(message)
+        return True
+
+    monkeypatch.setattr(notify, "send", send)
+    history = _shelf_history()
+    job = _job([], history=history, dry_run=dry_run)
+    await job()
+    await job()  # drugi przebieg tego dnia nie powtarza, chyba że próbny
+    assert len(sent) == pushes
+    assert sent[0] == ("Lidl: Produkt X — Biedronka 7,49 zł", "Produkt X 7,49 zł (było 9,99 zł) · Biedronka")
+    bs_keys = {k for k in history.sent if k.startswith("bs:")}
+    assert bs_keys == ({f"bs:{SHELF_EAN}:7.49"} if not dry_run else set())

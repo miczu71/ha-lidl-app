@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+from collections.abc import Sequence
 from datetime import date, timedelta
 
 import aiohttp
@@ -17,6 +18,7 @@ from .coupons import AccountReport, ActiveCoupon
 from .history import MonthSummary, WatchedCoupon
 from .promotions import Promotion
 from .rewards import Rewards
+from .shelf_prices import ShelfOffer
 from .text import (
     CHAIN_LABELS,
     chain_label,
@@ -179,10 +181,14 @@ def compose_expiring(rewards: dict[str, Rewards], today: date | None = None) -> 
 
 
 def compose_watched(
-    coupons: list[tuple[str, WatchedCoupon]], promos: list[Promotion], today: date
+    coupons: list[tuple[str, WatchedCoupon]],
+    promos: list[Promotion],
+    today: date,
+    shelf: Sequence[tuple[str, ShelfOffer]] = (),
 ) -> tuple[str, str] | None:
-    """Obserwowane produkty (E15): kupony (para etykieta konta, kupon) i trwające promocje, linia na rzecz;
-    ten sam kupon na obu kontach to jedna linia. None, gdy nic."""
+    """Obserwowane produkty (E15): kupony (para etykieta konta, kupon), trwające promocje i ceny półkowe
+    Biedronki (E29.3, para nazwa produktu, oferta), linia na rzecz; ten sam kupon na obu kontach to jedna
+    linia. None, gdy nic."""
     who: dict[tuple[str, str, date], list[str]] = {}
     for label, c in coupons:
         who.setdefault((_name(c), _discount(c.discount), c.valid_to), []).append(label)
@@ -191,19 +197,29 @@ def compose_watched(
     rows += [
         (p.title, "promocja", _discount(p.discount), p.end, f"od {fmt_until(p.start, today)}") for p in promos
     ]
-    if not rows:
+    if not rows and not shelf:
         return None
-    if len(rows) == 1:
+    if not rows and len(shelf) == 1:
+        name, offer = shelf[0]
+        title = f"{name} — Biedronka {fmt_pln(offer.price, 2)}"
+    elif len(rows) + len(shelf) == 1:
         name, kind, disc, _, _ = rows[0]
         title = f"{name} — {kind} {disc}"
     else:
-        n = len({row[0] for row in rows})
+        n = len({row[0] for row in rows} | {name for name, _ in shelf})
         title = (
             count_text(n, "obserwowany produkt", "obserwowane produkty", "obserwowanych produktów")
             + " z rabatem"
         )
     body = [f"{_offer(name, disc, end, today)} · {kind} {note}" for name, kind, disc, end, note in rows]
+    body += [_shelf_line(name, offer, today) for name, offer in shelf]
     return "Lidl: " + title, "\n".join(body)
+
+
+def _shelf_line(name: str, offer: ShelfOffer, today: date) -> str:
+    until = f", do {fmt_until(offer.end, today)}" if offer.end else ""
+    card = " · tylko z kartą" if offer.card_only else ""
+    return f"{name} {fmt_pln(offer.price, 2)} (było {fmt_pln(offer.was, 2)}{until}) · Biedronka{card}"
 
 
 def compose_month(s: MonthSummary, by_chain: dict[str, tuple[int, float]] | None = None) -> tuple[str, str]:

@@ -10,6 +10,8 @@ from lidl.history import WatchedCoupon
 from lidl.notify import NOTIFY_URL, PANEL, compose, compose_expiring, compose_watched, send
 from lidl.promotions import Promotion
 from lidl.rewards import Rewards, ScratchCard
+from lidl.shelf_prices import ShelfOffer
+from lidl.text import fmt_until
 
 TODAY = date(2026, 10, 7)
 LATER = "2026-10-10"
@@ -202,6 +204,27 @@ def test_watched_several_products_are_counted_in_title() -> None:
         "Lidl: 2 obserwowane produkty z rabatem",
         "Kawa X −30% (do jutra) · kupon Osoba 1\nMasło −25% (do 12 paź) · promocja od dziś",
     )
+
+
+def test_watched_shelf_offer_alone_is_one_line_named_in_title() -> None:
+    offer = ShelfOffer("5900000000001", 7.49, 9.99, None, True)
+    message = compose_watched([], [], TODAY, shelf=[("Produkt X", offer)])
+    assert message == (
+        "Lidl: Produkt X — Biedronka 7,49 zł",
+        "Produkt X 7,49 zł (było 9,99 zł) · Biedronka · tylko z kartą",
+    )
+
+
+def test_watched_shelf_offer_with_end_and_coupon_is_counted_in_title() -> None:
+    offer = ShelfOffer("5900000000001", 7.49, 9.99, date(2026, 10, 9), False)
+    message = compose_watched([("Osoba 1", _w("osoba-1"))], [], TODAY, shelf=[("Produkt X", offer)])
+    assert message is not None
+    title, body = message
+    assert title == "Lidl: 2 obserwowane produkty z rabatem"
+    assert body.splitlines() == [
+        "Kawa X −30% (do jutra) · kupon Osoba 1",
+        f"Produkt X 7,49 zł (było 9,99 zł, do {fmt_until(date(2026, 10, 9), TODAY)}) · Biedronka",
+    ]
 
 
 def test_month_summary_message_first_place_and_no_previous_month(tmp_path: Any) -> None:
