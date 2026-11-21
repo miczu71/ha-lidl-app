@@ -410,7 +410,7 @@ def create_app(settings: Settings) -> FastAPI:
                 return go(request, "/polka?m=shelf_err")
             if result is None:
                 return go(request, "/polka?m=shelf_none")
-            bad = result.failed or (result.skipped and not result.ok)
+            bad = result.failed or result.stock_failed or (result.skipped and not result.ok)
             return go(request, "/polka?m=shelf_err" if bad else "/polka?m=shelf_ok")
 
     @app.post("/accounts")

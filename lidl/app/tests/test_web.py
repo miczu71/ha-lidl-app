@@ -1590,6 +1590,12 @@ def test_polka_check_runs_refresh_and_reports(client: TestClient, monkeypatch) -
     monkeypatch.setattr(shelf_prices, "refresh_morning", broken)
     assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_err"
 
+    async def stock_down(h: Any, service: Any) -> Any:
+        return shelf_prices.RefreshResult(ok=2, stock_failed=2)  # ceny OK, stan półki nie
+
+    monkeypatch.setattr(shelf_prices, "refresh_morning", stock_down)
+    assert client.post("/polka/sprawdz").headers["location"] == "/polka?m=shelf_err"
+
 
 def test_polka_shelf_status_shows_last_read(client: TestClient) -> None:
     history = _bdr_account_with_store(client)

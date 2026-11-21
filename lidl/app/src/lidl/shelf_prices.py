@@ -19,7 +19,7 @@ from .history import History, ShelfPrice
 
 log = logging.getLogger(__name__)
 
-MAX_EANS = 60  # limit zapytań dziennie (E29.1: ≤60/dzień, ≤1/s)
+MAX_EANS = 60  # limit EAN-ów dziennie; cena + stan = ≤120 zapytań (E30: ≤1/s, plan E30)
 REQUEST_PAUSE_S = 1.0
 _EAN_RE = re.compile(r"\d{8,13}")
 _PROMO_END_RE = re.compile(r"do\s+(\d{1,2})\.(\d{1,2})")
