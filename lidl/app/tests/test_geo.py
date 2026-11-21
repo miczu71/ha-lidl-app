@@ -221,3 +221,20 @@ def test_biedronka_stores_newer_receipt_without_address_keeps_known_one(tmp_path
         tmp_path, ("7001", "ul. Przykładowa 1", "50-001", "Miasto A"), ("7001", "---", "---", "---")
     )
     assert h.biedronka_stores() == {"7001": "ul. Przykładowa 1, Miasto A"}
+
+
+async def test_biedronka_malformed_answer_for_one_store_skips_it_and_geocodes_the_rest(
+    tmp_path: Path,
+) -> None:
+    h = _bdr_history(
+        tmp_path,
+        ("1111", "ul. A 1", "50-001", "Miasto A"),
+        ("2222", "ul. B 2", "50-002", "Miasto B"),
+        ("3333", "ul. C 3", "50-003", "Miasto C"),
+    )
+    session = NominatimSession(
+        [{"lat": "51.1", "lon": "17.0"}], {"error": "x"}, [{"lat": "52.2", "lon": "18.0"}]
+    )
+    assert await refresh_store_geo_biedronka(session, h, pause=0) == 2  # type: ignore[arg-type]
+    assert len(session.requests) == 3
+    assert h.biedronka_stores_without_geo().keys() == {"2222"}  # zły sklep wróci jutro, reszta zapisana

@@ -153,6 +153,28 @@ def test_htmx_returns_partial(client: TestClient) -> None:
     assert 'id="sieci-body"' in r.text and "<html" not in r.text
 
 
+def test_bad_pair_shows_a_message_instead_of_silent_ok(client: TestClient) -> None:
+    mleko = _both(client)
+    assert (
+        _post(client, "b:111", "approve", "b:222", headers=HX) == 200
+    )  # kod Biedronki zamiast produktu Lidla
+    r = client.post(
+        "/sieci/para", data={"b_art_id": "b:111", "action": "approve", "lidl_art_id": "b:222"}, headers=HX
+    )
+    assert "Nie zapisano pary" in r.text and _pairs(client)["b:111"][0] == "proposed"
+    r = client.post("/sieci/para", data={"b_art_id": "b:nope", "action": "undo"}, headers=HX)
+    assert "Nie zapisano pary" in r.text  # pary nie ma
+    r = client.post("/sieci/para", data={"b_art_id": "b:111", "action": "approve", "lidl_art_id": "b:222"})
+    assert r.status_code == 303 and r.headers["location"].endswith("/sieci?m=pair_bad")
+    assert "Nie zapisano pary" in client.get("/sieci", params={"m": "pair_bad"}).text
+    assert (
+        "Nie zapisano pary"
+        not in client.post(
+            "/sieci/para", data={"b_art_id": "b:111", "action": "approve", "lidl_art_id": mleko}, headers=HX
+        ).text
+    )
+
+
 # --- compare (E28.4.3): today = 2026-11-19, okno 90 d od 2026-08-21, okno 365 d od 2025-11-19 ---
 TODAY = date(2026, 11, 19)
 

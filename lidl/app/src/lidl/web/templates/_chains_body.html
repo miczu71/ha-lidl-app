@@ -9,6 +9,12 @@
 </form>
 {% endmacro %}
 <div class="stack" id="sieci-body">
+  {% if msg %}
+  <p class="notice {% if msg.kind == 'err' %}notice--err{% endif %}" role="{% if msg.kind == 'err' %}alert{% else %}status{% endif %}">
+    <span class="notice__ic"><svg viewBox="0 0 24 24" aria-hidden="true">{% if msg.kind == 'err' %}<path d="M12 7v6M12 17h.01"/>{% else %}<path d="M20 6 9 17l-5-5"/>{% endif %}</svg></span>
+    <span>{{ msg.text }}</span>
+  </p>
+  {% endif %}
   <section class="card" aria-labelledby="si-c">
     <h2 class="s" id="si-c">Porównanie</h2>
     {% if not comparison or not comparison.has_pairs %}

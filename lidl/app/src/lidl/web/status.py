@@ -262,10 +262,11 @@ def _daily(s: Snapshot, problems: list[Problem]) -> Area:
         ]
     # błąd Shakeomatu: „Uwaga” w obszarze, bez Problemu i kropki-alarmu (E28.6 decyzja 2)
     since = s.now - timedelta(hours=12)
-    shake = _latest(
-        s.events, {"daily"},
-        lambda e: e.detail.get("run") == "shakeomat" and e.level == "error" and e.ts >= since,
+    last_shake = _latest(
+        s.events, {"daily"}, lambda e: e.detail.get("run") == "shakeomat" and e.ts >= since
     )  # fmt: skip
+    # późniejszy sukces zdejmuje ostrzeżenie: liczy się najnowszy wpis, nie każdy błąd z okna
+    shake = last_shake if last_shake is not None and last_shake.level == "error" else None
     others = [
         e for e in s.events if e.area == "daily" and e.detail.get("run") != "morning" and e is not shake
     ][:2]

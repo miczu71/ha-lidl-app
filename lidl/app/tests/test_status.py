@@ -143,3 +143,10 @@ def test_morning_ok_without_shakeomat_error_stays_ok() -> None:
     assert _area(view, "daily").level == "ok"  # type: ignore[attr-defined]
     old = _ev(1, "daily", "error", "Shakeomat: błąd", day=11, run="shakeomat")  # sprzed ponad 12 h
     assert _area(build(_snap(events=[old, MORNING])), "daily").level == "ok"  # type: ignore[attr-defined]
+
+
+def test_later_shakeomat_success_clears_the_warning() -> None:
+    failed = _ev(8, "daily", "error", "Shakeomat: błąd", run="shakeomat")
+    fixed = _ev(10, "daily", "ok", "Shakeomat: odsłonięto 1 z 1", run="shakeomat")
+    view = build(_snap(events=[fixed, failed, MORNING]))  # zdarzenia od najnowszego
+    assert _area(view, "daily").level == "ok"  # type: ignore[attr-defined]

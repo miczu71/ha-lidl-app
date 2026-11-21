@@ -130,6 +130,7 @@ MESSAGES = {
     "shelf_none": ("err", "Najpierw wybierz sklep i połącz konto Biedronki."),
     "shelf_err": ("err", "Część cen nie została odczytana. Szczegóły w zakładce Status."),
     "shelf_busy": ("err", "Odczyt cen już trwa. Spróbuj za chwilę."),
+    "pair_bad": ("err", "Nie zapisano pary: produkt nie pasuje do paragonów albo pary już nie ma."),
 }
 
 
@@ -1151,14 +1152,16 @@ def create_app(settings: Settings) -> FastAPI:
             '<p class="meta" role="status">Import trwa… Propozycje pojawią się po jego zakończeniu.</p>'
         )
 
-    def chains_ctx(history: History, kat: str | None = None) -> dict[str, Any]:
+    def chains_ctx(history: History, kat: str | None = None, m: str = "") -> dict[str, Any]:
         all_pairs = history.chain_pair_list()  # raz na żądanie (każde wywołanie skanuje ceny)
         proposals = chains.proposal_cards(history, all_pairs)
         approved, rejected = (
             chains.decided_rows(history, "approved", all_pairs),
             chains.decided_rows(history, "rejected", all_pairs),
         )
+        kind, text = MESSAGES.get(m, ("", ""))
         return {
+            "msg": {"kind": kind, "text": text} if text else None,
             "kat": kat or "",  # htmx-owe formularze par niosą filtr dalej (E28.6)
             "proposals": proposals,
             "approved": approved,
@@ -1175,7 +1178,7 @@ def create_app(settings: Settings) -> FastAPI:
         return history if len(history.has_chains()) >= 2 else None
 
     @app.get("/sieci")
-    async def chains_page(request: Request, kat: str | None = None) -> Response:
+    async def chains_page(request: Request, kat: str | None = None, m: str = "") -> Response:
         history = chains_history(request)
         if history is None:
             return Response("Brak paragonów z drugiej sieci.", status_code=404)
@@ -1184,7 +1187,7 @@ def create_app(settings: Settings) -> FastAPI:
             "chains.html",
             section="sieci",
             llm_enabled=settings.llm_enabled,
-            **chains_ctx(history, kat),
+            **chains_ctx(history, kat, m),
         )
 
     @app.get("/biedronka")
@@ -1265,22 +1268,26 @@ def create_app(settings: Settings) -> FastAPI:
             return Response("Brak paragonów z drugiej sieci.", status_code=404)
         if action not in ("approve", "reject", "undo", "restore"):
             return Response("Nieznana akcja pary.", status_code=400)
+        ok = True
         if action in ("approve", "reject") and not chains.is_known_product(history, b_art_id):
-            action = ""  # tylko produkty z paragonów Biedronki, bez śmieciowych wierszy
-        if action == "approve":
+            ok = False  # tylko produkty z paragonów Biedronki, bez śmieciowych wierszy
+        elif action == "approve":
             if chains.has_lidl_item(history, lidl_art_id):  # tylko produkt Lidla, nie kod Biedronki
                 history.chain_pair_propose(b_art_id, [])  # ręczna para bez propozycji AI
-                history.chain_pair_decide(b_art_id, "approve", lidl_art_id)
+                ok = history.chain_pair_decide(b_art_id, "approve", lidl_art_id)
+            else:
+                ok = False
         elif action == "reject":
             history.chain_pair_propose(b_art_id, [])
-            history.chain_pair_decide(b_art_id, "reject")
-        elif action == "undo":
-            history.chain_pair_decide(b_art_id, "undo")
-        elif action == "restore":
-            history.chain_pair_decide(b_art_id, "restore")
+            ok = history.chain_pair_decide(b_art_id, "reject")
+        else:
+            ok = history.chain_pair_decide(b_art_id, action)
+        if not ok:
+            log.warning("Sieci: para %s, akcja %s odrzucona", b_art_id, action)
+        m = "" if ok else "pair_bad"
         if not request.headers.get("hx-request"):
-            return go(request, "/sieci")
-        return render(request, "_chains_body.html", **chains_ctx(history, kat))
+            return go(request, f"/sieci?m={m}" if m else "/sieci")
+        return render(request, "_chains_body.html", **chains_ctx(history, kat, m))
 
     @app.post("/accounts/{slug}/history")
     async def start_history(request: Request, slug: str) -> Response:

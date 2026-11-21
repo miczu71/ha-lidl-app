@@ -58,8 +58,8 @@ async def refresh_store_geo_biedronka(
 ) -> int:
     """Geokoduje adresy sklepów Biedronki w Nominatim (tylko publiczny adres sklepu: ulica, kod, miasto).
 
-    Brak trafienia albo adresu = zapis bez współrzędnych (nie pytamy ponownie); błąd sieci przerywa przebieg
-    bez zapisu tego sklepu, więc kolejny dzień ponowi. Zwraca liczbę sklepów z nowym punktem."""
+    Brak trafienia albo adresu = zapis bez współrzędnych (nie pytamy ponownie); zła odpowiedź dla jednego
+    sklepu pomija go bez zapisu (ponowi jutro), błąd sieci przerywa przebieg. Zwraca liczbę sklepów z nowym punktem."""
     missing = history.biedronka_stores_without_geo()
     located = 0
     first = True
@@ -88,7 +88,7 @@ async def refresh_store_geo_biedronka(
         except (ValueError, KeyError, TypeError) as err:
             # zły kształt (HTML z proxy, captcha, dict po 429) jest przejściowy — jak błąd sieci, bez zapisu
             log.warning("Sklepy Biedronki: zła odpowiedź Nominatim dla %s (%s) — ponowię jutro", code, err)
-            return located
+            continue  # jeden zły sklep nie przerywa reszty
         history.save_store_geo([(code, *point)])
         located += point[0] is not None
     if missing:
