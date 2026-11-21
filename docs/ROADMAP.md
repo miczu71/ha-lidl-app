@@ -319,7 +319,7 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   + kolumna „dziś na półce” w `/sieci`; EAN = gwiazdka E15 ∪ zatwierdzone pary; jeden sklep wybierany z listy w panelu;
   odczyt raz dziennie w porannym przebiegu. Podetapy: E29.0 docs → E29.1 spike GET (bramka) → E29.2 backend (schemat v13,
   `shelf_prices.py`) → E29.3 poranny przebieg + push → E29.4 panel (Konta, `/sieci`) → E29.5 wydanie 1.7.0.
-  Stan: E29.0 ✅ (docs), dalej E29.1.
+  Stan: E29.0 ✅ (docs), E29.1 ✅ (spike, bramka zaliczona — wynik w planie), dalej E29.2.
 - **P3 Gazetka Biedronki:** API jej nie daje → publiczna gazetka + AI jak w E4; najpierw rozpoznanie źródła i pomiar
   kosztu limitów freellmapi (skill `pomiar`); bez tego odpada.
 

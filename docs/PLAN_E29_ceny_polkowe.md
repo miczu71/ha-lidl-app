@@ -36,6 +36,22 @@ Rollback: `git revert`.
 - **Bramka:** odpowiedź ma cenę + regularną (Omnibus mile widziany). Brak cen albo wymóg innego nagłówka/geo → stop,
   pytam usera z wynikiem.
 
+**Wynik E29.1 (2026-11-21, bramka ZALICZONA):** 19 odczytów `products/price/{sklep}/{ean}/` (4 sklepy z paragonów, ~1 req/0,3 s, bez 429)
++ 3 odczyty negatywne. Token z konta spike (E28.0), bez geo/dodatkowych nagłówków.
+- Kod sklepu: 4 cyfry jak w `tickets` (np. `0001`). Zły sklep (`0000`) i nieistniejący EAN → `BiedronkaError("http_404")`;
+  zdegenerowany EAN (`123`) → `http_503` (traktować jak błąd chwilowy). 429 nie zaobserwowano (limit nieznany; trzymamy ≤1 req/s, ≤60/dzień).
+- Pola odpowiedzi (dict): `price` (str `"7.49"`, kropka; **`""` przy „DRUGI ZA x zł”** → brak ceny półkowej), `regular_price` (str),
+  `omnibus_price` (str; **`"0.00"` = brak Omnibusa**), `is_promotion` (bool), `promotion_valid_period` (`"od 16.11 do 22.11"` lub None),
+  `discount` (str `"93"` lub None), `omnibus_type`, `price_tag_info` („ZAWSZE NISKIE CENY”/„TERAZ TANIEJ”/„3+1 GRATIS …”),
+  `unit` (`szt`/`opa`/`""`), `unit_price` (lista tekstów typu `"59,92 zł/kg"` — nie parsować), `name`, `only_with_biedronka_card`.
+- **Pułapki dla E29.2/E29.3:** (1) `is_promotion=False` mimo `price < regular_price` przy promocjach warunkowych („3+1 GRATIS”,
+  „DRUGI TANIEJ 40%”) — `price` to cena nominalna z promocją, nie cena za 1 szt. → push tylko gdy `is_promotion=True`
+  i `price < omnibus` (bez Omnibusa: `< regular`); promocje wielosztukowe pomijamy; (2) `price==""` = brak ceny → nie błąd, pomijamy;
+  (3) ceny w groszach-jak-tekst z kropką, `omnibus "0.00"` ≠ cena zero; (4) ważone: cena półkowa jest za `unit` (szt/opa),
+  za kg tylko w `unit_price` (tekst) — porównanie z paragonem tylko dla `unit=szt` i tego samego EAN, ważone (`n:`/`b:` z wagą) pomijamy w E29.4;
+  (5) `only_with_biedronka_card=True` → cena tylko z kartą (zapisz flagę, push z dopiskiem).
+- Fixtures do testów: neutralne, ręcznie zbudowane z powyższych kształtów (nie kopiować danych z `~/dev/biedronka-spike/data`).
+
 ### E29.2 Backend (paczka W1, `haiku-worker`, verifier)
 - `lidl/app/src/lidl/client/biedronka.py`: `product_price(store, ean)` (wzór `vendor/.../api.py:273`, ścieżka `_get`).
 - `history.py`: schemat **v13** — tabela `shelf_prices(store, ean, price, regular, omnibus, promo_from, promo_to,
