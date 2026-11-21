@@ -324,8 +324,8 @@ Pomysły, nie zatwierdzone etapy — każdy wymaga wywiadu (`grill-me`) przed st
   verifier APPROVE), E29.3 ✅ (commit `3fb5c28`: krok „ceny” w porannym przebiegu przed kuponami, `parse_promo_end`/`shelf_offers`/`refresh_morning`,
   linia Biedronki w `compose_watched`, klucz `bs:<ean>:<koniec|cena>`, `LidlPlusAuthError` → event `shelf/error`; pytest 723 passed, ruff+mypy zielone,
   verifier APPROVE; NIEBLOKUJĄCE: brak testu nieudanego pushu z linią Biedronki), E29.4 ✅ (panel: osobna zakładka „Ceny półkowe” (`/polka`, Ustawienia) — wybór sklepu z paragonów, status, „Sprawdź teraz”; kolumna „Dziś na półce” w `/sieci`; pytest 730 passed, ruff+mypy zielone, Playwright 390/1280 bez błędów konsoli), E29.5 ✅ (wydanie 1.7.0 2026-11-21, `v1.7.0`, pytest 735 passed, pubguard 0, backup add-onu `a5c8c0f1`; historię docs przepisano na kod `0001`).
-  Czeka na usera: wybór sklepu w Ustawienia → Ceny półkowe, „Sprawdź teraz”, porównanie 2–3 cen z aplikacją Moja Biedronka (kryterium sukcesu E29).
-- **E30 Dostępność produktu w sklepie (następny krok, po teście cen przez usera):** add-on czyta dziś tylko cenę (`products/price/{sklep}/{ean}/`);
+  Test cen z aplikacją Moja Biedronka (kryterium sukcesu E29) zamknięty przez usera 2026-11-21 (bez zapisanych szczegółów wyniku). E29 ✅.
+- **E30 Dostępność produktu w sklepie (następny krok):** add-on czyta dziś tylko cenę (`products/price/{sklep}/{ean}/`);
   404 = „pominięty”, bez rozróżnienia „sklep nie ma produktu” / „chwilowy brak”. Kroki: (1) spike: surowa odpowiedź API dla kilku EAN-ów
   w wybranym sklepie, w tym 404 — czy jest pole dostępności/stanu (bramka: bez pola etap odpada, zostaje opis 404 w panelu);
   (2) jeśli jest: zapis w `shelf_prices` (migracja v14, kopia `.pre-*`), znacznik „brak na półce” w `/sieci` i w push, bez fałszywych ofert
