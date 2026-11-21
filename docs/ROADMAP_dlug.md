@@ -56,3 +56,15 @@ Repo: `/config/addons/ha-lidl-app`, gałąź `main`, testy: `cd lidl/app && uv r
 - Na żywo po 1.9.1: wersja w Supervisorze i stopce, start bez ERROR, `/sieci` (zła para → komunikat),
   `/rytm` punkty obu sieci, `/status` bez starego ostrzeżenia Shakeomatu, `/oszczedzanie` z wiekiem migawki,
   konsola przeglądarki czysta, migracja v15 w logu.
+
+## Wynik (2026-11-21) — ZAKOŃCZONE, wydanie 1.9.1
+- D1 CI zielone (przyczyna: `add_leaflet` zależał od `date.today()`; dzień przekazywany z runnera), D2 ciche porażki,
+  D3 brakujące testy, D4 schemat v15 (`store_geo` z kluczem `(chain, code)`, kopia `.pre-geo-chain`) i znacznik
+  `savings_fetched_at`; `comparison_view` 4–28 ms na żywej bazie → bez cache (poniżej progu 100 ms).
+- D5: simplify (helper `_msg`, kopia migracji po sprawdzeniu kolumny), review: Shakeomat liczony per konto
+  (BLOKUJĄCE z silent-failure-hunter), limit 3 złych odpowiedzi Nominatim z rzędu; security: brak znalezisk;
+  pubguard: 0/18. Pełny pytest: 844 passed. Release v1.9.1 (non-draft), Supervisor 1.9.1.
+- Na żywo: stopka 1.9.1, `/sieci?m=pair_bad` pokazuje komunikat, `/rytm` obie sieci, `/status` bez ostrzeżeń,
+  konsola bez błędów, baza v15 (8 Biedronka / 15 Lidl), kopia `/data/history.db.pre-geo-chain`.
+- Nieblokujące, niezrobione (świadomie): osobne komunikaty dla przyczyn `pair_bad`, `save_store_geo` bez domyślnej
+  sieci, wspólny szablon `notice`, nadpisywanie kopii `.pre-geo-chain`, brak testów granicy 30 dni w `add_leaflet`.
