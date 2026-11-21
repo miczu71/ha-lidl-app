@@ -24,8 +24,11 @@ Metryki (mianownik zawsze 57 produktów Biedronki):
 ## Skrypt i model
 `~/dev/biedronka-spike/scripts/e32_measure.py <wariant> <powtórzenie>` przez `secret-run freellmapi` (klucz z env, wyjście
 tylko metryki i statusy). PROMPT, SCHEMA, CHUNK=40 i MAX_CANDIDATES=3 importowane z `chain_pairs.py`. Jeden model:
-`gemini-3.5-flash` (pierwszy z `DEFAULT_VISION_MODELS`), `temperature 0`, bez kolejki modeli: błąd/limit = przebieg
+`gemma-4-31b-it` (ostatni z `DEFAULT_VISION_MODELS`), `temperature 0`, bez kolejki modeli: błąd/limit = przebieg
 nie odpowiedział → naprawa przyczyny i powtórka tego samego wariantu (nie zamiana modelu).
+Historia: pierwotnie `gemini-3.5-flash`; 2026-11-21 dwa przebiegi A1 bez odpowiedzi (502, 429 — limit dzienny), zero
+wyników. User zdecydował o zmianie modelu → nowy pomiar od zera z `gemma-4-31b-it` (wyniki Gemini nie istnieją).
+Wniosek z pomiaru dotyczy Gemmy, nie głównego modelu produkcji (Gemini).
 
 ## Warianty (różnią się wyłącznie treścią linii w prompcie)
 - **A** — nazwy (produkcja dziś): `Katalog Lidla: <kod>: <nazwa>`; `Produkty Biedronki: <nazwa>`.
@@ -43,4 +46,10 @@ Ograniczenia: jeden osądzający (model), jeden model AI, 57 produktów.
 Kryterium spełnione albo 3 kolejne przebiegi gorsze od A. Dwa przebiegi z rzędu bez odpowiedzi → stop i pytanie.
 
 ## Werdykt
-(po pomiarze)
+**PRZERWANY 2026-11-21 przez usera, bez wyniku.** Zero przebiegów odpowiedziało: Gemini 3.5 flash 502/429, Gemma-4-31b
+timeout 180 s / 502 / 429 / 503 (freellmapi, dostawcy przeciążeni; 3 próby sterownika co 10 min). Nie ma GO ani NO-GO;
+hipoteza „OFF poprawia prompt AI” pozostaje niezmierzona. Zamiast pomiaru user wybrał jednorazowe parowanie ręczne
+(Claude, po nazwach): 40 z 57 produktów Biedronki ma odpowiednik w Lidlu (8 ten sam produkt, 21 odpowiednik, 11 słaby),
+17 bez odpowiednika. Do żywej bazy trafiły tylko 4 nowe zatwierdzenia (`/sieci/para`; Salami ×2, Grycan, Coca-Cola Zero);
+25 par już było zatwierdzonych, 11 słabych nie zapisano (trasa nie przyjmuje propozycji z kandydatami). Wniosek: dane OFF
+nie są potrzebne do nadrobienia luki — część par powstaje z EAN-ów i zatwierdzeń ręcznych, reszta to produkty bez odpowiednika.
