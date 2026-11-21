@@ -111,3 +111,6 @@ Supervisor.
   (cena tylko przy ofercie). Z filtrem `category.id=10068374`: „masło” → 2 wyniki. Kod: `erpNumber`/`ians`, nie EAN.
 - **Wniosek:** Lidl nie daje stałego asortymentu spożywczego; wystarczy jako uzupełnienie ofert/gazetki, nie jako katalog.
 **Logotypy:** zasady użycia znaków Lidl/Biedronka w repo PUBLIC niesprawdzone przeze mnie (brak źródła do automatycznej weryfikacji) — decyzja usera.
+**Decyzje usera po spike'u (2026-11-21):** Biedronka = nazwy z `products/search` na żywo + cena/stan po kliknięciu tylko gdy EAN znany lokalnie
+(paragony `b:`, karuzela `product_main_ean_code`+SAP, pary), reszta sama nazwa; Lidl = tylko oferty, gazetka, paragony (bez zdalnego lidl.pl);
+logo = własne neutralne znaczki (`.chain-tag`), bez oficjalnych SVG. Open Food Facts odrzucone. Następny: E31.2 backend `search.py`.
