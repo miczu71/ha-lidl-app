@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.0
+
+- Ceny półkowe Biedronki: raz dziennie rano add-on odczytuje, ile obserwowane produkty (gwiazdka) i zatwierdzone pary
+  kosztują dziś w wybranym sklepie. Push „obserwowane” dopisuje linię „… (było X, do Y) · Biedronka”, gdy cena jest
+  niższa niż Omnibus.
+- Nowa zakładka Ustawienia → „Ceny półkowe”: wybór sklepu z paragonów, status odczytu i „Sprawdź teraz”.
+- Sieci → Porównanie: kolumna „Dziś na półce” (cena, znacznik promocji, data odczytu). Tabela przewija się poziomo
+  na wąskim ekranie.
+- Baza w schemacie v13 (tabele `shelf_prices`, `settings`); przed migracją powstaje kopia `history.db.pre-shelf`.
+- W 1.6.2 (bez osobnego wydania): Shakeomat — przycisk z godziną, wynik na karcie, 409 nie jest błędem.
+
 ## 1.6.1
 
 - Poprawka 1.6.0: logo w nagłówku panelu (`static/mark.svg`) nie trafiało do obrazu add-onu (pominięte w `package-data`),
