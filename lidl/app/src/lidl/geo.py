@@ -66,7 +66,7 @@ async def refresh_store_geo_biedronka(
     first = True
     for code, (street, postal, city) in sorted(missing.items()):
         if not street or not city:
-            history.save_store_geo([(code, None, None)])
+            history.save_store_geo([(code, None, None)], chain="biedronka")
             continue
         if not first:
             await asyncio.sleep(pause)
@@ -90,7 +90,7 @@ async def refresh_store_geo_biedronka(
             # zły kształt (HTML z proxy, captcha, dict po 429) jest przejściowy — jak błąd sieci, bez zapisu
             log.warning("Sklepy Biedronki: zła odpowiedź Nominatim dla %s (%s) — ponowię jutro", code, err)
             continue  # jeden zły sklep nie przerywa reszty
-        history.save_store_geo([(code, *point)])
+        history.save_store_geo([(code, *point)], chain="biedronka")
         located += point[0] is not None
     if missing:
         log.info("Sklepy Biedronki: punkty %d z %d nowych", located, len(missing))

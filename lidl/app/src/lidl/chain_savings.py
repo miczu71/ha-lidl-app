@@ -17,6 +17,7 @@ from .history import History
 
 log = logging.getLogger(__name__)
 
+SAVINGS_FETCHED_KEY = "savings_fetched_at"  # czas ostatniego udanego odświeżenia migawki (nie wygasa)
 OFFER_KINDS = {"offer", "shakeomat"}
 SHAKEOMAT_TYPES = ("SHAKEOMAT", "SHAKEOMAT_2", "SHAKEOMARKA")
 J4U_SLUG = "just4you"
@@ -239,6 +240,7 @@ async def refresh(history: History, slug: str, api: Any) -> FetchResult:
         history.log_event("sync", "error", f"Oszczędzanie Biedronki: {error}", {"account": slug})
     if not result.errors:  # czas migawki dla podpisu w panelu (area „savings”, nie miesza się z importem)
         history.log_event("savings", "ok", "Oszczędzanie Biedronki: migawka odświeżona", {"account": slug})
+        history.set_setting(SAVINGS_FETCHED_KEY, datetime.now().isoformat(timespec="seconds"))
     return result
 
 

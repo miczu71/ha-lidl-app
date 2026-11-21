@@ -234,3 +234,9 @@ def test_route_snapshot_age_comes_from_the_last_savings_event(client: TestClient
     h.log_event("savings", "ok", "Migawka odświeżona", {})
     assert "Jeszcze bez danych" not in client.get("/biedronka").text
     assert f"Dane z {datetime.now():%d.%m}" in client.get("/biedronka").text
+
+
+def test_route_snapshot_age_prefers_the_persistent_setting(client: TestClient) -> None:
+    h = _with_biedronka(client)
+    h.set_setting("savings_fetched_at", "2026-10-01T07:02:00")  # starsze niż 30 dni dziennika
+    assert "Dane z 01.10, 07:02" in client.get("/biedronka").text

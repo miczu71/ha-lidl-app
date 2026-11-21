@@ -135,7 +135,13 @@ MESSAGES = {
 
 
 def _savings_fetched(history: History) -> datetime | None:
-    """Czas ostatniego udanego odświeżenia migawki Oszczędzania (dziennik, 30 dni)."""
+    """Czas ostatniego udanego odświeżenia migawki Oszczędzania: ustawienie (nie wygasa), a dla baz sprzed
+    1.9.1 dziennik (30 dni)."""
+    if raw := history.get_setting(chain_savings.SAVINGS_FETCHED_KEY):
+        try:
+            return datetime.fromisoformat(raw)
+        except ValueError:
+            log.warning("Oszczędzanie: zły czas migawki w ustawieniach (%r)", raw)
     latest = history.events(datetime.now() - EVENTS_KEEP, area="savings", limit=1)
     return latest[0].ts if latest else None
 

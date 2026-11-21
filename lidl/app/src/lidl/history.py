@@ -54,7 +54,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 _PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
@@ -199,7 +199,10 @@ CREATE TABLE IF NOT EXISTS merges (old TEXT PRIMARY KEY, new TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS watched_sent (key TEXT PRIMARY KEY, sent_at TEXT NOT NULL);
 -- współrzędne naszych sklepów z publicznej listy Lidl Plus (E9, `geo.py`); zamknięte sklepy zostają,
 -- sklep spoza listy ma NULL (żeby nie pobierać listy co dzień)
-CREATE TABLE IF NOT EXISTS store_geo (code TEXT PRIMARY KEY, lat REAL, lon REAL);
+-- współrzędne sklepów; klucz z siecią, żeby kody dwóch sieci nigdy się nie zderzyły (v15)
+CREATE TABLE IF NOT EXISTS store_geo (
+    chain TEXT NOT NULL DEFAULT 'lidl', code TEXT NOT NULL, lat REAL, lon REAL, PRIMARY KEY (chain, code)
+);
 CREATE TABLE IF NOT EXISTS coupons (
     account TEXT NOT NULL,
     promotion_id TEXT NOT NULL,
@@ -948,6 +951,8 @@ class History:
             self._migrate_v12(path)
         if has_tables and version < 14:
             self._migrate_v13(path)
+        if has_tables and version < 15:
+            self._migrate_v14(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1085,6 +1090,30 @@ class History:
                 "UPDATE items SET discount = -ABS(discount) WHERE ticket_id IN"
                 " (SELECT id FROM tickets WHERE chain = 'biedronka')"
             )
+
+    def _migrate_v14(self, path: Path) -> None:
+        """v14 → v15: `store_geo` z kluczem (sieć, kod) zamiast samego kodu; sieć istniejących punktów wynika
+        z paragonów (kod z paragonu Biedronki → `biedronka`, reszta → `lidl`); wcześniej kopia
+        `.pre-geo-chain`."""
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-geo-chain"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
+        if "chain" in {r[1] for r in self._db.execute("PRAGMA table_info(store_geo)")}:
+            return
+        with self._db:
+            self._db.execute("ALTER TABLE store_geo RENAME TO store_geo_v14")
+            self._db.execute(
+                "CREATE TABLE store_geo (chain TEXT NOT NULL DEFAULT 'lidl', code TEXT NOT NULL,"
+                " lat REAL, lon REAL, PRIMARY KEY (chain, code))"
+            )
+            self._db.execute(
+                "INSERT INTO store_geo (chain, code, lat, lon)"
+                " SELECT CASE WHEN code IN (SELECT store_code FROM tickets WHERE chain = 'biedronka')"
+                " THEN 'biedronka' ELSE 'lidl' END, code, lat, lon FROM store_geo_v14"
+            )
+            self._db.execute("DROP TABLE store_geo_v14")
 
     def _migrate_v13(self, path: Path) -> None:
         """v13 → v14: kolumna `shelf_prices.stock` (E30.2); wcześniej kopia `.pre-stock`."""
@@ -2694,20 +2723,21 @@ class History:
             s["savings"] += t.savings
             s["last_day"] = t.day
             s["accounts"][t.account] += 1
-        geo = self._store_geo()
+        geo = {chain: self._store_geo(chain) for chain in ("lidl", "biedronka")}
         return sorted(
             (
                 StoreStats(
                     c, s["name"], s["address"], round(s["paid"], 2), round(s["savings"], 2),
-                    s["last_day"], dict(s["accounts"]), geo.get(c), s["chain"] or "lidl",
+                    s["last_day"], dict(s["accounts"]), geo[s["chain"] or "lidl"].get(c),
+                    s["chain"] or "lidl",
                 )
                 for c, s in found.items()
             ),
             key=lambda s: (-s.tickets, s.name),
         )  # fmt: skip
 
-    def _store_geo(self) -> dict[str, tuple[float, float] | None]:
-        rows = self._db.execute("SELECT code, lat, lon FROM store_geo")
+    def _store_geo(self, chain: str) -> dict[str, tuple[float, float] | None]:
+        rows = self._db.execute("SELECT code, lat, lon FROM store_geo WHERE chain = ?", (chain,))
         return {code: None if lat is None else (lat, lon) for code, lat, lon in rows}
 
     def stores_without_geo(self) -> set[str]:
@@ -2715,7 +2745,7 @@ class History:
         rows = self._db.execute(
             f"SELECT DISTINCT {_STORE_KEY} FROM tickets t WHERE t.country = 'PL' AND t.chain = 'lidl'"
         )
-        return {code for (code,) in rows if code} - self._store_geo().keys()
+        return {code for (code,) in rows if code} - self._store_geo("lidl").keys()
 
     def biedronka_stores_without_geo(self) -> dict[str, tuple[str, str, str]]:
         """Sklepy Biedronki jeszcze nie geokodowane: kod → (ulica, kod pocztowy, miejscowość) z najnowszego
@@ -2725,7 +2755,7 @@ class History:
             " WHERE t.country = 'PL' AND t.chain = 'biedronka' AND COALESCE(t.store_code, '') <> ''"
             " ORDER BY t.day"
         )
-        known = self._store_geo().keys()
+        known = self._store_geo("biedronka").keys()
 
         return {
             code: (_clean_addr(street), _clean_addr(postal), _clean_addr(locality))
@@ -2749,9 +2779,14 @@ class History:
                 stores[code] = label
         return stores
 
-    def save_store_geo(self, rows: Iterable[tuple[str, float | None, float | None]]) -> None:
+    def save_store_geo(
+        self, rows: Iterable[tuple[str, float | None, float | None]], chain: str = "lidl"
+    ) -> None:
         with self._db:
-            self._db.executemany("INSERT OR REPLACE INTO store_geo (code, lat, lon) VALUES (?, ?, ?)", rows)
+            self._db.executemany(
+                "INSERT OR REPLACE INTO store_geo (chain, code, lat, lon) VALUES (?, ?, ?, ?)",
+                [(chain, *row) for row in rows],
+            )
 
     def rhythm(self, f: ReceiptFilter | None = None) -> Rhythm:
         """Paragony wg dnia tygodnia i godziny z paragonu (E9); czas jest lokalny, bez przeliczania strefy."""
