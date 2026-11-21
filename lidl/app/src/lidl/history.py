@@ -1902,10 +1902,12 @@ class History:
             is not None
         )
 
-    def add_leaflet(self, flyer_id: str, batches: list[list[Any]], start: date, end: date) -> None:
+    def add_leaflet(
+        self, flyer_id: str, batches: list[list[Any]], start: date, end: date, today: date | None = None
+    ) -> None:
         """Nowa gazetka: paczki stron (lista [numer, adres obrazu]) do przetworzenia; gazetki starsze niż
         30 dni po końcu znikają razem z trafieniami."""
-        old = (date.today() - timedelta(days=30)).isoformat()
+        old = ((today or date.today()) - timedelta(days=30)).isoformat()
         with self._db:
             self._db.executemany(
                 "INSERT OR IGNORE INTO leaflet_batches (flyer_id, batch, pages, start, end)"

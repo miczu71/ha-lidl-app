@@ -202,7 +202,7 @@ class LeafletRunner:
         self._history.revive_leaflet_batches(now.isoformat())
         if self._checked is None or now - self._checked >= timedelta(seconds=IDLE):
             self._checked = now
-            await self._discover()
+            await self._discover(now.date())
         if self._key_pause is not None and now < self._key_pause:
             return False
         batch = self._history.next_leaflet_batch(now.isoformat())
@@ -211,7 +211,7 @@ class LeafletRunner:
         await self._process(batch, now)
         return True
 
-    async def _discover(self) -> None:
+    async def _discover(self, today: date | None = None) -> None:
         async with self._session.get(OVERVIEW_URL, params=OVERVIEW_PARAMS) as r:
             r.raise_for_status()
             flyers = find_flyers(await r.json(content_type=None))
@@ -222,7 +222,7 @@ class LeafletRunner:
                 r.raise_for_status()
                 flyer = await r.json(content_type=None)
             batches = page_batches(flyer)
-            self._history.add_leaflet(f.id, batches, f.start, f.end)
+            self._history.add_leaflet(f.id, batches, f.start, f.end, today)
             pages = sum(map(len, batches))
             skipped = len((flyer.get("flyer") or {}).get("pages") or []) - pages
             log.info(

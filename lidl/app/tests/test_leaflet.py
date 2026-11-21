@@ -222,7 +222,7 @@ async def test_runner_retries_the_same_batch_later_on_overload(tmp_path: Path) -
 
 def test_active_merges_leaflet_matches_without_duplicates(tmp_path: Path) -> None:
     h = _history(tmp_path)
-    h.add_leaflet("g1", [], START, END)
+    h.add_leaflet("g1", [], START, END, NOW.date())
     h.save_leaflet_matches("g1", [
         Promotion("0000111", "Produkt A z gazetki", "-38%", START, END),
         Promotion("0000444", "Produkt D", "-20% przy zakupie 2", START, END),
@@ -251,7 +251,7 @@ def test_llm_options(
 def test_leaflet_match_started_earlier_is_still_active_until_its_end(tmp_path: Path) -> None:
     """Gazetka przetworzona po 07:00 dnia startu: trafienie trafia do porannego dnia następnego."""
     h = _history(tmp_path)
-    h.add_leaflet("g1", [], START, END)
+    h.add_leaflet("g1", [], START, END, NOW.date())
     h.save_leaflet_matches("g1", [Promotion("0000111", "Produkt A z gazetki", "-38%", START, END)])
     runner = PromotionRunner(None, h)  # type: ignore[arg-type]
     assert [p.title for p in runner.active(START + timedelta(days=1))] == ["Produkt A z gazetki"]
@@ -387,7 +387,7 @@ async def test_fallback_model_joins_at_once_when_the_primary_models_hit_their_li
 
 def test_has_pending_leaflet_ignores_ended_flyers(tmp_path: Path) -> None:
     h = _history(tmp_path)
-    h.add_leaflet("g1", [[[1, "u"]]], START, END)
+    h.add_leaflet("g1", [[[1, "u"]]], START, END, NOW.date())
     assert h.has_pending_leaflet(END) and not h.has_pending_leaflet(END + timedelta(days=1))
 
 
