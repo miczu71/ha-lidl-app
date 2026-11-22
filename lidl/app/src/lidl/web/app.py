@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -270,7 +271,18 @@ def create_app(settings: Settings) -> FastAPI:
     @app.middleware("http")
     async def guard(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         peer = request.client.host if request.client else ""
-        if not settings.dev and peer != INGRESS_PROXY:
+        if request.url.path.startswith("/api/v1/"):  # most do Diety: token zamiast Ingressu
+            if not settings.api_token:
+                return Response(
+                    "API wyłączone (brak opcji api_token).", 503, headers={"Cache-Control": "no-store"}
+                )
+            auth = request.headers.get("authorization", "")
+            scheme, _, given = auth.partition(" ")
+            if scheme.lower() != "bearer" or not hmac.compare_digest(
+                given.strip().encode(), settings.api_token.encode()
+            ):
+                return Response("Brak lub zły token.", 401, headers={"Cache-Control": "no-store"})
+        elif not settings.dev and peer != INGRESS_PROXY:
             return Response("Dostęp tylko przez panel Home Assistant (Ingress).", 403)
         response = await call_next(request)
         if request.url.path.startswith("/static"):
@@ -315,6 +327,20 @@ def create_app(settings: Settings) -> FastAPI:
 
     def go(request: Request, path: str) -> RedirectResponse:
         return RedirectResponse(f"{base(request)}{path}", status_code=303)
+
+    @app.get("/api/v1/purchases")
+    async def api_purchases(request: Request, months: int = 12) -> Response:
+        """Agregat zakupów dla Diety; token sprawdza middleware `guard`."""
+        months = max(1, min(months, 60))
+        history: History = request.app.state.history
+        products = history.purchase_aggregates(months, date.today())
+        return JSONResponse(
+            {
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+                "months": months,
+                "products": products,
+            }
+        )
 
     def status_snapshot(state: Any) -> Snapshot:
         history: History = state.history

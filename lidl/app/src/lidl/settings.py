@@ -28,6 +28,7 @@ class Settings:
     run_time: time = DEFAULT_RUN_TIME
     llm_url: str = ""
     llm_key: str = field(default="", repr=False)
+    api_token: str = field(default="", repr=False)  # E2 Diety: token API `/api/v1/*`; puste = API wyłączone
     llm_vision_models: tuple[str, ...] = DEFAULT_VISION_MODELS
     llm_fallback_models: tuple[str, ...] = DEFAULT_FALLBACK_MODELS
     share_dir: Path = Path("/share")  # E6: plik dla Budżetu Domowego
@@ -74,6 +75,7 @@ def load_settings() -> Settings:
         ),
         llm_url=str(options.get("llm_url") or "").rstrip("/"),
         llm_key=str(options.get("llm_key") or ""),
+        api_token=str(options.get("api_token") or ""),
         alert_notify=str(options.get("alert_notify") or ""),
         llm_vision_models=tuple(str(m) for m in models)
         if isinstance(models, list) and models

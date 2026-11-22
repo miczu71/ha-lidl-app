@@ -33,6 +33,10 @@ configuration:
     description: >-
       Added to the queue when vision models keep failing for several rounds. Faster but less accurate — their
       offers must share a word with your product's name. Empty list = no fallback models.
+  api_token:
+    name: API token for Dieta
+    description: >-
+      Shared token (Bearer) the Dieta add-on uses to fetch the purchase aggregate from `/api/v1/purchases`. Set the same value in both add-ons. Empty = API disabled.
   alert_notify:
     name: Problem notifications
     description: >-

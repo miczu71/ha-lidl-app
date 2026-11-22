@@ -114,8 +114,17 @@ widać ją jako „odłożoną”.
 - **Adres i klucz API modelu językowego, modele wizyjne i awaryjne** — odczyt promocji z cotygodniowej gazetki
   (niżej). Puste adres albo klucz = gazetka wyłączona. Pusta lista modeli awaryjnych wyłącza je.
 
+- **Token API** (`api_token`) — wspólny sekret dla add-onu Dieta. Puste = API wyłączone (odpowiedź 503).
+
 Add-on ma uprawnienie do API Home Assistanta (`homeassistant_api`) wyłącznie po to, żeby wysłać powiadomienie
 przez `notify.family`.
+
+## API dla Diety
+
+`GET /api/v1/purchases?months=12` z nagłówkiem `Authorization: Bearer <api_token>` (poza Ingressem, w sieci
+Supervisora). Zwraca agregat per produkt z ostatnich miesięcy: `code`, `chain`, `name`, `names`, `purchases`,
+`spend`, `first`, `last`, `dates`, `category`. Bez paragonów i adresów sklepów. Kody: 401 brak/zły token,
+503 pusty `api_token`. Reszta tras nadal działa tylko przez Ingress.
 
 ## Prywatność
 

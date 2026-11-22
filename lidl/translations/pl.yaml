@@ -33,6 +33,10 @@ configuration:
     description: >-
       Dochodzą do kolejki, gdy modele wizyjne zawodzą kilka rund z rzędu. Szybsze, ale mniej dokładne — ich oferty
       muszą mieć wspólne słowo z nazwą Twojego produktu. Pusta lista = bez modeli awaryjnych.
+  api_token:
+    name: Token API dla Diety
+    description: >-
+      Wspólny token (Bearer), którym add-on Dieta pobiera agregat zakupów z `/api/v1/purchases`. Ustaw ten sam w obu add-onach. Puste = API wyłączone.
   alert_notify:
     name: Powiadomienie o problemach
     description: >-

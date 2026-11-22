@@ -1658,6 +1658,50 @@ class History:
             p["name"], p["price"], p["last"], p["weight"] = name, price, day, bool(weight)
         return acc
 
+    def purchase_aggregates(self, months: int, today: date | None = None) -> list[dict[str, Any]]:
+        """Agregat zakupów per produkt (kod po moście nazw) z ostatnich `months` miesięcy: most do Diety (E2).
+        Tylko `items` (bez `foreign_items`); kategoria z `product_category`, brak wiersza = `food`."""
+        end = today or date.today()
+        total = end.year * 12 + end.month - 1 - months
+        year, month = divmod(total, 12)
+        month += 1
+        day = min(end.day, (date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)).day)
+        start = date(year, month, day).isoformat()
+        resolve, categories = self._resolver(), self._categories()
+        rows = self._db.execute(
+            "SELECT i.art_id, i.name, i.total, t.day, t.chain"
+            " FROM items i JOIN tickets t ON t.id = i.ticket_id"
+            " WHERE t.day >= ? AND t.day <= ? ORDER BY t.day, i.ticket_id, i.line",
+            (start, end.isoformat()),
+        )
+        acc: dict[str, dict[str, Any]] = {}
+        for art_id, name, amount, day_s, chain in rows:
+            p = acc.setdefault(
+                resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0, "chain": chain}
+            )
+            p["names"][name] += 1
+            p["days"].add(day_s)
+            p["spend"] += amount
+            p["chain"] = chain  # ostatni paragon wygrywa (wiersze rosnąco po dniu)
+        out = []
+        for code, p in sorted(acc.items()):
+            days = sorted(p["days"])
+            out.append(
+                {
+                    "code": code,
+                    "chain": p["chain"],
+                    "name": p["names"].most_common(1)[0][0],
+                    "names": sorted(p["names"]),
+                    "purchases": len(days),
+                    "spend": round(p["spend"], 2),
+                    "first": days[0],
+                    "last": days[-1],
+                    "dates": days,
+                    "category": categories.get(code, ("food", None))[0],
+                }
+            )
+        return out
+
     def product_name(self, art_id: str) -> str | None:
         """Ostatnia nazwa produktu z paragonów (kod po moście nazw albo `n:<EAN>`)."""
         return self.product_names([art_id]).get(art_id)
