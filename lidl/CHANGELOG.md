@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.0
+
+- Most do add-onu Dieta: `GET /api/v1/purchases?months=12` zwraca agregat zakupów per produkt (kod po moście nazw,
+  nazwy, liczba zakupów, wydatek po rabacie, daty, kategoria). Dostęp tokenem Bearer z nowej opcji `api_token`
+  (puste = API wyłączone, 503), poza Ingressem; reszta tras nadal tylko przez Ingress. Odrzucone próby trafiają do logu.
+- Bez zmiany schematu bazy i bez zmian w interfejsie.
+
 ## 1.9.3
 
 - Shakeomat: wylosowana oferta trafia na listę ofert. Odsłonięty Shakeomat zostaje w karuzeli Biedronki z typem

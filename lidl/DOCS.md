@@ -114,7 +114,7 @@ widać ją jako „odłożoną”.
 - **Adres i klucz API modelu językowego, modele wizyjne i awaryjne** — odczyt promocji z cotygodniowej gazetki
   (niżej). Puste adres albo klucz = gazetka wyłączona. Pusta lista modeli awaryjnych wyłącza je.
 
-- **Token API** (`api_token`) — wspólny sekret dla add-onu Dieta. Puste = API wyłączone (odpowiedź 503).
+- **Token API** (`api_token`) — wspólny sekret dla add-onu Dieta. Puste = API wyłączone (odpowiedź 503). Ustaw długi losowy token (≥32 znaki); API nie ogranicza liczby prób.
 
 Add-on ma uprawnienie do API Home Assistanta (`homeassistant_api`) wyłącznie po to, żeby wysłać powiadomienie
 przez `notify.family`.
