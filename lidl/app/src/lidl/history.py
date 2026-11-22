@@ -9,6 +9,7 @@ można przerwać i wznowić w dowolnym miejscu.
 
 from __future__ import annotations
 
+import calendar
 import json
 import logging
 import sqlite3
@@ -1665,7 +1666,7 @@ class History:
         total = end.year * 12 + end.month - 1 - months
         year, month = divmod(total, 12)
         month += 1
-        day = min(end.day, (date(year + (month == 12), month % 12 + 1, 1) - timedelta(days=1)).day)
+        day = min(end.day, calendar.monthrange(year, month)[1])
         start = date(year, month, day).isoformat()
         resolve, categories = self._resolver(), self._categories()
         rows = self._db.execute(
@@ -1676,9 +1677,7 @@ class History:
         )
         acc: dict[str, dict[str, Any]] = {}
         for art_id, name, amount, day_s, chain in rows:
-            p = acc.setdefault(
-                resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0, "chain": chain}
-            )
+            p = acc.setdefault(resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0})
             p["names"][name] += 1
             p["days"].add(day_s)
             p["spend"] += amount

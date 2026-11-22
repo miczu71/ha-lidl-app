@@ -333,7 +333,7 @@ def create_app(settings: Settings) -> FastAPI:
         """Agregat zakupów dla Diety; token sprawdza middleware `guard`."""
         months = max(1, min(months, 60))
         history: History = request.app.state.history
-        products = history.purchase_aggregates(months, date.today())
+        products = history.purchase_aggregates(months)
         return JSONResponse(
             {
                 "generated_at": datetime.now().isoformat(timespec="seconds"),
