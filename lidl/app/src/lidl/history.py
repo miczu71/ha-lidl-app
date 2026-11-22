@@ -1661,7 +1661,8 @@ class History:
 
     def purchase_aggregates(self, months: int, today: date | None = None) -> list[dict[str, Any]]:
         """Agregat zakupów per produkt (kod po moście nazw) z ostatnich `months` miesięcy: most do Diety (E2).
-        Tylko `items` (bez `foreign_items`); kategoria z `product_category`, brak wiersza = `food`."""
+        Tylko `items` (bez `foreign_items`); kategoria z `product_category`, brak wiersza = `food`.
+        `spend` po rabacie (`total + discount`), jak w zakładce Produkty."""
         end = today or date.today()
         total = end.year * 12 + end.month - 1 - months
         year, month = divmod(total, 12)
@@ -1670,7 +1671,7 @@ class History:
         start = date(year, month, day).isoformat()
         resolve, categories = self._resolver(), self._categories()
         rows = self._db.execute(
-            "SELECT i.art_id, i.name, i.total, t.day, t.chain"
+            "SELECT i.art_id, i.name, i.total + i.discount, t.day, t.chain"
             " FROM items i JOIN tickets t ON t.id = i.ticket_id"
             " WHERE t.day >= ? AND t.day <= ? ORDER BY t.day, i.ticket_id, i.line",
             (start, end.isoformat()),

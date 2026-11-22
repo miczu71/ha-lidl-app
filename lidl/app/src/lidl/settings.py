@@ -75,7 +75,7 @@ def load_settings() -> Settings:
         ),
         llm_url=str(options.get("llm_url") or "").rstrip("/"),
         llm_key=str(options.get("llm_key") or ""),
-        api_token=str(options.get("api_token") or ""),
+        api_token=str(options.get("api_token") or "").strip(),
         alert_notify=str(options.get("alert_notify") or ""),
         llm_vision_models=tuple(str(m) for m in models)
         if isinstance(models, list) and models

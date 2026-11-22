@@ -273,6 +273,7 @@ def create_app(settings: Settings) -> FastAPI:
         peer = request.client.host if request.client else ""
         if request.url.path.startswith("/api/v1/"):  # most do Diety: token zamiast Ingressu
             if not settings.api_token:
+                log.warning("API v1: 503, brak opcji api_token (peer %s)", peer)
                 return Response(
                     "API wyłączone (brak opcji api_token).", 503, headers={"Cache-Control": "no-store"}
                 )
@@ -281,6 +282,7 @@ def create_app(settings: Settings) -> FastAPI:
             if scheme.lower() != "bearer" or not hmac.compare_digest(
                 given.strip().encode(), settings.api_token.encode()
             ):
+                log.warning("API v1: 401, brak lub zły token (peer %s)", peer)
                 return Response("Brak lub zły token.", 401, headers={"Cache-Control": "no-store"})
         elif not settings.dev and peer != INGRESS_PROXY:
             return Response("Dostęp tylko przez panel Home Assistant (Ingress).", 403)

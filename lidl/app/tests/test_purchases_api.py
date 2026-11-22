@@ -79,6 +79,34 @@ def test_aggregates_per_product(tmp_path: Path) -> None:
     assert by["900"]["category"] == "drugstore"
 
 
+def test_spend_is_net_of_discount(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _seed(h)
+    h._db.execute("UPDATE items SET discount = -2 WHERE ticket_id = 't4'")
+    by = {p["code"]: p for p in h.purchase_aggregates(12, TODAY)}
+    assert by["111"]["spend"] == 28.5
+
+
+@pytest.mark.parametrize(
+    ("today", "months", "first_day", "excluded_day"),
+    [
+        (date(2026, 3, 31), 1, "2026-02-28", "2026-02-27"),  # przycięcie dnia do końca lutego
+        (date(2026, 1, 15), 1, "2025-12-15", "2025-12-14"),  # przeskok roku, granica włączna
+    ],
+)
+def test_window_boundaries(
+    tmp_path: Path, today: date, months: int, first_day: str, excluded_day: str
+) -> None:
+    h = History(tmp_path / "h.db")
+    h.upsert_tickets(
+        "a", [_ticket("in", first_day), _ticket("out", excluded_day), _ticket("end", today.isoformat())]
+    )
+    for tid in ("in", "out", "end"):
+        h.save_detail(tid, "S", ParsedReceipt(items=[ReceiptItem("5", "Mleko", 1, 3.0, 3.0)]))
+    (p,) = h.purchase_aggregates(months, today)
+    assert p["dates"] == sorted({first_day, today.isoformat()})
+
+
 def test_aggregates_exclude_foreign_items(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     h._db.execute(
