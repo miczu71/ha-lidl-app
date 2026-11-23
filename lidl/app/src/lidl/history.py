@@ -1130,21 +1130,20 @@ class History:
                 " (SELECT id FROM tickets WHERE chain = 'biedronka')"
             )
 
-    def _migrate_v16(self, path: Path) -> None:
-        """v16 → v17: tabela `shelf_absent` (z _SCHEMA); kopia `.pre-absent`."""
-        dest = sqlite3.connect(path.with_name(path.name + ".pre-absent"))
+    def _backup(self, path: Path, suffix: str) -> None:
+        dest = sqlite3.connect(path.with_name(path.name + suffix))
         try:
             self._db.backup(dest)
         finally:
             dest.close()
 
+    def _migrate_v16(self, path: Path) -> None:
+        """v16 → v17: tabela `shelf_absent` (z _SCHEMA); kopia `.pre-absent`."""
+        self._backup(path, ".pre-absent")
+
     def _migrate_v15(self, path: Path) -> None:
         """v15 → v16: tabele `catalog_products` i `catalog_obs` (z _SCHEMA); kopia `.pre-catalog`."""
-        dest = sqlite3.connect(path.with_name(path.name + ".pre-catalog"))
-        try:
-            self._db.backup(dest)
-        finally:
-            dest.close()
+        self._backup(path, ".pre-catalog")
 
     def _migrate_v14(self, path: Path) -> None:
         """v14 → v15: `store_geo` z kluczem (sieć, kod) zamiast samego kodu; sieć istniejących punktów wynika
