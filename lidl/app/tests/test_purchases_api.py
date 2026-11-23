@@ -204,3 +204,22 @@ def test_unit_fields_additive_and_in_api(prod: TestClient) -> None:
     milk = next(p for p in r.json()["products"] if p["code"] == "111")
     assert {"unit_price", "last_unit_price", "is_weight"} <= set(milk)
     assert milk["spend"] == 30.5 and milk["purchases"] == 3
+
+
+def test_unit_price_does_not_mix_kg_and_pieces(tmp_path: Path) -> None:
+    items = [
+        ("a", "2026-09-01", ReceiptItem("t", "Pomidory", 1.0, 12.0, 12.0, is_weight=True)),
+        ("b", "2026-10-01", ReceiptItem("t", "Pomidory", 1.0, 12.0, 12.0, is_weight=True)),
+        ("c", "2026-11-01", ReceiptItem("t", "Pomidory 500g", 1, 4.0, 4.0)),
+    ]
+    (p,) = _unit_history(tmp_path, items).purchase_aggregates(12, TODAY)
+    assert p["is_weight"] is False and p["unit_price"] == 4.0 and p["last_unit_price"] == 4.0
+
+
+def test_unit_price_ignores_free_lines(tmp_path: Path) -> None:
+    items = [
+        ("a", "2026-10-01", ReceiptItem("f", "Baton", 1, 5.0, 5.0)),
+        ("b", "2026-11-01", ReceiptItem("f", "Baton", 1, 5.0, 5.0, discount=-5.0)),
+    ]
+    (p,) = _unit_history(tmp_path, items).purchase_aggregates(12, TODAY)
+    assert p["unit_price"] == 5.0 and p["last_unit_price"] == 5.0

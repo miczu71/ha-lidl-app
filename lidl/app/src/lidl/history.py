@@ -1686,13 +1686,14 @@ class History:
             p["days"].add(day_s)
             p["spend"] += amount
             p["chain"] = chain  # ostatni paragon wygrywa (wiersze rosnąco po dniu)
-            if quantity > 0:  # sztuki albo kg (is_weight); cena płacona za jednostkę, po rabacie
-                p["units"].append(amount / quantity)
+            if quantity > 0 and amount > 0:  # sztuki albo kg (is_weight); cena za jednostkę, po rabacie
+                p["units"].append((bool(is_weight), amount / quantity))
                 p["is_weight"] = bool(is_weight)
         out = []
         for code, p in sorted(acc.items()):
             days = sorted(p["days"])
-            units = p["units"]
+            # jedna jednostka ceny: ta z ostatniego paragonu (kg i szt. tego samego kodu się nie mieszają)
+            units = [u for w, u in p["units"] if w == p["is_weight"]]
             out.append(
                 {
                     "code": code,
