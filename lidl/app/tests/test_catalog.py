@@ -326,3 +326,14 @@ def test_shelf_joins_cache_with_catalog(prod: TestClient) -> None:
     assert unknown["ean"] == "5900009999999" and unknown["product"] is None
     other = prod.get("/api/v1/shelf", params={"store": "1111"}, headers=auth).json()
     assert [i["ean"] for i in other["items"]] == ["5900000000028"]
+
+
+def test_frisco_ingest_skips_bad_product_and_keeps_rest(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    good = {"ean": "5900000000002", "id": "1", "name": {"pl": "Mleko"}, "price": {"price": 3.0}}
+    bad_promo = {"ean": "5900000000019", "id": "2", "price": {"price": 5.0, "priceAfterPromotion": 4.0},
+                 "promotions": ["tekst"]}  # fmt: skip
+    clash = {"ean": "5900000000026", "id": "1", "price": {"price": 2.0}}  # frisco_id UNIQUE
+    res = frisco_feed.ingest(h, [good, bad_promo, clash], "2026-11-23")
+    assert res.skipped == 1 and res.products == 2
+    assert len(h.catalog_products()) == 2

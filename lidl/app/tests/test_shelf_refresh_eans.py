@@ -294,3 +294,28 @@ def test_post_background_failure_releases_lock(prod: TestClient, monkeypatch: py
     assert prod.post("/api/v1/shelf", json={"eans": _eans(1)}, headers=AUTH).status_code == 202
     _wait_tasks(prod)
     assert not prod.app.state.shelf_lock.locked()  # type: ignore[attr-defined]
+
+
+class _OddShapeApi(FakeApi):
+    async def product_price(self, store: str, ean: str) -> Any:
+        self.calls.append(ean)
+        return []  # zmieniony format odpowiedzi
+
+
+async def test_probe_unknown_shape_aborts(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    eans = _eans(4)
+    api = _OddShapeApi()
+    res = await refresh_eans(h, api, "6308", eans, sleep=Sleeps(), now=NOW)
+    assert api.calls == [eans[0]] and res.failed == 1
+
+
+async def test_priceless_reading_is_marked_absent_not_requeued(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    h = History(tmp_path / "h.db")
+    (ean,) = _eans(1)
+    monkeypatch.setattr(shelf_prices, "parse_price", lambda *a, **k: None)
+    res = await refresh_eans(h, FakeApi(), "6308", [ean], sleep=Sleeps(), now=NOW)
+    assert res.ok == 1
+    assert h.shelf_absent_list("6308", NOW - timedelta(days=1)) == [ean]

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
@@ -35,6 +36,7 @@ Fetch = Callable[[Path], Awaitable[None]]
 class Result:
     products: int = 0
     observations: int = 0
+    skipped: int = 0
     busy: bool = False
     error: str = ""
 
@@ -70,36 +72,60 @@ def _observation(product: dict[str, Any]) -> tuple[float, float | None, str | No
     regular = float(price["price"])
     promo = price.get("priceAfterPromotion")
     if isinstance(promo, int | float) and 0 < promo < regular:
-        valid_to = next((p.get("validTo") for p in product.get("promotions") or [] if p.get("validTo")), None)
+        valid_to = next(
+            (
+                p.get("validTo")
+                for p in product.get("promotions") or []
+                if isinstance(p, dict) and p.get("validTo")
+            ),
+            None,
+        )
         return float(promo), regular, valid_to
     return regular, regular, None
 
 
 def ingest(history: History, products: list[dict[str, Any]], day: str) -> Result:
+    """Jedna transakcja (bez wielu commitów na wspólnym połączeniu); zły produkt jest pomijany i liczony."""
     res = Result()
-    for p in products:
-        ean = str(p.get("ean") or "").strip()
-        obs = _observation(p)
-        if not ean or obs is None:
-            continue
-        name = p.get("name")
-        title = name.get("pl") if isinstance(name, dict) else None
-        unit = p.get("unitOfMeasure")
-        grammage = p.get("grammage")
-        pid = history.catalog_upsert_product(
-            ean=ean,
-            frisco_id=str(p["id"]) if p.get("id") else None,
-            name=title or None,
-            brand=p.get("brand") or None,
-            size=float(grammage) if isinstance(grammage, int | float) else None,
-            size_unit=str(unit) if unit else None,
-            authoritative=True,
-        )
-        res.products += 1
-        price, regular, promo_to = obs
-        if history.catalog_add_obs(pid, SOURCE, SOURCE, price, regular, day, None, promo_to):
-            res.observations += 1
+    with history.catalog_bulk():
+        for p in products:
+            ean = str(p.get("ean") or "").strip()
+            try:
+                obs = _observation(p)
+                if not ean or obs is None:
+                    continue
+                _ingest_one(history, p, ean, obs, day, res)
+            except (sqlite3.Error, AttributeError, TypeError, ValueError):
+                res.skipped += 1
+                log.warning("Feed Frisco: pominięto produkt EAN %s", ean)
     return res
+
+
+def _ingest_one(
+    history: History,
+    p: dict[str, Any],
+    ean: str,
+    obs: tuple[float, float | None, str | None],
+    day: str,
+    res: Result,
+) -> None:
+    name = p.get("name")
+    title = name.get("pl") if isinstance(name, dict) else None
+    unit = p.get("unitOfMeasure")
+    grammage = p.get("grammage")
+    pid = history.catalog_upsert_product(
+        ean=ean,
+        frisco_id=str(p["id"]) if p.get("id") else None,
+        name=title or None,
+        brand=p.get("brand") or None,
+        size=float(grammage) if isinstance(grammage, int | float) else None,
+        size_unit=str(unit) if unit else None,
+        authoritative=True,
+    )
+    res.products += 1
+    price, regular, promo_to = obs
+    if history.catalog_add_obs(pid, SOURCE, SOURCE, price, regular, day, None, promo_to):
+        res.observations += 1
 
 
 async def refresh(history: History, fetch: Fetch, directory: Path, *, now: datetime | None = None) -> Result:
@@ -114,7 +140,7 @@ async def refresh(history: History, fetch: Fetch, directory: Path, *, now: datet
         try:
             await fetch(tmp)
             products = await asyncio.to_thread(_load, tmp)
-            res = await asyncio.to_thread(ingest, history, products, day)
+            res = ingest(history, products, day)  # w wątku pętli: wspólne połączenie sqlite, jedna transakcja
         except Exception as err:
             log.exception("Katalog cen: feed Frisco nieudany")
             history.log_event("catalog", "error", "Feed Frisco: błąd", {"error": type(err).__name__})
@@ -124,8 +150,8 @@ async def refresh(history: History, fetch: Fetch, directory: Path, *, now: datet
         history.log_event(
             "catalog",
             "ok",
-            f"Feed Frisco: {res.products} produktów, {res.observations} nowych cen",
-            {"products": res.products, "observations": res.observations},
+            f"Feed Frisco: {res.products} produktów, {res.observations} nowych cen, {res.skipped} pominięte",
+            {"products": res.products, "observations": res.observations, "skipped": res.skipped},
             duration_ms=round((datetime.now() - began).total_seconds() * 1000),
         )
         return res

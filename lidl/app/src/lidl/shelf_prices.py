@@ -363,10 +363,14 @@ async def refresh_eans(
             except (TypeError, ValueError):
                 result.failed += 1
                 result.errors.append(f"{ean}: nieznany kształt odpowiedzi")
+                if index == 0:  # zapytanie próbne: zmieniony format API — nie ciągniemy reszty
+                    aborted = True
+                    break
                 continue
             result.ok += 1
             if row is None:
                 cleared.append(ean)
+                absent.append(ean)  # bez ceny: Dieta nie ponawia co noc, wraca po TTL „braków”
             else:
                 rows.append(row)
     finally:
@@ -374,7 +378,7 @@ async def refresh_eans(
             history.shelf_replace(store, rows, cleared)
         if absent:
             history.shelf_absent_mark(store, absent, now)
-        history.shelf_absent_clear(store, [r.ean for r in rows] + cleared)
+        history.shelf_absent_clear(store, [r.ean for r in rows])
     for error in result.errors:
         log.warning("Ceny półkowe Biedronki (%s, zlecenie): %s", store, error)
     meta = {"store": store, "count": result.ok, "failed": result.failed, "absent": len(absent)}

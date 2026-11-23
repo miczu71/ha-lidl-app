@@ -441,14 +441,12 @@ def create_app(settings: Settings) -> FastAPI:
         lock: asyncio.Lock = request.app.state.shelf_lock
         if lock.locked():
             return JSONResponse({"detail": "Odczyt cen już trwa.", "reason": "busy"}, status_code=409)
-        await lock.acquire()  # bez await między sprawdzeniem a zajęciem: zamek trzyma zadanie w tle
-        now = datetime.now()
-        try:
-            todo, n_fresh, n_absent = shelf_prices.partition_eans(history, store, raw, now)
-        except Exception:
-            lock.release()
-            raise
         svc = service(request)
+        now = datetime.now()
+        todo, n_fresh, n_absent = shelf_prices.partition_eans(
+            history, store, raw, now
+        )  # przed zajęciem zamka
+        await lock.acquire()  # bez await między sprawdzeniem a zajęciem: zamek trzyma zadanie w tle
 
         async def run() -> None:
             try:
