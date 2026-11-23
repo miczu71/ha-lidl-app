@@ -1,6 +1,6 @@
 # Changelog
 
-## Niewydane
+## 1.12.0
 
 - Zlecenia cen półkowych po EAN (E6b.3b, dla Diety): `POST /api/v1/shelf` (`{"eans": [...], "store": "..."}`, 1–100 EAN-ów) odpowiada
   202 i odczytuje ceny w tle pod tym samym zamkiem co poranny odczyt; 409 `no_store`/`no_account`/`busy`. Łagodne tempo: zapytanie
@@ -10,6 +10,9 @@
 - Katalog cen (E6b.1): schemat bazy v16 (tabele `catalog_products` i `catalog_obs`, kopia `history.db.pre-catalog`
   przed migracją). Ceny jednostkowe po rabacie z paragonów (EAN Biedronki, kod Lidla) i z publicznego feedu Frisco
   (co niedzielę o 03:00 albo `POST /api/v1/catalog/frisco/refresh`) są dopisywane tylko przy zmianie ceny.
+- Backfill katalogu z paragonów przy starcie: jedna transakcja (393 s → 0,2 s na kopii żywej bazy) i tylko przy pustym katalogu.
+  Feed Frisco: jedna transakcja, produkt z błędnymi danymi jest pomijany i liczony w dzienniku. Zlecenie cen: błędny kształt
+  odpowiedzi na zapytaniu próbnym przerywa zlecenie, EAN bez ceny trafia na listę „brak” (ponowienie po 30 dniach).
 - `GET /api/v1/catalog?since=&source=&history=1` i `GET /api/v1/shelf` (cache cen półkowych połączony z katalogiem po EAN), token Bearer jak
   przy `/api/v1/purchases`. Bez zmian w interfejsie; ceny półkowe (`shelf_prices`) działają jak dotąd.
 
