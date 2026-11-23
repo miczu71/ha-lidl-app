@@ -1,5 +1,5 @@
 name: "Zakupy (Lidl + Biedronka)"
-version: "1.10.0"
+version: "1.11.0"
 slug: lidl
 description: "Paragony, kupony i gazetki Lidl Plus oraz zakupy w Biedronce dla kilku kont (nieoficjalny)"
 url: "https://github.com/miczu71/ha-lidl-app"

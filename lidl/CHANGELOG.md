@@ -1,12 +1,17 @@
 # Changelog
 
+## 1.11.0
+
+- `GET /api/v1/purchases`: nowe pola `unit_price` (mediana ceny za sztukę/kg po rabacie, w jednej jednostce — tej z ostatniego
+  paragonu), `last_unit_price` i `is_weight`; `null` bez pozycji o ilości > 0 i dodatniej cenie. Dla kosztu planu w Diecie 0.3.0.
+- Bez zmiany schematu bazy i bez zmian w interfejsie.
+
 ## 1.10.0
 
 - Most do add-onu Dieta: `GET /api/v1/purchases?months=12` zwraca agregat zakupów per produkt (kod po moście nazw,
   nazwy, liczba zakupów, wydatek po rabacie, daty, kategoria). Dostęp tokenem Bearer z nowej opcji `api_token`
   (puste = API wyłączone, 503), poza Ingressem; reszta tras nadal tylko przez Ingress. Odrzucone próby trafiają do logu.
 - Bez zmiany schematu bazy i bez zmian w interfejsie.
-- `/api/v1/purchases`: nowe pola `unit_price` (mediana ceny za sztukę/kg po rabacie), `last_unit_price` i `is_weight` (z ostatniego paragonu); `null` bez pozycji o ilości > 0.
 
 ## 1.9.3
 
