@@ -144,6 +144,34 @@ def test_backfill_ingests_old_receipts(tmp_path: Path) -> None:
     assert [r[2] for r in _obs(h)] == [5.5, 5.9]
 
 
+def test_startup_backfill_runs_only_on_empty_catalog(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    _save(h, "t1", "2026-10-01", ReceiptItem("b:5900000000028", "Twaróg", 1, 5.5, 5.5), chain="biedronka")
+    h._db.execute("DELETE FROM catalog_obs")
+    h._db.commit()
+    assert catalog.backfill_receipts(h) == 1
+    _save(h, "t2", "2026-10-02", ReceiptItem("b:5900000000028", "Twaróg", 1, 6.0, 6.0), chain="biedronka")
+    assert catalog.backfill_receipts(h) == 0  # katalog niepusty — start nie przelicza historii od nowa
+
+
+def test_backfill_is_single_transaction(tmp_path: Path) -> None:
+    h = History(tmp_path / "h.db")
+    for i in range(3):
+        _save(
+            h,
+            f"t{i}",
+            f"2026-10-0{i + 1}",
+            ReceiptItem("b:5900000000028", "Twaróg", 1, 5.0 + i, 5.0 + i),
+            chain="biedronka",
+        )
+    h._db.execute("DELETE FROM catalog_obs")
+    h._db.commit()
+    commits: list[int] = []
+    h._db.set_trace_callback(lambda q: commits.append(1) if q.strip().upper() == "COMMIT" else None)
+    assert catalog.ingest_receipts(h) == 3
+    assert len(commits) == 1
+
+
 async def test_frisco_ingest_from_fixture(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     res = await frisco_feed.refresh(h, _fetch_fixture, tmp_path / "catalog", now=NOW)

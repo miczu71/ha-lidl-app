@@ -19,6 +19,18 @@ def _ean(art_id: str) -> str | None:
 def ingest_receipts(history: History, ticket_id: str | None = None) -> int:
     """Zapisuje obserwacje cen z pozycji paragonu (albo wszystkich — backfill); zwraca liczbę nowych.
     Idempotentne: cena równa poprzedniej obserwacji tego źródła nie jest dopisywana."""
+    if ticket_id is None:
+        with history.catalog_bulk():
+            return _ingest(history, None)
+    return _ingest(history, ticket_id)
+
+
+def backfill_receipts(history: History) -> int:
+    """Start add-onu: pełny backfill tylko do pierwszego wypełnienia katalogu (potem paragony wchodzą pojedynczo)."""
+    return 0 if history.catalog_has_receipt_obs() else ingest_receipts(history)
+
+
+def _ingest(history: History, ticket_id: str | None) -> int:
     added = 0
     for art_id, name, quantity, unit_price, amount, day, chain in history.catalog_receipt_lines(ticket_id):
         if quantity <= 0 or amount <= 0:

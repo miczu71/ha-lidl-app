@@ -175,7 +175,7 @@ def create_app(settings: Settings) -> FastAPI:
             history = History(settings.data_dir / "history.db")
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
             try:
-                catalog.ingest_receipts(history)  # backfill katalogu cen; idempotentny
+                catalog.backfill_receipts(history)  # tylko gdy katalog bez obserwacji z paragonów
             except Exception:
                 log.exception("Katalog cen: backfill z paragonów nieudany")
             history.log_event("system", "ok", f"Start add-onu {__version__}", {"version": __version__})

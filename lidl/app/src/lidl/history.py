@@ -15,9 +15,10 @@ import logging
 import sqlite3
 import statistics
 import zlib
+from contextlib import contextmanager, nullcontext
 from bisect import bisect_right
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from itertools import groupby
@@ -991,6 +992,7 @@ class History:
         if has_tables and version < 17:
             self._migrate_v16(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        self._bulk = False
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
 
@@ -2581,6 +2583,25 @@ class History:
                 "DELETE FROM shelf_absent WHERE store = ? AND ean = ?", [(store, e) for e in eans]
             )
 
+    @contextmanager
+    def catalog_bulk(self) -> Iterator[None]:
+        """Zapisy katalogu w jednej transakcji (backfill: jeden commit zamiast dwóch na pozycję)."""
+        self._bulk = True
+        try:
+            with self._db:
+                yield
+        finally:
+            self._bulk = False
+
+    def _catalog_tx(self) -> Any:
+        return nullcontext() if self._bulk else self._db
+
+    def catalog_has_receipt_obs(self) -> bool:
+        return (
+            self._db.execute("SELECT 1 FROM catalog_obs WHERE source = 'receipt' LIMIT 1").fetchone()
+            is not None
+        )
+
     def catalog_receipt_lines(self, ticket_id: str | None = None) -> list[tuple[Any, ...]]:
         """Pozycje paragonów dla katalogu cen: (art_id, nazwa, ilość, cena regularna, kwota po rabacie, dzień,
         sieć), rosnąco po dniu; `ticket_id` ogranicza do jednego paragonu."""
@@ -2611,7 +2632,7 @@ class History:
         if ean is None and lidl_art is None:
             raise ValueError("catalog_upsert_product: potrzebny ean albo lidl_art")
         col, key = ("ean", ean) if ean is not None else ("lidl_art", lidl_art)
-        with self._db:
+        with self._catalog_tx():
             row = self._db.execute(f"SELECT id FROM catalog_products WHERE {col} = ?", (key,)).fetchone()
             if row is None:
                 cur = self._db.execute(
@@ -2655,7 +2676,7 @@ class History:
         ).fetchone()
         if last is not None and tuple(last) == (price, regular, promo_from, promo_to):
             return False
-        with self._db:
+        with self._catalog_tx():
             self._db.execute(
                 "INSERT INTO catalog_obs (product_id, source, store, price, regular, promo_from, promo_to,"
                 " observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
