@@ -25,7 +25,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse, RedirectResponse,
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from lidl import __version__, alerts, chain_pairs, chain_savings, pairs, shelf_prices
+from lidl import __version__, alerts, catalog, chain_pairs, chain_savings, frisco_feed, pairs, shelf_prices
 from lidl.accounts import AccountStore, slugify
 from lidl.budget_feed import BudgetFeed
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
@@ -100,6 +100,7 @@ log = logging.getLogger(__name__)
 HERE = Path(__file__).parent
 INGRESS_PROXY = "172.30.32.2"
 WARM_DELAY = 5  # s
+CATALOG_SOURCES = ("receipt", "frisco", "biedronka")
 PRODUCT_PARAMS = ("od", "do", "krok", "produkt", "miara", "zakres", "limit", "q")
 RECEIPT_PARAMS = ("q", "konto", "sklep", "kraj", "od", "do", "limit", "siec")
 # E6: kategorie produktu dla Budżetu Domowego i skąd się wzięły (brak = spożywcze do sprawdzenia)
@@ -173,6 +174,10 @@ def create_app(settings: Settings) -> FastAPI:
             service = LidlService(AccountStore(settings.accounts_dir), session)
             history = History(settings.data_dir / "history.db")
             history.reparse(parse_detail)  # paragony zapisane starszym parserem, z lokalnej kopii
+            try:
+                catalog.ingest_receipts(history)  # backfill katalogu cen; idempotentny
+            except Exception:
+                log.exception("Katalog cen: backfill z paragonów nieudany")
             history.log_event("system", "ok", f"Start add-onu {__version__}", {"version": __version__})
             feed = BudgetFeed(session, history, settings)
 
@@ -248,7 +253,15 @@ def create_app(settings: Settings) -> FastAPI:
                 asyncio.create_task(job.refresh_rewards()),
                 asyncio.create_task(alerts.loop(session, history, problems, settings.alert_notify)),
             ]
+            frisco_fetch = frisco_feed.downloader(session)
+            app.state.frisco_fetch = frisco_fetch
+            app.state.catalog_dir = (
+                settings.data_dir / "catalog"
+            )  # poza repo; plik feedu kasowany po ingeście
             if not settings.dev:  # w dev/testach bez zapytań do Lidla i modelu przy starcie
+                loops.append(
+                    asyncio.create_task(frisco_feed.weekly_loop(history, frisco_fetch, app.state.catalog_dir))
+                )
                 loops.append(asyncio.create_task(warm_later(history)))
                 # promocje od razu po restarcie, nie dopiero rano
                 loops.append(asyncio.create_task(promotions.refresh()))
@@ -343,6 +356,71 @@ def create_app(settings: Settings) -> FastAPI:
                 "products": products,
             }
         )
+
+    def catalog_view(request: Request, source: str, since: str, history_flag: int) -> Response:
+        if source and source not in CATALOG_SOURCES:
+            return JSONResponse({"detail": "Nieznane source."}, status_code=422)
+        since_day: str | None = None
+        if since:
+            try:
+                since_day = datetime.fromisoformat(since).date().isoformat()
+            except ValueError:
+                return JSONResponse({"detail": "Zły format since (ISO)."}, status_code=422)
+        history: History = request.app.state.history
+        products = history.catalog_products(since_day, source or None, bool(history_flag))
+        return JSONResponse(
+            {"generated_at": datetime.now().isoformat(timespec="seconds"), "products": products}
+        )
+
+    @app.get("/api/v1/catalog")
+    async def api_catalog(request: Request, since: str = "", source: str = "", history: int = 0) -> Response:
+        """Katalog cen dla Diety: produkty z ostatnimi obserwacjami per źródło; token sprawdza `guard`."""
+        return catalog_view(request, source, since, history)
+
+    @app.get("/api/v1/shelf")
+    async def api_shelf(request: Request, store: str = "") -> Response:
+        """Cache cen półkowych Biedronki (`shelf_prices`: ostatni odczyt per sklep i EAN) połączony po EAN
+        z katalogiem; sklep domyślnie jak w /polka (ustawienie `biedronka_store`). Zlecenia EAN → E6b.3."""
+        history: History = request.app.state.history
+        store = store or history.get_setting("biedronka_store") or ""
+        rows = history.shelf_list(store) if store else []
+        known = {p["ean"]: p for p in history.catalog_products(eans={r.ean for r in rows})}
+        items = [
+            {
+                "ean": r.ean,
+                "price": r.price,
+                "regular": r.regular,
+                "omnibus": r.omnibus,
+                "promo_from": r.promo_from,
+                "promo_to": r.promo_to,
+                "is_promotion": r.is_promotion,
+                "card_only": r.card_only,
+                "fetched_at": r.fetched_at,
+                "stock": r.stock,
+                "product": known.get(r.ean),
+            }
+            for r in rows
+        ]
+        return JSONResponse(
+            {
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+                "store": store or None,
+                "items": items,
+            }
+        )
+
+    @app.post("/api/v1/catalog/frisco/refresh")
+    async def api_frisco_refresh(request: Request) -> Response:
+        """Ręczne odświeżenie feedu Frisco; 409, gdy przebieg już trwa."""
+        state = request.app.state
+        res = await frisco_feed.refresh(state.history, state.frisco_fetch, state.catalog_dir)
+        if res.busy:
+            return JSONResponse({"detail": "Odświeżanie już trwa."}, status_code=409)
+        if res.error:
+            return JSONResponse(
+                {"detail": "Pobranie feedu nieudane (szczegóły w dzienniku)."}, status_code=502
+            )
+        return JSONResponse({"products": res.products, "observations": res.observations})
 
     def status_snapshot(state: Any) -> Snapshot:
         history: History = state.history

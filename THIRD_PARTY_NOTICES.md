@@ -106,3 +106,11 @@ THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRI
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
 TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Frisco public product feed
+
+`lidl/app/src/lidl/frisco_feed.py` downloads the public product feed published by Frisco
+(<https://commerce.frisco.pl/api/v1/integration/feeds/public>) once a week and stores only prices
+(EAN, name, brand, size, price and promotion window) in the local add-on database for personal price
+comparison. The feed file itself is deleted after parsing and is not redistributed. Product data remains
+the property of its owner; the integration can be switched off by removing the weekly job.

@@ -1,5 +1,13 @@
 # Changelog
 
+## Niewydane
+
+- Katalog cen (E6b.1): schemat bazy v16 (tabele `catalog_products` i `catalog_obs`, kopia `history.db.pre-catalog`
+  przed migracją). Ceny jednostkowe po rabacie z paragonów (EAN Biedronki, kod Lidla) i z publicznego feedu Frisco
+  (co niedzielę o 03:00 albo `POST /api/v1/catalog/frisco/refresh`) są dopisywane tylko przy zmianie ceny.
+- `GET /api/v1/catalog?since=&source=&history=1` i `GET /api/v1/shelf` (cache cen półkowych połączony z katalogiem po EAN), token Bearer jak
+  przy `/api/v1/purchases`. Bez zmian w interfejsie; ceny półkowe (`shelf_prices`) działają jak dotąd.
+
 ## 1.11.0
 
 - `GET /api/v1/purchases`: nowe pola `unit_price` (mediana ceny za sztukę/kg po rabacie, w jednej jednostce — tej z ostatniego

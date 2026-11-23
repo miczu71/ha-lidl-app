@@ -1,0 +1,341 @@
+{
+ "generatedAt": "2026-11-23T18:35:00+01:00",
+ "categories": [
+  {
+   "id": "c1",
+   "name": {
+    "pl": "Kategoria testowa"
+   }
+  }
+ ],
+ "products": [
+  {
+   "id": "1000",
+   "productId": "2000",
+   "ean": "5900000000011",
+   "packSize": 1,
+   "unitOfMeasure": "Litre",
+   "grammage": 1.0,
+   "brand": "Mlekoland",
+   "name": {
+    "pl": "Mleko testowe 3,2% 1 l"
+   },
+   "price": {
+    "price": 3.49,
+    "priceAfterPromotion": 2.99,
+    "promotionId": "promo-a"
+   },
+   "promotions": [
+    {
+     "id": "promo-a",
+     "promotionId": "promo-a",
+     "validTo": "2026-12-13T23:59:00+01:00"
+    }
+   ]
+  },
+  {
+   "id": "1001",
+   "productId": "2001",
+   "ean": "5900000000028",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.25,
+   "brand": "Serowar",
+   "name": {
+    "pl": "Twaróg półtłusty testowy 250 g"
+   },
+   "price": {
+    "price": 5.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1002",
+   "productId": "2002",
+   "ean": "5900000000035",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.2,
+   "brand": "Mlekoland",
+   "name": {
+    "pl": "Masło extra 200 g"
+   },
+   "price": {
+    "price": 8.49
+   },
+   "promotions": []
+  },
+  {
+   "id": "1003",
+   "productId": "2003",
+   "ean": "5900000000042",
+   "packSize": 1,
+   "unitOfMeasure": "Piece",
+   "grammage": 10.0,
+   "brand": "Kurnik",
+   "name": {
+    "pl": "Jajka klasa M 10 szt."
+   },
+   "price": {
+    "price": 12.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1004",
+   "productId": "2004",
+   "ean": "5900000000059",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 1.0,
+   "brand": "Młynex",
+   "name": {
+    "pl": "Mąka pszenna typ 450 1 kg"
+   },
+   "price": {
+    "price": 3.29
+   },
+   "promotions": []
+  },
+  {
+   "id": "1005",
+   "productId": "2005",
+   "ean": "5900000000066",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 1.0,
+   "brand": "Słodko",
+   "name": {
+    "pl": "Cukier biały 1 kg"
+   },
+   "price": {
+    "price": 4.49
+   },
+   "promotions": []
+  },
+  {
+   "id": "1006",
+   "productId": "2006",
+   "ean": "5900000000073",
+   "packSize": 1,
+   "unitOfMeasure": "Litre",
+   "grammage": 1.0,
+   "brand": "Złotol",
+   "name": {
+    "pl": "Olej rzepakowy 1 l"
+   },
+   "price": {
+    "price": 9.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1007",
+   "productId": "2007",
+   "ean": "5900000000080",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.4,
+   "brand": "Ziarnex",
+   "name": {
+    "pl": "Ryż długoziarnisty 400 g"
+   },
+   "price": {
+    "price": 4.79
+   },
+   "promotions": []
+  },
+  {
+   "id": "1008",
+   "productId": "2008",
+   "ean": "5900000000097",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.5,
+   "brand": "Pastella",
+   "name": {
+    "pl": "Makaron świderki 500 g"
+   },
+   "price": {
+    "price": 4.19
+   },
+   "promotions": []
+  },
+  {
+   "id": "1009",
+   "productId": "2009",
+   "ean": "5900000000103",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 1.0,
+   "brand": "",
+   "name": {
+    "pl": "Pomidory malinowe luz"
+   },
+   "price": {
+    "price": 14.9
+   },
+   "promotions": []
+  },
+  {
+   "id": "1010",
+   "productId": "2010",
+   "ean": "5900000000110",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 1.0,
+   "brand": "",
+   "name": {
+    "pl": "Ogórek gruntowy"
+   },
+   "price": {
+    "price": 6.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1011",
+   "productId": "2011",
+   "ean": "5900000000127",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 1.0,
+   "brand": "",
+   "name": {
+    "pl": "Jabłka testowe"
+   },
+   "price": {
+    "price": 5.49
+   },
+   "promotions": []
+  },
+  {
+   "id": "1012",
+   "productId": "2012",
+   "ean": "5900000000134",
+   "packSize": 1,
+   "unitOfMeasure": "Litre",
+   "grammage": 1.0,
+   "brand": "Sokolux",
+   "name": {
+    "pl": "Sok pomarańczowy 1 l"
+   },
+   "price": {
+    "price": 6.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1013",
+   "productId": "2013",
+   "ean": "5900000000141",
+   "packSize": 6,
+   "unitOfMeasure": "Litre",
+   "grammage": 1.5,
+   "brand": "Źródlanka",
+   "name": {
+    "pl": "Woda niegazowana 1,5 l"
+   },
+   "price": {
+    "price": 1.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1014",
+   "productId": "2014",
+   "ean": "5900000000158",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.25,
+   "brand": "Aromix",
+   "name": {
+    "pl": "Kawa mielona 250 g"
+   },
+   "price": {
+    "price": 17.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1015",
+   "productId": "2015",
+   "ean": "5900000000165",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.04,
+   "brand": "Herbatka",
+   "name": {
+    "pl": "Herbata czarna 20 saszetek"
+   },
+   "price": {
+    "price": 6.49
+   },
+   "promotions": []
+  },
+  {
+   "id": "1016",
+   "productId": "2016",
+   "ean": "5900000000172",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.5,
+   "brand": "Ziarnex",
+   "name": {
+    "pl": "Płatki owsiane 500 g"
+   },
+   "price": {
+    "price": 3.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1017",
+   "productId": "2017",
+   "ean": "5900000000189",
+   "packSize": 1,
+   "unitOfMeasure": "Piece",
+   "grammage": 1.0,
+   "brand": "Maluszek",
+   "name": {
+    "pl": "Pieluchy rozmiar 4"
+   },
+   "price": {
+    "price": 39.99
+   },
+   "promotions": []
+  },
+  {
+   "id": "1018",
+   "productId": "2018",
+   "ean": "",
+   "packSize": 1,
+   "unitOfMeasure": "Piece",
+   "grammage": 1.0,
+   "brand": "",
+   "name": {
+    "pl": "Produkt bez kodu"
+   },
+   "price": {
+    "price": 1.0
+   },
+   "promotions": []
+  },
+  {
+   "id": "1019",
+   "productId": "2019",
+   "ean": "5900000000202",
+   "packSize": 1,
+   "unitOfMeasure": "Kilogram",
+   "grammage": 0.15,
+   "brand": "Serowar",
+   "name": {
+    "pl": "Ser żółty plastry 150 g"
+   },
+   "price": {
+    "price": 7.99
+   },
+   "promotions": []
+  }
+ ]
+}

@@ -126,6 +126,19 @@ Supervisora). Zwraca agregat per produkt z ostatnich miesięcy: `code`, `chain`,
 `spend`, `first`, `last`, `dates`, `category`. Bez paragonów i adresów sklepów. Kody: 401 brak/zły token,
 503 pusty `api_token`. Reszta tras nadal działa tylko przez Ingress.
 
+### Katalog cen
+
+Zakupy zapisują historię cen produktów (tabele `catalog_products`, `catalog_obs`): ceny jednostkowe po rabacie
+z paragonów (źródło `receipt`) i z publicznego feedu Frisco (`frisco`, pobierany co niedzielę o 03:00 do
+`/data/catalog/` i kasowany po przetworzeniu). Obserwacja powstaje tylko przy zmianie ceny. Odczyt tym samym tokenem:
+
+- `GET /api/v1/catalog?since=<data ISO>&source=receipt|frisco|biedronka&history=1` — produkty (`ean`, `name`, `brand`,
+  `size`, `size_unit`, `frisco_id`, `lidl_art`) z `observations` (`source`, `store`, `price`, `regular`, `promo_from`,
+  `promo_to`, `observed_at`); domyślnie ostatnia obserwacja per źródło, z `history=1` wszystkie.
+- `GET /api/v1/shelf?store=` — cache cen półkowych Biedronki (`shelf_prices`, domyślnie sklep główny jak w „Cenach
+  półkowych”) w polu `items`: cena, `regular`, okno promocji, `fetched_at`, `stock` i `product` z katalogu po EAN (`null`, gdy EAN spoza katalogu).
+- `POST /api/v1/catalog/frisco/refresh` — ręczne odświeżenie feedu (409, gdy trwa; 502 przy błędzie pobrania).
+
 ## Prywatność
 
 Hasła nie trafiają do add-onu. Tokeny są w `/data/accounts/` (0600), a historia zakupów w `/data/history.db`;

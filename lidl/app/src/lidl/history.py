@@ -55,7 +55,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 _PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
@@ -181,6 +181,31 @@ CREATE TABLE IF NOT EXISTS shelf_prices (
     stock TEXT,
     PRIMARY KEY (store, ean)
 );
+-- E6b.1: katalog cen (produkt po EAN / kodzie Lidla; obserwacje tylko dopisywane)
+CREATE TABLE IF NOT EXISTS catalog_products (
+    id INTEGER PRIMARY KEY,
+    ean TEXT UNIQUE,
+    name TEXT,
+    brand TEXT,
+    size REAL,
+    size_unit TEXT,
+    frisco_id TEXT UNIQUE,
+    sap TEXT,
+    lidl_art TEXT UNIQUE,
+    aliases TEXT NOT NULL DEFAULT '[]'
+);
+CREATE TABLE IF NOT EXISTS catalog_obs (
+    id INTEGER PRIMARY KEY,
+    product_id INTEGER NOT NULL REFERENCES catalog_products(id),
+    source TEXT NOT NULL,
+    store TEXT,
+    price REAL,
+    regular REAL,
+    promo_from TEXT,
+    promo_to TEXT,
+    observed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS catalog_obs_product ON catalog_obs(product_id, source, observed_at);
 -- E29.2: ustawienia aplikacji (klucz → wartość), np. `biedronka_store`
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ticket_coupons (
@@ -954,6 +979,8 @@ class History:
             self._migrate_v13(path)
         if has_tables and version < 15:
             self._migrate_v14(path)
+        if has_tables and version < 16:
+            self._migrate_v15(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1091,6 +1118,14 @@ class History:
                 "UPDATE items SET discount = -ABS(discount) WHERE ticket_id IN"
                 " (SELECT id FROM tickets WHERE chain = 'biedronka')"
             )
+
+    def _migrate_v15(self, path: Path) -> None:
+        """v15 → v16: tabele `catalog_products` i `catalog_obs` (z _SCHEMA); kopia `.pre-catalog`."""
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-catalog"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
 
     def _migrate_v14(self, path: Path) -> None:
         """v14 → v15: `store_geo` z kluczem (sieć, kod) zamiast samego kodu; sieć istniejących punktów wynika
@@ -1391,6 +1426,13 @@ class History:
             if raw is not None:
                 blob = zlib.compress(json.dumps(raw, ensure_ascii=False).encode(), 6)
                 self._db.execute("INSERT OR REPLACE INTO ticket_raw VALUES (?, ?)", (ticket_id, blob))
+        if not foreign:
+            from .catalog import ingest_receipts  # lokalnie: catalog.py importuje History
+
+            try:
+                ingest_receipts(self, ticket_id)
+            except Exception:  # katalog cen nigdy nie blokuje zapisu paragonu
+                log.exception("Katalog cen: ingest paragonu %s nieudany", ticket_id)
         return parsed
 
     def ticket_row(self, ticket_id: str) -> dict[str, Any] | None:
@@ -2498,6 +2540,137 @@ class History:
                 sql + " ORDER BY store, ean", params
             )
         ]
+
+    def catalog_receipt_lines(self, ticket_id: str | None = None) -> list[tuple[Any, ...]]:
+        """Pozycje paragonów dla katalogu cen: (art_id, nazwa, ilość, cena regularna, kwota po rabacie, dzień,
+        sieć), rosnąco po dniu; `ticket_id` ogranicza do jednego paragonu."""
+        sql = (
+            "SELECT i.art_id, i.name, i.quantity, i.unit_price, i.total + i.discount, t.day, t.chain"
+            " FROM items i JOIN tickets t ON t.id = i.ticket_id"
+        )
+        params: tuple[str, ...] = ()
+        if ticket_id is not None:
+            sql += " WHERE i.ticket_id = ?"
+            params = (ticket_id,)
+        return self._db.execute(sql + " ORDER BY t.day, i.ticket_id, i.line", params).fetchall()
+
+    def catalog_upsert_product(
+        self,
+        *,
+        ean: str | None = None,
+        lidl_art: str | None = None,
+        frisco_id: str | None = None,
+        name: str | None = None,
+        brand: str | None = None,
+        size: float | None = None,
+        size_unit: str | None = None,
+        authoritative: bool = False,
+    ) -> int:
+        """Id produktu katalogu po EAN albo kodzie Lidla (tworzy, gdy brak). Dane z feedu (`authoritative`)
+        nadpisują nazwę, markę i rozmiar; z paragonu tylko uzupełniają braki."""
+        if ean is None and lidl_art is None:
+            raise ValueError("catalog_upsert_product: potrzebny ean albo lidl_art")
+        col, key = ("ean", ean) if ean is not None else ("lidl_art", lidl_art)
+        with self._db:
+            row = self._db.execute(f"SELECT id FROM catalog_products WHERE {col} = ?", (key,)).fetchone()
+            if row is None:
+                cur = self._db.execute(
+                    "INSERT INTO catalog_products (ean, name, brand, size, size_unit, frisco_id, lidl_art)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (ean, name, brand, size, size_unit, frisco_id, lidl_art),
+                )
+                return int(cur.lastrowid or 0)
+            pid = int(row[0])
+            fields = {
+                "name": name,
+                "brand": brand,
+                "size": size,
+                "size_unit": size_unit,
+                "frisco_id": frisco_id,
+            }
+            for field, value in fields.items():
+                if value is None:
+                    continue
+                guard = "" if authoritative else f" AND {field} IS NULL"
+                self._db.execute(f"UPDATE catalog_products SET {field} = ? WHERE id = ?{guard}", (value, pid))
+            return pid
+
+    def catalog_add_obs(
+        self,
+        product_id: int,
+        source: str,
+        store: str | None,
+        price: float | None,
+        regular: float | None,
+        observed_at: str,
+        promo_from: str | None = None,
+        promo_to: str | None = None,
+    ) -> bool:
+        """Dopisuje obserwację ceny; pomija, gdy poprzednia obserwacja tego źródła (z dnia ≤ `observed_at`)
+        ma tę samą cenę, cenę regularną i okno promocji. Obserwacji się nie zmienia ani nie usuwa."""
+        last = self._db.execute(
+            "SELECT price, regular, promo_from, promo_to FROM catalog_obs"
+            " WHERE product_id = ? AND source = ? AND observed_at <= ? ORDER BY observed_at DESC, id DESC",
+            (product_id, source, observed_at),
+        ).fetchone()
+        if last is not None and tuple(last) == (price, regular, promo_from, promo_to):
+            return False
+        with self._db:
+            self._db.execute(
+                "INSERT INTO catalog_obs (product_id, source, store, price, regular, promo_from, promo_to,"
+                " observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (product_id, source, store, price, regular, promo_from, promo_to, observed_at),
+            )
+        return True
+
+    def catalog_products(
+        self,
+        since: str | None = None,
+        source: str | None = None,
+        history: bool = False,
+        eans: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Produkty katalogu z obserwacjami: domyślnie ostatnia per źródło, z `history` wszystkie (rosnąco).
+        `since` (data ISO): produkty z obserwacją z tego dnia lub późniejszą; `source` zawęża źródło;
+        `eans` — produkty o tych EAN-ach.
+        """
+        rows = self._db.execute(
+            "SELECT p.id, p.ean, p.name, p.brand, p.size, p.size_unit, p.frisco_id, p.sap, p.lidl_art,"
+            " p.aliases, o.source, o.store, o.price, o.regular, o.promo_from, o.promo_to, o.observed_at"
+            " FROM catalog_products p JOIN catalog_obs o ON o.product_id = p.id"
+            " WHERE (? IS NULL OR o.source = ?) ORDER BY p.id, o.observed_at, o.id",
+            (source, source),
+        )
+        out: dict[int, dict[str, Any]] = {}
+        newest: dict[int, str] = {}
+        latest: dict[int, dict[str, dict[str, Any]]] = {}
+        for r in rows:
+            pid = r[0]
+            if pid not in out:
+                out[pid] = {
+                    "id": pid, "ean": r[1], "name": r[2], "brand": r[3], "size": r[4], "size_unit": r[5],
+                    "frisco_id": r[6], "sap": r[7], "lidl_art": r[8], "aliases": json.loads(r[9]),
+                    "observations": [],
+                }  # fmt: skip
+                latest[pid] = {}
+            obs = {
+                "source": r[10], "store": r[11], "price": r[12], "regular": r[13],
+                "promo_from": r[14], "promo_to": r[15], "observed_at": r[16],
+            }  # fmt: skip
+            newest[pid] = max(newest.get(pid, ""), r[16])
+            latest[pid][r[10]] = obs
+            if history:
+                out[pid]["observations"].append(obs)
+        result = []
+        for pid, product in out.items():
+            if since is not None and newest[pid] < since:
+                continue
+            if eans is not None and product["ean"] not in eans:
+                continue
+            if not history:
+                product["observations"] = sorted(latest[pid].values(), key=lambda o: o["source"])
+            result.append(product)
+        return result
 
     def pair_propose(self, country: str, foreign_name: str, candidates: list[str]) -> bool:
         """Propozycja pary; istniejący wiersz (też zatwierdzony) zostaje nietknięty. True = nowy wiersz."""
