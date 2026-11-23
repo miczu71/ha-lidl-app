@@ -1679,7 +1679,8 @@ class History:
         acc: dict[str, dict[str, Any]] = {}
         for art_id, name, amount, day_s, chain, quantity, is_weight in rows:
             p = acc.setdefault(
-                resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0, "units": [], "is_weight": None}
+                resolve(art_id, name),
+                {"names": Counter(), "days": set(), "spend": 0.0, "units": [], "is_weight": None},
             )
             p["names"][name] += 1
             p["days"].add(day_s)
