@@ -2,6 +2,11 @@
 
 ## Niewydane
 
+- Zlecenia cen półkowych po EAN (E6b.3b, dla Diety): `POST /api/v1/shelf` (`{"eans": [...], "store": "..."}`, 1–100 EAN-ów) odpowiada
+  202 i odczytuje ceny w tle pod tym samym zamkiem co poranny odczyt; 409 `no_store`/`no_account`/`busy`. Łagodne tempo: zapytanie
+  próbne, partie po 20 EAN-ów, 1 s w partii i 10 s między partiami; 429 albo błąd sesji przerywa zlecenie. Świeże (≤7 dni) i „brak
+  w Biedronce” (HTTP 404, ≤30 dni) EAN-y są pomijane. Schemat bazy v17: tabela `shelf_absent` (kopia `history.db.pre-absent`).
+  `GET /api/v1/shelf` zwraca dodatkowo `absent`.
 - Katalog cen (E6b.1): schemat bazy v16 (tabele `catalog_products` i `catalog_obs`, kopia `history.db.pre-catalog`
   przed migracją). Ceny jednostkowe po rabacie z paragonów (EAN Biedronki, kod Lidla) i z publicznego feedu Frisco
   (co niedzielę o 03:00 albo `POST /api/v1/catalog/frisco/refresh`) są dopisywane tylko przy zmianie ceny.

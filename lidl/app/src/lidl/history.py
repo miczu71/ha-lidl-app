@@ -55,7 +55,7 @@ def elapsed_ms(began: float) -> int:
     return round((monotonic() - began) * 1000)
 
 
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 _PAIR_BACK_TO_PROPOSED = "SET status = 'proposed', lidl_art_id = NULL, source = 'ai', decided_at = NULL"
 FOREIGN_PARSER_VERSION = 1  # własna wersja szczegółów zagranicznych (PARSER_VERSION dotyczy tylko PL)
 CANDIDATE_MIN_PURCHASES = 3
@@ -179,6 +179,13 @@ CREATE TABLE IF NOT EXISTS shelf_prices (
     is_promotion INTEGER NOT NULL DEFAULT 0,
     fetched_at TEXT NOT NULL,
     stock TEXT,
+    PRIMARY KEY (store, ean)
+);
+-- E6b.3b: EAN-y, na które Biedronka odpowiedziała 404 („brak w Biedronce”), per sklep
+CREATE TABLE IF NOT EXISTS shelf_absent (
+    store TEXT NOT NULL,
+    ean TEXT NOT NULL,
+    seen_at TEXT NOT NULL,
     PRIMARY KEY (store, ean)
 );
 -- E6b.1: katalog cen (produkt po EAN / kodzie Lidla; obserwacje tylko dopisywane)
@@ -981,6 +988,8 @@ class History:
             self._migrate_v14(path)
         if has_tables and version < 16:
             self._migrate_v15(path)
+        if has_tables and version < 17:
+            self._migrate_v16(path)
         self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         self._memo: dict[tuple[Any, ...], Any] = {}
         self._memo_stamp: tuple[int, date] | None = None
@@ -1118,6 +1127,14 @@ class History:
                 "UPDATE items SET discount = -ABS(discount) WHERE ticket_id IN"
                 " (SELECT id FROM tickets WHERE chain = 'biedronka')"
             )
+
+    def _migrate_v16(self, path: Path) -> None:
+        """v16 → v17: tabela `shelf_absent` (z _SCHEMA); kopia `.pre-absent`."""
+        dest = sqlite3.connect(path.with_name(path.name + ".pre-absent"))
+        try:
+            self._db.backup(dest)
+        finally:
+            dest.close()
 
     def _migrate_v15(self, path: Path) -> None:
         """v15 → v16: tabele `catalog_products` i `catalog_obs` (z _SCHEMA); kopia `.pre-catalog`."""
@@ -2540,6 +2557,29 @@ class History:
                 sql + " ORDER BY store, ean", params
             )
         ]
+
+    def shelf_absent_mark(self, store: str, eans: Iterable[str], now: datetime) -> None:
+        """Zapisuje EAN-y z HTTP 404 jako „brak w Biedronce” (odświeża `seen_at`)."""
+        stamp = now.isoformat(timespec="seconds")
+        with self._db:
+            self._db.executemany(
+                "INSERT OR REPLACE INTO shelf_absent (store, ean, seen_at) VALUES (?, ?, ?)",
+                [(store, e, stamp) for e in eans],
+            )
+
+    def shelf_absent_list(self, store: str, since: datetime) -> list[str]:
+        """EAN-y „brak w Biedronce” widziane nie wcześniej niż `since`, posortowane."""
+        rows = self._db.execute(
+            "SELECT ean FROM shelf_absent WHERE store = ? AND seen_at >= ? ORDER BY ean",
+            (store, since.isoformat(timespec="seconds")),
+        )
+        return [r[0] for r in rows]
+
+    def shelf_absent_clear(self, store: str, eans: Iterable[str]) -> None:
+        with self._db:
+            self._db.executemany(
+                "DELETE FROM shelf_absent WHERE store = ? AND ean = ?", [(store, e) for e in eans]
+            )
 
     def catalog_receipt_lines(self, ticket_id: str | None = None) -> list[tuple[Any, ...]]:
         """Pozycje paragonów dla katalogu cen: (art_id, nazwa, ilość, cena regularna, kwota po rabacie, dzień,

@@ -10,7 +10,7 @@ import logging
 import re
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .chain_savings import _bdr_slugs
@@ -21,6 +21,10 @@ log = logging.getLogger(__name__)
 
 MAX_EANS = 60  # limit EAN-ów dziennie; cena + stan = ≤120 zapytań (E30: ≤1/s, plan E30)
 REQUEST_PAUSE_S = 1.0
+BATCH_SIZE = 20  # E6b.3b: zlecenia po EAN idą partiami
+BATCH_PAUSE_S = 10.0  # pauza między partiami (w partii: REQUEST_PAUSE_S)
+FRESH_DAYS = 7  # cena młodsza niż tyle dni nie jest odpytywana ponownie
+ABSENT_DAYS = 30  # EAN z 404 młodszy niż tyle dni nie jest odpytywany ponownie
 _EAN_RE = re.compile(r"\d{8,13}")
 _PROMO_END_RE = re.compile(r"do\s+(\d{1,2})\.(\d{1,2})")
 _PROMO_YEAR_BACK = 180  # data końca więcej niż tyle dni przed dziś = przełom roku
@@ -292,3 +296,92 @@ async def refresh_morning(history: History, service: Any) -> RefreshResult | Non
         return None
     api = await service.chain_api(slugs[0])
     return await refresh(history, api, store)
+
+
+def partition_eans(
+    history: History, store: str, eans: Iterable[str], now: datetime
+) -> tuple[list[str], int, int]:
+    """Dzieli EAN-y zlecenia: (do odczytu, liczba świeżych ≤7 d, liczba „brak w Biedronce” ≤30 d);
+    duplikaty zdejmowane, kolejność zachowana."""
+    fresh_since = (now - timedelta(days=FRESH_DAYS)).isoformat(timespec="seconds")
+    fresh = {r.ean for r in history.shelf_list(store) if r.fetched_at >= fresh_since}
+    absent = set(history.shelf_absent_list(store, now - timedelta(days=ABSENT_DAYS)))
+    todo: list[str] = []
+    n_fresh = n_absent = 0
+    for ean in dict.fromkeys(eans):
+        if ean in fresh:
+            n_fresh += 1
+        elif ean in absent:
+            n_absent += 1
+        else:
+            todo.append(ean)
+    return todo, n_fresh, n_absent
+
+
+async def refresh_eans(
+    history: History,
+    api: Any,
+    store: str,
+    eans: Iterable[str],
+    *,
+    sleep: Callable[[float], Awaitable[Any]] = asyncio.sleep,
+    now: datetime | None = None,
+) -> RefreshResult:
+    """Zlecenie Diety (E6b.3b): ceny (bez stanu) podanych EAN-ów, z pominięciem świeżych i „braków”.
+    Pierwsze zapytanie jest próbne: błąd inny niż 404 (np. 429) przerywa całość. Dalej partie ≤`BATCH_SIZE`,
+    `REQUEST_PAUSE_S` w partii, `BATCH_PAUSE_S` między partiami. 429, błąd sesji albo sieci przerywa pętlę;
+    odczyty sprzed błędu zostają zapisane. Nie rzuca wyjątków z API."""
+    now = now or datetime.now()
+    result = RefreshResult()
+    todo, _, _ = partition_eans(history, store, eans, now)
+    rows: list[ShelfPrice] = []
+    cleared: list[str] = []
+    absent: list[str] = []
+    aborted = False
+    try:
+        for index, ean in enumerate(todo):
+            if index:
+                await sleep(BATCH_PAUSE_S if index % BATCH_SIZE == 0 else REQUEST_PAUSE_S)
+            try:
+                row = parse_price(store, ean, await api.product_price(store, ean), now)
+            except LidlPlusError as err:
+                if err.status == 404 and not isinstance(err, (LidlPlusAuthError, LidlPlusCannotConnect)):
+                    absent.append(ean)
+                    result.skipped += 1
+                    continue
+                result.failed += 1
+                result.errors.append(f"{ean}: {err}")
+                # sesja, sieć, 429 i każdy błąd zapytania próbnego kończą zlecenie
+                if (
+                    isinstance(err, (LidlPlusAuthError, LidlPlusCannotConnect))
+                    or err.status == 429
+                    or index == 0
+                ):
+                    aborted = True
+                    break
+                continue
+            except (TypeError, ValueError):
+                result.failed += 1
+                result.errors.append(f"{ean}: nieznany kształt odpowiedzi")
+                continue
+            result.ok += 1
+            if row is None:
+                cleared.append(ean)
+            else:
+                rows.append(row)
+    finally:
+        if rows or cleared:
+            history.shelf_replace(store, rows, cleared)
+        if absent:
+            history.shelf_absent_mark(store, absent, now)
+        history.shelf_absent_clear(store, [r.ean for r in rows] + cleared)
+    for error in result.errors:
+        log.warning("Ceny półkowe Biedronki (%s, zlecenie): %s", store, error)
+    meta = {"store": store, "count": result.ok, "failed": result.failed, "absent": len(absent)}
+    if aborted:
+        history.log_event("shelf", "error", "Ceny półkowe Biedronki (zlecenie): przerwano po błędzie", meta)
+    elif result.failed:
+        history.log_event("shelf", "warn", "Ceny półkowe Biedronki (zlecenie): błędy odczytu", meta)
+    else:
+        history.log_event("shelf", "ok", "Ceny półkowe Biedronki (zlecenie): odczytane", meta)
+    return result

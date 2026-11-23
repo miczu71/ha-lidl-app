@@ -53,8 +53,8 @@ def _obs(h: History, source: str | None = None) -> list[tuple[Any, ...]]:
 
 def test_schema_v16_creates_tables(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
-    assert SCHEMA_VERSION == 16
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 16
+    assert SCHEMA_VERSION == 17
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 17
     cols = {r[1] for r in h._db.execute("PRAGMA table_info(catalog_products)")}
     assert cols == {
         "id",
@@ -90,7 +90,7 @@ def test_migrate_v15_keeps_backup_and_adds_tables(tmp_path: Path) -> None:
 
     h = History(path)
     assert (tmp_path / "h.db.pre-catalog").exists()
-    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 16
+    assert h._db.execute("PRAGMA user_version").fetchone()[0] == 17
     assert h._db.execute("SELECT COUNT(*) FROM catalog_products").fetchone()[0] == 0
     old = sqlite3.connect(tmp_path / "h.db.pre-catalog")
     assert old.execute("SELECT id FROM tickets").fetchall() == [("t1",)]

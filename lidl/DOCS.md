@@ -136,7 +136,10 @@ z paragonów (źródło `receipt`) i z publicznego feedu Frisco (`frisco`, pobie
   `size`, `size_unit`, `frisco_id`, `lidl_art`) z `observations` (`source`, `store`, `price`, `regular`, `promo_from`,
   `promo_to`, `observed_at`); domyślnie ostatnia obserwacja per źródło, z `history=1` wszystkie.
 - `GET /api/v1/shelf?store=` — cache cen półkowych Biedronki (`shelf_prices`, domyślnie sklep główny jak w „Cenach
-  półkowych”) w polu `items`: cena, `regular`, okno promocji, `fetched_at`, `stock` i `product` z katalogu po EAN (`null`, gdy EAN spoza katalogu).
+  półkowych”) w polu `items`: cena, `regular`, okno promocji, `fetched_at`, `stock` i `product` z katalogu po EAN (`null`, gdy EAN spoza katalogu); `absent` to EAN-y „brak w Biedronce” (HTTP 404 w ostatnich 30 dniach).
+- `POST /api/v1/shelf` — zlecenie odczytu cen po EAN (E6b.3b): `{"eans": ["5900…"], "store": "<opcjonalnie>"}`, 1–100 EAN-ów
+  po 8–13 cyfr (400 przy błędzie). 202 `{accepted, skipped_fresh, skipped_absent}`, odczyt w tle (zapytanie próbne, partie po 20,
+  1 s w partii, 10 s między partiami; 429 przerywa). 409 z `reason`: `no_store`, `no_account` albo `busy`.
 - `POST /api/v1/catalog/frisco/refresh` — ręczne odświeżenie feedu (409, gdy trwa; 502 przy błędzie pobrania).
 
 ## Prywatność

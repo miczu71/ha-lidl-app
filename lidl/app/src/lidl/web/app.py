@@ -209,6 +209,7 @@ def create_app(settings: Settings) -> FastAPI:
             rewards = RewardsRunner(service)
             promotions = PromotionRunner(session, history)
             app.state.shelf_lock = asyncio.Lock()  # E30.4: ręczny odczyt i poranny nie biegną równolegle
+            app.state.shelf_tasks = set()  # E6b.3b: zlecenia EAN w tle (referencje do czasu końca)
 
             async def morning_shelf() -> shelf_prices.RefreshResult | None:
                 async with app.state.shelf_lock:
@@ -401,12 +402,75 @@ def create_app(settings: Settings) -> FastAPI:
             }
             for r in rows
         ]
+        absent = history.shelf_absent_list(store, datetime.now() - timedelta(days=shelf_prices.ABSENT_DAYS))
         return JSONResponse(
             {
                 "generated_at": datetime.now().isoformat(timespec="seconds"),
                 "store": store or None,
                 "items": items,
+                "absent": absent if store else [],
             }
+        )
+
+    @app.post("/api/v1/shelf")
+    async def api_shelf_request(request: Request) -> Response:
+        """Zlecenie odczytu cen półkowych po EAN (E6b.3b, Dieta): 202 i odczyt w tle pod `shelf_lock`;
+        400 zły JSON/EAN, 409 `no_store`/`no_account`/`busy`. Token sprawdza `guard`."""
+        try:
+            body = await request.json()
+        except ValueError:
+            body = None
+        raw = body.get("eans") if isinstance(body, dict) else None
+        raw_store = body.get("store") if isinstance(body, dict) else None
+        if (
+            not isinstance(raw, list)
+            or not 1 <= len(raw) <= 100
+            or not all(isinstance(e, str) and shelf_prices._EAN_RE.fullmatch(e) for e in raw)
+            or not (raw_store is None or isinstance(raw_store, str))
+        ):
+            return JSONResponse({"detail": "eans: lista 1–100 EAN-ów (8–13 cyfr)."}, status_code=400)
+        history: History = request.app.state.history
+        store = raw_store or history.get_setting("biedronka_store") or ""
+        if not store:
+            return JSONResponse({"detail": "Brak sklepu Biedronki.", "reason": "no_store"}, status_code=409)
+        slugs = chain_savings._bdr_slugs(service(request))
+        if not slugs:
+            return JSONResponse(
+                {"detail": "Brak połączonego konta Biedronki.", "reason": "no_account"}, status_code=409
+            )
+        lock: asyncio.Lock = request.app.state.shelf_lock
+        if lock.locked():
+            return JSONResponse({"detail": "Odczyt cen już trwa.", "reason": "busy"}, status_code=409)
+        await lock.acquire()  # bez await między sprawdzeniem a zajęciem: zamek trzyma zadanie w tle
+        now = datetime.now()
+        try:
+            todo, n_fresh, n_absent = shelf_prices.partition_eans(history, store, raw, now)
+        except Exception:
+            lock.release()
+            raise
+        svc = service(request)
+
+        async def run() -> None:
+            try:
+                api = await svc.chain_api(slugs[0])
+                await shelf_prices.refresh_eans(history, api, store, todo, now=now)
+            except Exception as err:  # zadanie w tle: nic nie wycieka, w logu tylko typ błędu
+                log.warning("Zlecenie cen półkowych nieudane: %s", type(err).__name__)
+                history.log_event(
+                    "shelf",
+                    "error",
+                    "Ceny półkowe Biedronki (zlecenie): nieudane",
+                    {"error": type(err).__name__},
+                )
+            finally:
+                lock.release()
+
+        task = asyncio.create_task(run())
+        tasks: set[asyncio.Task[None]] = request.app.state.shelf_tasks
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
+        return JSONResponse(
+            {"accepted": len(todo), "skipped_fresh": n_fresh, "skipped_absent": n_absent}, status_code=202
         )
 
     @app.post("/api/v1/catalog/frisco/refresh")
