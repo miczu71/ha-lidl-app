@@ -6,6 +6,7 @@
   nazwy, liczba zakupów, wydatek po rabacie, daty, kategoria). Dostęp tokenem Bearer z nowej opcji `api_token`
   (puste = API wyłączone, 503), poza Ingressem; reszta tras nadal tylko przez Ingress. Odrzucone próby trafiają do logu.
 - Bez zmiany schematu bazy i bez zmian w interfejsie.
+- `/api/v1/purchases`: nowe pola `unit_price` (mediana ceny za sztukę/kg po rabacie), `last_unit_price` i `is_weight` (z ostatniego paragonu); `null` bez pozycji o ilości > 0.
 
 ## 1.9.3
 

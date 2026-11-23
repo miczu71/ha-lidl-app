@@ -156,3 +156,51 @@ def test_ok_with_token_and_no_store(tmp_path: Path) -> None:
 def test_other_paths_still_ingress_only(prod: TestClient) -> None:
     assert prod.get("/produkty").status_code == 403
     assert prod.get("/produkty", headers={"Authorization": f"Bearer {TOKEN}"}).status_code == 403
+
+
+def _unit_history(tmp_path: Path, items: list[tuple[str, str, ReceiptItem]]) -> History:
+    h = History(tmp_path / "u.db")
+    h.upsert_tickets("a", [_ticket(tid, day) for tid, day, _ in items])
+    for tid, _, it in items:
+        h.save_detail(tid, "S", ParsedReceipt(items=[it]))
+    return h
+
+
+def test_unit_price_weight_item_per_kg_with_discount(tmp_path: Path) -> None:
+    it = ReceiptItem("w1", "Jabłka", 0.5, 8.0, 4.0, discount=-1.0, is_weight=True)
+    h = _unit_history(tmp_path, [("w", "2026-11-01", it)])
+    (p,) = h.purchase_aggregates(12, TODAY)
+    assert p["unit_price"] == 6.0 and p["last_unit_price"] == 6.0 and p["is_weight"] is True
+
+
+def test_unit_price_packaged_per_piece(tmp_path: Path) -> None:
+    h = _unit_history(tmp_path, [("p", "2026-11-01", ReceiptItem("p1", "Mleko", 2, 3.0, 6.0))])
+    (p,) = h.purchase_aggregates(12, TODAY)
+    assert p["unit_price"] == 3.0 and p["is_weight"] is False
+
+
+def test_unit_price_median_robust_to_one_promo(tmp_path: Path) -> None:
+    items = [
+        ("a", "2026-09-01", ReceiptItem("m", "Masło", 1, 6.0, 6.0)),
+        ("b", "2026-10-01", ReceiptItem("m", "Masło", 1, 6.0, 6.0)),
+        ("c", "2026-11-01", ReceiptItem("m", "Masło", 1, 6.0, 6.0, discount=-3.0)),
+    ]
+    (p,) = _unit_history(tmp_path, items).purchase_aggregates(12, TODAY)
+    assert p["unit_price"] == 6.0 and p["last_unit_price"] == 3.0
+
+
+def test_unit_price_skips_zero_quantity(tmp_path: Path) -> None:
+    items = [
+        ("a", "2026-10-01", ReceiptItem("z", "Kaucja", 0, 0.0, 0.0, discount=-1.0)),
+        ("b", "2026-11-01", ReceiptItem("z", "Kaucja", 0, 0.0, 0.0)),
+    ]
+    (p,) = _unit_history(tmp_path, items).purchase_aggregates(12, TODAY)
+    assert p["unit_price"] is None and p["last_unit_price"] is None and p["is_weight"] is None
+    assert p["purchases"] == 2
+
+
+def test_unit_fields_additive_and_in_api(prod: TestClient) -> None:
+    r = prod.get("/api/v1/purchases", headers={"Authorization": f"Bearer {TOKEN}"})
+    milk = next(p for p in r.json()["products"] if p["code"] == "111")
+    assert {"unit_price", "last_unit_price", "is_weight"} <= set(milk)
+    assert milk["spend"] == 30.5 and milk["purchases"] == 3

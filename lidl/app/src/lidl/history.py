@@ -1671,21 +1671,27 @@ class History:
         start = date(year, month, day).isoformat()
         resolve, categories = self._resolver(), self._categories()
         rows = self._db.execute(
-            "SELECT i.art_id, i.name, i.total + i.discount, t.day, t.chain"
+            "SELECT i.art_id, i.name, i.total + i.discount, t.day, t.chain, i.quantity, i.is_weight"
             " FROM items i JOIN tickets t ON t.id = i.ticket_id"
             " WHERE t.day >= ? AND t.day <= ? ORDER BY t.day, i.ticket_id, i.line",
             (start, end.isoformat()),
         )
         acc: dict[str, dict[str, Any]] = {}
-        for art_id, name, amount, day_s, chain in rows:
-            p = acc.setdefault(resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0})
+        for art_id, name, amount, day_s, chain, quantity, is_weight in rows:
+            p = acc.setdefault(
+                resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0, "units": []}
+            )
             p["names"][name] += 1
             p["days"].add(day_s)
             p["spend"] += amount
             p["chain"] = chain  # ostatni paragon wygrywa (wiersze rosnąco po dniu)
+            if quantity > 0:  # sztuki albo kg (is_weight); cena płacona za jednostkę, po rabacie
+                p["units"].append(amount / quantity)
+                p["is_weight"] = bool(is_weight)
         out = []
         for code, p in sorted(acc.items()):
             days = sorted(p["days"])
+            units = p["units"]
             out.append(
                 {
                     "code": code,
@@ -1698,6 +1704,9 @@ class History:
                     "last": days[-1],
                     "dates": days,
                     "category": categories.get(code, ("food", None))[0],
+                    "unit_price": round(statistics.median(units), 2) if units else None,
+                    "last_unit_price": round(units[-1], 2) if units else None,
+                    "is_weight": p.get("is_weight"),
                 }
             )
         return out
