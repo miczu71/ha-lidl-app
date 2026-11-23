@@ -26,7 +26,7 @@ def ingest_receipts(history: History, ticket_id: str | None = None) -> int:
 
 
 def backfill_receipts(history: History) -> int:
-    """Start add-onu: pełny backfill tylko do pierwszego wypełnienia katalogu (potem paragony wchodzą pojedynczo)."""
+    """Start add-onu: pełny backfill tylko przy pustym katalogu (potem paragony wchodzą pojedynczo)."""
     return 0 if history.catalog_has_receipt_obs() else ingest_receipts(history)
 
 

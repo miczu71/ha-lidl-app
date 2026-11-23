@@ -15,10 +15,10 @@ import logging
 import sqlite3
 import statistics
 import zlib
-from contextlib import contextmanager, nullcontext
 from bisect import bisect_right
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from itertools import groupby
