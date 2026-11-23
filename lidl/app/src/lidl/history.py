@@ -1679,7 +1679,7 @@ class History:
         acc: dict[str, dict[str, Any]] = {}
         for art_id, name, amount, day_s, chain, quantity, is_weight in rows:
             p = acc.setdefault(
-                resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0, "units": []}
+                resolve(art_id, name), {"names": Counter(), "days": set(), "spend": 0.0, "units": [], "is_weight": None}
             )
             p["names"][name] += 1
             p["days"].add(day_s)
@@ -1706,7 +1706,7 @@ class History:
                     "category": categories.get(code, ("food", None))[0],
                     "unit_price": round(statistics.median(units), 2) if units else None,
                     "last_unit_price": round(units[-1], 2) if units else None,
-                    "is_weight": p.get("is_weight"),
+                    "is_weight": p["is_weight"],
                 }
             )
         return out
