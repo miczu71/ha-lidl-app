@@ -27,6 +27,7 @@ USER_AGENT = "Mozilla/5.0 (compatible; ha-shopping-addon)"
 SOURCE = "frisco"
 WEEKLY_DAY = 6  # niedziela (datetime.weekday)
 WEEKLY_AT = time(3, 0)
+MAX_FEED_BYTES = 150 * 1024 * 1024  # feed ma ~50 MB; twardy limit chroni dysk i pamięć
 LOCK = asyncio.Lock()  # jeden przebieg naraz: pętla tygodniowa i ręczne odświeżenie
 
 Fetch = Callable[[Path], Awaitable[None]]
@@ -48,8 +49,14 @@ def downloader(session: aiohttp.ClientSession) -> Fetch:
         timeout = aiohttp.ClientTimeout(total=600)
         async with session.get(FEED_URL, headers={"User-Agent": USER_AGENT}, timeout=timeout) as resp:
             resp.raise_for_status()
+            if resp.content_length is not None and resp.content_length > MAX_FEED_BYTES:
+                raise ValueError("feed za duży")
+            total = 0
             with dest.open("wb") as fh:
                 async for chunk in resp.content.iter_chunked(1 << 16):
+                    total += len(chunk)
+                    if total > MAX_FEED_BYTES:
+                        raise ValueError("feed za duży")
                     fh.write(chunk)
 
     return fetch
@@ -140,6 +147,8 @@ async def refresh(history: History, fetch: Fetch, directory: Path, *, now: datet
         try:
             await fetch(tmp)
             products = await asyncio.to_thread(_load, tmp)
+            if not products:
+                raise ValueError("feed bez produktów")
             res = ingest(history, products, day)  # w wątku pętli: wspólne połączenie sqlite, jedna transakcja
         except Exception as err:
             log.exception("Katalog cen: feed Frisco nieudany")

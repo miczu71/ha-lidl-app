@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
@@ -426,7 +427,9 @@ def create_app(settings: Settings) -> FastAPI:
             not isinstance(raw, list)
             or not 1 <= len(raw) <= 100
             or not all(isinstance(e, str) and shelf_prices._EAN_RE.fullmatch(e) for e in raw)
-            or not (raw_store is None or isinstance(raw_store, str))
+            or not (
+                raw_store is None or (isinstance(raw_store, str) and re.fullmatch(r"[\w-]{1,32}", raw_store))
+            )
         ):
             return JSONResponse({"detail": "eans: lista 1–100 EAN-ów (8–13 cyfr)."}, status_code=400)
         history: History = request.app.state.history

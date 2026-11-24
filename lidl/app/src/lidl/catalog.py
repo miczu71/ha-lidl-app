@@ -7,13 +7,14 @@ z nich (`b:<nazwa>`) są pomijane. Cena obserwacji to cena jednostkowa po rabaci
 from __future__ import annotations
 
 from .history import History
+from .shelf_prices import _EAN_RE
 
 RECEIPT = "receipt"
 
 
 def _ean(art_id: str) -> str | None:
     code = art_id.removeprefix("b:")
-    return code if code.isdigit() and 8 <= len(code) <= 14 else None
+    return code if _EAN_RE.fullmatch(code) else None
 
 
 def ingest_receipts(history: History, ticket_id: str | None = None) -> int:
