@@ -25,7 +25,8 @@ BATCH_SIZE = 20  # E6b.3b: zlecenia po EAN idą partiami
 BATCH_PAUSE_S = 10.0  # pauza między partiami (w partii: REQUEST_PAUSE_S)
 FRESH_DAYS = 7  # cena młodsza niż tyle dni nie jest odpytywana ponownie
 ABSENT_DAYS = 30  # EAN z 404 młodszy niż tyle dni nie jest odpytywany ponownie
-_EAN_RE = re.compile(r"\d{8,13}")
+EAN_RE = re.compile(r"\d{8,13}")
+STORE_RE = re.compile(r"[\w-]{1,32}")  # kod sklepu Biedronki, np. "0001"
 _PROMO_END_RE = re.compile(r"do\s+(\d{1,2})\.(\d{1,2})")
 _PROMO_YEAR_BACK = 180  # data końca więcej niż tyle dni przed dziś = przełom roku
 BACK_KEY = "shelf_back_pending"  # E30.3: JSON-lista EAN-ów, które wróciły na półkę, a nie są jeszcze w pushu
@@ -46,7 +47,7 @@ def watched_eans(history: History) -> set[str]:
     found: set[str] = set()
     for code in history.watched_codes():
         prefix, _, rest = code.partition(":")
-        if prefix in ("b", "n") and _EAN_RE.fullmatch(rest):
+        if prefix in ("b", "n") and EAN_RE.fullmatch(rest):
             found.add(rest)
     return found
 
@@ -55,7 +56,7 @@ def targets(history: History) -> list[str]:
     """EAN-y do odczytu: obserwowane kody `b:`/`n:` z samym EAN-em i strona Biedronki zatwierdzonych par."""
     found = watched_eans(history)
     for pair in history.chain_pair_list():
-        if pair.status == "approved" and _EAN_RE.fullmatch(pair.b_art_id):
+        if pair.status == "approved" and EAN_RE.fullmatch(pair.b_art_id):
             found.add(pair.b_art_id)
     return sorted(found)[:MAX_EANS]
 
