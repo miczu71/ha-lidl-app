@@ -122,6 +122,20 @@ def test_receipt_ingest_biedronka_by_ean_and_lidl_by_art(tmp_path: Path) -> None
     assert rows == [("5900000000011", "receipt", "biedronka", 3.0, 3.5, "2026-11-01")]  # (7,0 - 1,0) / 2
 
 
+def test_receipt_ingest_gtin14_with_leading_zero_becomes_ean13_and_others_are_logged(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    h = History(tmp_path / "h.db")
+    with caplog.at_level("INFO", logger="lidl.catalog"):
+        _save(h, "g1", "2026-11-01", ReceiptItem("b:05900000000028", "Ser", 1, 4.0, 4.0), chain="biedronka")
+        _save(
+            h, "g2", "2026-11-02", ReceiptItem("b:15900000000025", "Jogurt", 1, 2.0, 2.0), chain="biedronka"
+        )
+        _save(h, "g3", "2026-11-03", ReceiptItem("b:mleko luz", "Mleko luz", 1, 3.0, 3.0), chain="biedronka")
+    assert h._db.execute("SELECT ean FROM catalog_products").fetchall() == [("5900000000028",)]
+    assert caplog.text.count("pominięto 1 ") == 1  # tylko 14-cyfrowy bez wiodącego 0; `b:<nazwa>` to nie błąd
+
+
 def test_receipt_ingest_dedupes_equal_price_and_is_idempotent(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     item = ("b:5900000000011", "Mleko")
