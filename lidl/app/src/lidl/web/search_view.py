@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from datetime import date
 from typing import Any
 
 from lidl.history import History
 from lidl.search import SearchHit, ean_of
 from lidl.text import CHAIN_LABELS, fmt_day_month, fmt_pln
+
+from .chart import parse_date
 
 LIDL_CODE_RE = re.compile(r"\d{7}")
 
@@ -34,10 +35,6 @@ def known_eans(history: History) -> set[str]:
     return eans
 
 
-def _day(iso: str | None) -> date | None:
-    return date.fromisoformat(iso[:10]) if iso else None
-
-
 def _watch_key(h: SearchHit) -> str | None:
     if h.chain == "biedronka" and h.ean:
         return f"b:{h.ean}"
@@ -50,8 +47,8 @@ def rows(hits: Iterable[SearchHit], watched: set[str]) -> list[dict[str, Any]]:
     """Wiersze listy wyników dla szablonu `_search_results.html`."""
     out: list[dict[str, Any]] = []
     for h in hits:
-        last = _day(h.last_date)
-        until = _day(h.until)
+        last = parse_date(h.last_date)
+        until = parse_date(h.until)
         watch_key = _watch_key(h)
         history = f"kupowane {h.purchases}× · ostatnio {fmt_day_month(last)}" if h.purchases and last else ""
         out.append(

@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
+from fastapi.testclient import TestClient
 
 from lidl import shelf_prices
 from lidl.accounts import Account
 from lidl.client.exceptions import LidlPlusAuthError, LidlPlusCannotConnect, LidlPlusError
 from lidl.history import History, ShelfPrice
+from lidl.settings import Settings
 from lidl.shelf_prices import (
     MAX_EANS,
     ShelfOffer,
@@ -23,6 +26,7 @@ from lidl.shelf_prices import (
     shelf_offers,
     targets,
 )
+from lidl.web.app import create_app
 
 NOW = datetime(2026, 11, 21, 7, 0, 0)
 TODAY = date(2026, 11, 21)
@@ -593,3 +597,48 @@ async def test_refresh_morning_without_store_logs_warn_event(tmp_path: Path) -> 
             ("shelf", "warn", "Ceny półkowe Biedronki: pominięto — brak połączonego konta"),
         ]
     )
+
+
+# --- granice walidacji EAN i sklepu (E9c) ---
+
+TOKEN = "t0ken-for-tests"
+AUTH = {"Authorization": f"Bearer {TOKEN}"}
+
+
+@pytest.mark.parametrize("ean", ["12345678", "1234567890123"])
+def test_ean_re_accepts_8_and_13_digits(ean: str) -> None:
+    assert shelf_prices.EAN_RE.fullmatch(ean)
+
+
+@pytest.mark.parametrize("ean", ["1234567", "12345678901234", "1234567a", ""])
+def test_ean_re_rejects_7_and_14_digits(ean: str) -> None:
+    assert not shelf_prices.EAN_RE.fullmatch(ean)
+
+
+def test_store_re_bounds() -> None:
+    assert shelf_prices.STORE_RE.fullmatch("a" * 32)
+    assert not shelf_prices.STORE_RE.fullmatch("a" * 33)
+    assert not shelf_prices.STORE_RE.fullmatch("")
+    assert shelf_prices.STORE_RE.fullmatch("0001")
+
+
+@pytest.fixture
+def web_client(tmp_path: Path) -> Iterator[TestClient]:
+    s = Settings(
+        data_dir=tmp_path, log_level="info", dev=False, share_dir=tmp_path / "share", api_token=TOKEN
+    )
+    with TestClient(create_app(s)) as c:
+        yield c
+
+
+@pytest.mark.parametrize("store", ["a" * 32, "0001"])
+def test_shelf_post_accepts_store_within_bounds(web_client: TestClient, store: str) -> None:
+    r = web_client.post("/api/v1/shelf", json={"eans": ["5900000000011"], "store": store}, headers=AUTH)
+    # walidacja `store` przeszła; bez konta Biedronki handler kończy na kolejnym kroku
+    assert r.status_code == 409 and r.json()["reason"] == "no_account"
+
+
+@pytest.mark.parametrize("store", ["a" * 33, "", 1234, ["0001"]])
+def test_shelf_post_rejects_store_out_of_bounds_or_not_string(web_client: TestClient, store: Any) -> None:
+    r = web_client.post("/api/v1/shelf", json={"eans": ["5900000000011"], "store": store}, headers=AUTH)
+    assert r.status_code == 400 and r.json()["detail"].startswith("store:")

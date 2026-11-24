@@ -18,6 +18,7 @@ from typing import Any
 
 import aiohttp
 
+from .daily import scheduled_loop
 from .history import History
 
 log = logging.getLogger(__name__)
@@ -186,9 +187,9 @@ async def weekly_loop(
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> None:
     """Co niedzielę o 03:00 odświeża katalog; błąd jednego przebiegu nie zatrzymuje kolejnych."""
-    while True:
-        await sleep(seconds_until_weekly(now()))
-        try:
-            await refresh(history, fetch, directory, now=now())
-        except Exception:
-            log.exception("Katalog cen: przebieg tygodniowy nieudany")
+    async def job() -> None:
+        await refresh(history, fetch, directory, now=now())
+
+    await scheduled_loop(
+        seconds_until_weekly, job, now=now, sleep=sleep, label="Katalog cen: przebieg tygodniowy"
+    )

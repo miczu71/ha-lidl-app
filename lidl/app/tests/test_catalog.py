@@ -45,10 +45,12 @@ async def _fetch_fixture(dest: Path) -> None:
 
 
 def _obs(h: History, source: str | None = None) -> list[tuple[Any, ...]]:
-    sql = "SELECT product_id, source, price, regular, observed_at FROM catalog_obs"
-    if source:
-        sql += f" WHERE source = '{source}'"
-    return h._db.execute(sql + " ORDER BY id").fetchall()
+    """Obserwacje katalogu: (product_id, source, price, regular, observed_at), po produkcie i dacie."""
+    return [
+        (p["id"], o["source"], o["price"], o["regular"], o["observed_at"])
+        for p in h.catalog_products(source=source, history=True)
+        for o in p["observations"]
+    ]
 
 
 def test_schema_v16_creates_tables(tmp_path: Path) -> None:
@@ -91,7 +93,7 @@ def test_migrate_v15_keeps_backup_and_adds_tables(tmp_path: Path) -> None:
     h = History(path)
     assert (tmp_path / "h.db.pre-catalog").exists()
     assert h._db.execute("PRAGMA user_version").fetchone()[0] == 17
-    assert h._db.execute("SELECT COUNT(*) FROM catalog_products").fetchone()[0] == 0
+    assert len(h.catalog_products()) == 0
     old = sqlite3.connect(tmp_path / "h.db.pre-catalog")
     assert old.execute("SELECT id FROM tickets").fetchall() == [("t1",)]
     old.close()
@@ -109,16 +111,15 @@ def test_receipt_ingest_biedronka_by_ean_and_lidl_by_art(tmp_path: Path) -> None
     )
     _save(h, "l1", "2026-11-02", ReceiptItem("0193875", "Bagietka", 1, 2.5, 2.5))
     _save(h, "b2", "2026-11-03", ReceiptItem("b:mleko bez kodu", "Mleko luz", 1, 3.0, 3.0), chain="biedronka")
-    by_ean = h._db.execute("SELECT name FROM catalog_products WHERE ean = '5900000000011'").fetchall()
-    assert by_ean == [("Mleko",)]
-    assert h._db.execute("SELECT name FROM catalog_products WHERE lidl_art = '0193875'").fetchall() == [
-        ("Bagietka",)
+    assert [p["name"] for p in h.catalog_products(eans={"5900000000011"})] == ["Mleko"]
+    assert [p["name"] for p in h.catalog_products() if p["lidl_art"] == "0193875"] == ["Bagietka"]
+    assert len(h.catalog_products()) == 2  # `b:<nazwa>` pominięte
+    rows = [
+        (p["ean"], o["source"], o["store"], o["price"], o["regular"], o["observed_at"])
+        for p in h.catalog_products()
+        if p["ean"] is not None
+        for o in p["observations"]
     ]
-    assert h._db.execute("SELECT COUNT(*) FROM catalog_products").fetchone()[0] == 2  # `b:<nazwa>` pominięte
-    rows = h._db.execute(
-        "SELECT p.ean, o.source, o.store, o.price, o.regular, o.observed_at FROM catalog_obs o"
-        " JOIN catalog_products p ON p.id = o.product_id WHERE p.ean IS NOT NULL"
-    ).fetchall()
     assert rows == [("5900000000011", "receipt", "biedronka", 3.0, 3.5, "2026-11-01")]  # (7,0 - 1,0) / 2
 
 
@@ -132,7 +133,7 @@ def test_receipt_ingest_gtin14_with_leading_zero_becomes_ean13_and_others_are_lo
             h, "g2", "2026-11-02", ReceiptItem("b:15900000000025", "Jogurt", 1, 2.0, 2.0), chain="biedronka"
         )
         _save(h, "g3", "2026-11-03", ReceiptItem("b:mleko luz", "Mleko luz", 1, 3.0, 3.0), chain="biedronka")
-    assert h._db.execute("SELECT ean FROM catalog_products").fetchall() == [("5900000000028",)]
+    assert [p["ean"] for p in h.catalog_products()] == ["5900000000028"]
     assert caplog.text.count("pominięto 1 ") == 1  # tylko 14-cyfrowy bez wiodącego 0; `b:<nazwa>` to nie błąd
 
 
@@ -190,15 +191,15 @@ async def test_frisco_ingest_from_fixture(tmp_path: Path) -> None:
     h = History(tmp_path / "h.db")
     res = await frisco_feed.refresh(h, _fetch_fixture, tmp_path / "catalog", now=NOW)
     assert (res.products, res.observations, res.busy) == (19, 19, False)  # 20 w pliku, jeden bez EAN
-    milk = h._db.execute(
-        "SELECT id, name, brand, size, size_unit, frisco_id FROM catalog_products WHERE ean = '5900000000011'"
-    ).fetchone()
-    assert milk[1:] == ("Mleko testowe 3,2% 1 l", "Mlekoland", 1.0, "Litre", "1000")
-    promo = h._db.execute(
-        "SELECT source, store, price, regular, promo_to, observed_at FROM catalog_obs WHERE product_id = ?",
-        (milk[0],),
-    ).fetchone()
-    assert promo == ("frisco", "frisco", 2.99, 3.49, "2026-12-13T23:59:00+01:00", "2026-11-23")
+    milk = h.catalog_products(eans={"5900000000011"})[0]
+    assert (milk["name"], milk["brand"], milk["size"], milk["size_unit"], milk["frisco_id"]) == (
+        "Mleko testowe 3,2% 1 l", "Mlekoland", 1.0, "Litre", "1000",
+    )  # fmt: skip
+    promo = [
+        (o["source"], o["store"], o["price"], o["regular"], o["promo_to"], o["observed_at"])
+        for o in milk["observations"]
+    ]
+    assert promo == [("frisco", "frisco", 2.99, 3.49, "2026-12-13T23:59:00+01:00", "2026-11-23")]
     assert not list((tmp_path / "catalog").glob("*.tmp"))  # plik feedu sprzątany
     assert h.events(datetime(2026, 1, 1), area="catalog")[0].level == "ok"
 
@@ -219,7 +220,7 @@ async def test_frisco_reingest_adds_no_observations_and_tracks_changes(tmp_path:
 
     changed = await frisco_feed.refresh(h, cheaper, tmp_path / "catalog", now=datetime(2026, 11, 30, 3, 0))
     assert changed.observations == 1
-    assert _obs(h, "frisco")[-1][2:] == (4.99, 4.99, "2026-11-30")
+    assert [r[2:] for r in _obs(h, "frisco") if r[4] == "2026-11-30"] == [(4.99, 4.99, "2026-11-30")]
     assert len(_obs(h, "frisco")) == 20
 
 
@@ -248,9 +249,7 @@ def test_receipt_and_frisco_share_one_product_by_ean(tmp_path: Path) -> None:
     import asyncio
 
     asyncio.run(frisco_feed.refresh(h, _fetch_fixture, tmp_path / "catalog", now=NOW))
-    assert h._db.execute("SELECT COUNT(*) FROM catalog_products WHERE ean = '5900000000011'").fetchone() == (
-        1,
-    )
+    assert len([p for p in h.catalog_products() if p["ean"] == "5900000000011"]) == 1
     prod = {p["ean"]: p for p in h.catalog_products()}["5900000000011"]
     assert {o["source"] for o in prod["observations"]} == {"receipt", "frisco"}
 

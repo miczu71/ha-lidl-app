@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from lidl.history import SpendBucket
-from lidl.web.chart import build_chart, build_line, fmt_pln, fmt_qty, parse_chart_query
+from lidl.web.chart import build_chart, build_line, fmt_pln, fmt_qty, parse_chart_query, parse_date
 
 TODAY = date(2026, 10, 7)
 NBSP = " "
@@ -173,3 +173,12 @@ def test_fmt_money_uses_nbsp_comma_and_currency_code() -> None:
 
     assert fmt_money(175.4, "CZK") == f"175,40{NBSP}CZK"
     assert fmt_money(1234.5, "EUR") == f"1{NBSP}234,50{NBSP}EUR"
+
+
+def test_parse_date_accepts_timestamp_and_rejects_garbage() -> None:
+    assert parse_date("2026-11-23") == date(2026, 11, 23)
+    assert parse_date("2026-11-21T22:59:59Z") == date(2026, 11, 21)
+    assert parse_date("2026-11-23T10:00:00+01:00") == date(2026, 11, 23)
+    assert parse_date("") is None
+    assert parse_date(None) is None
+    assert parse_date("nie-data") is None

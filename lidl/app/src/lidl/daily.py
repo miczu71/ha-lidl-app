@@ -49,6 +49,24 @@ def seconds_until(now: datetime, at: time) -> float:
     return (target - now).total_seconds()
 
 
+async def scheduled_loop(
+    seconds_until_next: Callable[[datetime], float],
+    job: Callable[[], Awaitable[None]],
+    *,
+    now: Callable[[], datetime],
+    sleep: Callable[[float], Awaitable[None]],
+    label: str,
+) -> None:
+    """Wspólna pętla harmonogramu: czeka `seconds_until_next(now())` i uruchamia `job`; błąd jednego
+    przebiegu (logowany jako `label`) nie zatrzymuje kolejnych."""
+    while True:
+        await sleep(seconds_until_next(now()))
+        try:
+            await job()
+        except Exception:
+            log.exception("%s nieudany", label)
+
+
 async def at_time_loop(
     at: time,
     job: Callable[[], Awaitable[None]],
@@ -57,12 +75,7 @@ async def at_time_loop(
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> None:
     """Codziennie o `at` uruchamia `job`; błąd jednego przebiegu nie zatrzymuje kolejnych."""
-    while True:
-        await sleep(seconds_until(now(), at))
-        try:
-            await job()
-        except Exception:
-            log.exception("Dzienny przebieg nieudany")
+    await scheduled_loop(lambda n: seconds_until(n, at), job, now=now, sleep=sleep, label="Dzienny przebieg")
 
 
 def next_hour(now: datetime) -> datetime:

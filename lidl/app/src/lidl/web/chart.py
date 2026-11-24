@@ -58,7 +58,7 @@ class Chart:
 
 def parse_date(value: str | None) -> date | None:
     try:
-        return date.fromisoformat(value) if value else None
+        return date.fromisoformat(value[:10]) if value else None
     except ValueError:
         return None
 
