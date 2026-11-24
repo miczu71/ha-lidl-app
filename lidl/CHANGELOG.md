@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.12.2
+
+- Kody GTIN-14 z wiodącym zerem z paragonów są traktowane jak EAN-13; inne kody poza 8–13 cyfr są liczone i logowane zamiast cichego pominięcia.
+- Wewnętrznie: jedna pętla harmonogramu (dzienna i tygodniowa), wspólny parser dat (daty z czasem w wyszukiwarce), testy granic kodu sklepu i EAN.
+
 ## 1.12.1
 
 - Hartowanie API i feedu (E6c, dług z przeglądu 1.12.0): pobieranie feedu Frisco ma limit 150 MiB (sprawdzany po `Content-Length`
