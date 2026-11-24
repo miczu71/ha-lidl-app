@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from lidl.dates import parse_date
 from lidl.history import SpendBucket
 from lidl.savings import SavingsMonth
 from lidl.text import GENITIVE_MONTHS
@@ -54,13 +55,6 @@ class Chart:
     average: str
     per: str
     empty: bool
-
-
-def parse_date(value: str | None) -> date | None:
-    try:
-        return date.fromisoformat(value[:10]) if value else None
-    except ValueError:
-        return None
 
 
 def _last_12_months(today: date) -> tuple[date, date]:

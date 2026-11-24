@@ -6,10 +6,11 @@ from collections.abc import Callable, Mapping
 from datetime import date
 from typing import Any
 
+from lidl.dates import parse_date
 from lidl.history import Purchase, RankedProduct, ReceiptFilter, ReceiptLine, TicketDetail, TicketSummary
 from lidl.text import CHAIN_LABELS, CHAIN_WHERE, chain_label, count_text, fmt_date, fmt_day_month, fmt_money
 
-from .chart import fmt_month_year, fmt_pln, fmt_qty, parse_date
+from .chart import fmt_month_year, fmt_pln, fmt_qty
 from .prices import fmt_price
 from .products import purchases_meta
 

@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 
+from lidl.dates import parse_date
 from lidl.history import SpendBucket
-from lidl.web.chart import build_chart, build_line, fmt_pln, fmt_qty, parse_chart_query, parse_date
+from lidl.web.chart import build_chart, build_line, fmt_pln, fmt_qty, parse_chart_query
 
 TODAY = date(2026, 10, 7)
 NBSP = " "

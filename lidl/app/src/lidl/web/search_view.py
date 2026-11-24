@@ -6,11 +6,10 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
+from lidl.dates import parse_date
 from lidl.history import History
 from lidl.search import SearchHit, ean_of
 from lidl.text import CHAIN_LABELS, fmt_day_month, fmt_pln
-
-from .chart import parse_date
 
 LIDL_CODE_RE = re.compile(r"\d{7}")
 
