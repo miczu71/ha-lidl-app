@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.1
+
+- Hartowanie API i feedu (E6c, dług z przeglądu 1.12.0): pobieranie feedu Frisco ma limit 150 MiB (sprawdzany po `Content-Length`
+  i w trakcie strumieniowania); feed bez produktów jest błędem w dzienniku (`catalog`), a nie „ok”, i nie zastępuje katalogu;
+  dziennik zawiera teraz też treść błędu (`detail`).
+- `POST /api/v1/shelf`: `store` musi być kodem sklepu (1–32 znaki: litery, cyfry, `_`, `-`), inaczej 400 z komunikatem
+  `store: …` (wcześniej każdy tekst trafiał dalej).
+- Ingest paragonów: kod Biedronki `b:<EAN>` ma 8–13 cyfr, jak w zleceniach półkowych (14-cyfrowe GTIN-14 są pomijane).
+
 ## 1.12.0
 
 - Zlecenia cen półkowych po EAN (E6b.3b, dla Diety): `POST /api/v1/shelf` (`{"eans": [...], "store": "..."}`, 1–100 EAN-ów) odpowiada
