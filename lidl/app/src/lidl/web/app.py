@@ -426,12 +426,14 @@ def create_app(settings: Settings) -> FastAPI:
             not isinstance(raw, list)
             or not 1 <= len(raw) <= 100
             or not all(isinstance(e, str) and shelf_prices.EAN_RE.fullmatch(e) for e in raw)
-            or not (
-                raw_store is None
-                or (isinstance(raw_store, str) and shelf_prices.STORE_RE.fullmatch(raw_store))
-            )
         ):
             return JSONResponse({"detail": "eans: lista 1–100 EAN-ów (8–13 cyfr)."}, status_code=400)
+        if not (
+            raw_store is None or (isinstance(raw_store, str) and shelf_prices.STORE_RE.fullmatch(raw_store))
+        ):
+            return JSONResponse(
+                {"detail": "store: kod sklepu (1–32 znaki: litery, cyfry, _ lub -)."}, status_code=400
+            )
         history: History = request.app.state.history
         store = raw_store or history.get_setting("biedronka_store") or ""
         if not store:

@@ -152,7 +152,9 @@ async def refresh(history: History, fetch: Fetch, directory: Path, *, now: datet
             res = ingest(history, products, day)  # w wątku pętli: wspólne połączenie sqlite, jedna transakcja
         except Exception as err:
             log.exception("Katalog cen: feed Frisco nieudany")
-            history.log_event("catalog", "error", "Feed Frisco: błąd", {"error": type(err).__name__})
+            history.log_event(
+                "catalog", "error", "Feed Frisco: błąd", {"error": type(err).__name__, "detail": str(err)}
+            )
             return Result(error=f"{type(err).__name__}: {err}")
         finally:
             tmp.unlink(missing_ok=True)

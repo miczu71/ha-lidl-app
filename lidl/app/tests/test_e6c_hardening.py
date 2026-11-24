@@ -99,11 +99,13 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
 def test_shelf_post_rejects_bad_store(client: TestClient, store: str) -> None:
     r = client.post("/api/v1/shelf", json={"eans": ["5900000000011"], "store": store}, headers=AUTH)
     assert r.status_code == 400
+    assert r.json()["detail"].startswith("store:")
 
 
 def test_shelf_post_accepts_store_code(client: TestClient) -> None:
     r = client.post("/api/v1/shelf", json={"eans": ["5900000000011"], "store": "0001"}, headers=AUTH)
-    assert r.status_code != 400
+    # walidacja przeszła; bez konta Biedronki handler kończy na kolejnym kroku
+    assert r.status_code == 409 and r.json()["reason"] == "no_account"
 
 
 def test_ean_is_8_to_13_digits() -> None:
